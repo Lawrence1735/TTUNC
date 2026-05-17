@@ -1,0 +1,20 @@
+# robots.txt for TalentTrackUNC
+# University of Nueva Caceres - Talent Scholar Management System
+
+# Allow all crawlers to access public pages
+User-agent: *
+Allow: /
+Allow: /requirements
+Allow: /apply
+
+# Disallow crawling of dashboard and admin areas
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /settings
+Disallow: /login
+
+# Disallow crawling of API endpoints (if any)
+Disallow: /api/
+
+# Sitemap location (update this URL when deployed to production)
+# Sitemap: https://talenttrack.unc.edu.ph/sitemap.xml

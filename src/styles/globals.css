@@ -1,0 +1,448 @@
+/* Import Accessibility Enhancements */
+@import './accessibility.css';
+
+/* Tailwind CSS v4 - Core Directives */
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+  --background: #F7F8FA;
+  --foreground: #1F2937;
+  --card: #FFFFFF;
+  --card-foreground: #1F2937;
+  --popover: #FFFFFF;
+  --popover-foreground: #1F2937;
+  --primary: #7A1E1E;
+  --primary-foreground: #ffffff;
+  --secondary: #F7F8FA;
+  --secondary-foreground: #1F2937;
+  --muted: #E5E7EB;
+  --muted-foreground: #6B7280;
+  --accent: #e9c0c0;
+  --accent-foreground: #1F2937;
+  --destructive: #991B1B;
+  --destructive-foreground: #ffffff;
+  --border: #E5E7EB;
+  --input: #FFFFFF;
+  --input-background: #FFFFFF;
+  --switch-background: #E5E7EB;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: rgba(122, 30, 30, 0.2);
+  --chart-1: #7A1E1E;
+  --chart-2: #6A1919;
+  --chart-3: #e9c0c0;
+  --chart-4: #166534;
+  --chart-5: #1a5f7a;
+  --radius: 0.5rem;
+  --sidebar: #F7F8FA;
+  --sidebar-foreground: #1F2937;
+  --sidebar-primary: #7A1E1E;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #FFFFFF;
+  --sidebar-accent-foreground: #1F2937;
+  --sidebar-border: #E5E7EB;
+  --sidebar-ring: rgba(122, 30, 30, 0.2);
+  
+  /* UNC Brand Colors - Accessible Palette */
+  --unc-burgundy: #7A1E1E;
+  --unc-burgundy-dark: #6A1919;
+  --unc-burgundy-light: #F5EAEA;
+  --unc-gold: #e9c0c0;
+  --unc-gold-dark: #d9a8a8;
+  --unc-gold-light: #f9e8e8;
+  --unc-gray: #6B7280;
+  --unc-gray-light: #F7F8FA;
+  --unc-gray-dark: #4B5563;
+  
+  /* Complementary UNC Colors - Accessible with muted backgrounds */
+  --unc-success: #166534;
+  --unc-success-bg: #DCFCE7;
+  --unc-info: #1a5f7a;
+  --unc-info-bg: #DBEAFE;
+  --unc-warning: #92400E;
+  --unc-warning-bg: #FEF3C7;
+  --unc-danger: #991B1B;
+  --unc-danger-bg: #FEE2E2;
+  
+  /* Professional shadows */
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.16);
+}
+
+.dark {
+  --background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  --foreground: #f8fafc;
+  --card: rgba(30, 41, 59, 0.95);
+  --card-foreground: #f8fafc;
+  --popover: rgba(30, 41, 59, 0.98);
+  --popover-foreground: #f8fafc;
+  --primary: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%);
+  --primary-foreground: #ffffff;
+  --secondary: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+  --secondary-foreground: #f9fafb;
+  --muted: rgba(55, 65, 81, 0.8);
+  --muted-foreground: #9ca3af;
+  --accent: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  --accent-foreground: #ffffff;
+  --destructive: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  --destructive-foreground: #ffffff;
+  --border: rgba(75, 85, 99, 0.3);
+  --input: rgba(30, 41, 59, 0.9);
+  --input-background: rgba(55, 65, 81, 0.5);
+  --switch-background: #4b5563;
+  --ring: rgba(124, 58, 237, 0.4);
+  --chart-1: #7c3aed;
+  --chart-2: #a855f7;
+  --chart-3: #c084fc;
+  --chart-4: #fbbf24;
+  --chart-5: #10b981;
+  --sidebar: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  --sidebar-foreground: #f8fafc;
+  --sidebar-primary: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(55, 65, 81, 0.8);
+  --sidebar-accent-foreground: #f9fafb;
+  --sidebar-border: rgba(75, 85, 99, 0.2);
+  --sidebar-ring: rgba(124, 58, 237, 0.4);
+  
+  /* Dark mode gradients */
+  --gradient-primary: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  --gradient-secondary: linear-gradient(135deg, #e879f9 0%, #f472b6 100%);
+  --gradient-accent: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+  --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --gradient-warning: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.3);
+  --shadow-medium: 0 8px 30px rgba(0, 0, 0, 0.4);
+  --shadow-strong: 0 15px 60px rgba(0, 0, 0, 0.5);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: Arial, sans-serif;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* Professional UNC styling */
+  .unc-burgundy {
+    background-color: var(--unc-burgundy);
+    color: white;
+  }
+
+  .unc-burgundy-text {
+    color: var(--unc-burgundy);
+  }
+
+  .unc-gold {
+    background-color: var(--unc-gold);
+    color: var(--foreground);
+  }
+
+  .unc-gold-text {
+    color: var(--unc-gold-dark);
+  }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .shadow-medium {
+    box-shadow: var(--shadow-medium);
+  }
+
+  .shadow-strong {
+    box-shadow: var(--shadow-strong);
+  }
+
+  /* Professional button styles */
+  .btn-unc {
+    background-color: var(--unc-burgundy);
+    color: white;
+    border: 2px solid var(--unc-burgundy);
+    transition: all 0.3s ease;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .btn-unc:hover {
+    background-color: var(--unc-burgundy-dark);
+    border-color: var(--unc-burgundy-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-medium);
+  }
+
+  .btn-unc-outline {
+    background-color: transparent;
+    color: var(--unc-burgundy);
+    border: 2px solid var(--unc-burgundy);
+    transition: all 0.3s ease;
+    font-weight: 500;
+  }
+
+  .btn-unc-outline:hover {
+    background-color: var(--unc-burgundy);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-medium);
+  }
+
+  /* Professional card styles */
+  .card-unc {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-soft);
+    transition: all 0.3s ease;
+    position: relative;
+  }
+
+  .card-unc:hover {
+    box-shadow: var(--shadow-medium);
+    transform: translateY(-2px);
+  }
+
+  .card-unc-featured {
+    border-top: 4px solid var(--unc-burgundy);
+  }
+
+  /* Hero section styling */
+  .hero-overlay {
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.55) 100%);
+  }
+
+  .hero-text {
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Section backgrounds */
+  .section-gray {
+    background-color: var(--unc-gray-light);
+  }
+
+  .section-burgundy {
+    background-color: var(--unc-burgundy);
+    color: white;
+  }
+
+  /* Talent group specific colors - UNC themed harmonious palette */
+  .marching-band {
+    --group-accent: #991B1B;
+    border-left: 4px solid #991B1B;
+  }
+
+  .majorettes {
+    --group-accent: #e9c0c0;
+    border-left: 4px solid #e9c0c0;
+  }
+
+  .glee-club {
+    --group-accent: var(--unc-burgundy);
+    border-left: 4px solid var(--unc-burgundy);
+  }
+
+  .dance-club {
+    --group-accent: #1a5f7a;
+    border-left: 4px solid #1a5f7a;
+  }
+  
+  /* Status colors - accessible with muted backgrounds */
+  .status-success {
+    background-color: var(--unc-success-bg);
+    color: var(--unc-success);
+  }
+  
+  .status-info {
+    background-color: var(--unc-info-bg);
+    color: var(--unc-info);
+  }
+  
+  .status-warning {
+    background-color: var(--unc-warning-bg);
+    color: var(--unc-warning);
+  }
+  
+  .status-danger {
+    background-color: var(--unc-danger-bg);
+    color: var(--unc-danger);
+  }
+
+  /* Typography enhancements */
+  .display-1 {
+    font-size: 3.5rem;
+    font-weight: 300;
+    line-height: 1.2;
+  }
+
+  .display-2 {
+    font-size: 3rem;
+    font-weight: 300;
+    line-height: 1.2;
+  }
+
+  .lead {
+    font-size: 1.25rem;
+    font-weight: 300;
+    line-height: 1.6;
+  }
+
+  /* University branding elements */
+  .unc-seal {
+    width: 60px;
+    height: 60px;
+    background: var(--unc-burgundy);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    box-shadow: var(--shadow-medium);
+  }
+
+  /* Custom minimalist scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(122, 30, 30, 0.2);
+    border-radius: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(122, 30, 30, 0.4);
+  }
+
+  /* Firefox scrollbar */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(122, 30, 30, 0.2) transparent;
+  }
+
+  /* Global scrollbar - completely hidden, scroll still works */
+  * {
+    scrollbar-width: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}
+
+/**
+ * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
+ */
+@layer base {
+  :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
+    h1 {
+      font-size: var(--text-2xl);
+      font-weight: bold;
+      line-height: 1.5;
+    }
+
+    h2 {
+      font-size: var(--text-xl);
+      font-weight: bold;
+      line-height: 1.5;
+    }
+
+    h3 {
+      font-size: var(--text-lg);
+      font-weight: bold;
+      line-height: 1.5;
+    }
+
+    h4 {
+      font-size: var(--text-base);
+      font-weight: bold;
+      line-height: 1.5;
+    }
+
+    p {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+
+    label {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    button {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    input {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+  }
+}
+
+html {
+  font-size: var(--font-size);
+}
