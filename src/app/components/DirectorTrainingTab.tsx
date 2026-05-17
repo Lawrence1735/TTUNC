@@ -250,19 +250,24 @@ export function DirectorTrainingTab({
                           <TableHead className="sticky left-0 z-20 bg-white border-r-2 border-[#7A1E1E] w-[140px] py-2">
                             <span className="font-medium">Trainee Name</span>
                           </TableHead>
-                          {trainingAttendance.map((record, idx) => {
-                            const dateObj = new Date(record.date);
-                            const isToday = dateObj.toDateString() === new Date().toDateString();
-                            const isPast = dateObj < new Date() && !isToday;
+{trainingAttendance.map((record, idx) => {
+                            const dateObj = record?.date ? new Date(record.date) : null;
+                            const isToday = dateObj ? dateObj.toDateString() === new Date().toDateString() : false;
+                            const isPast = dateObj ? dateObj < new Date() && !isToday : false;
                             
                             return (
                               <TableHead key={idx} className={`text-center min-w-[110px] py-2 ${isToday ? 'bg-blue-50' : isPast ? 'bg-gray-50' : ''}`}>
                                 <div className="flex flex-col items-center gap-0.5">
                                   <span className={`font-medium ${isToday ? 'text-[#7A1E1E]' : 'text-[#1a1a1a]'}`}>
-                                    {dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+{dateObj instanceof Date && !isNaN(dateObj.getTime())
+  ? dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  : '—'}
                                   </span>
                                   <span className="text-[10px] text-[#6c757d] uppercase tracking-wide">
-                                    {dateObj.toLocaleDateString('en-US', { weekday: 'short' })}
+                                    {dateObj instanceof Date && !isNaN(dateObj.getTime())
+                                      ? dateObj.toLocaleDateString('en-US', { weekday: 'short' })
+                                      : ''}
+
                                   </span>
                                   <div className="flex items-center gap-1 mt-1.5 bg-white/50 px-1.5 py-0.5 rounded">
                                     <Checkbox
@@ -307,9 +312,9 @@ export function DirectorTrainingTab({
                               {trainingAttendance.map((record, dateIdx) => {
                                 const currentStatus = record.attendees[trainee.id!] || 'absent';
                                 const isNoPractice = record.noPractice;
-                                const dateObj = new Date(record.date);
-                                const isToday = dateObj.toDateString() === new Date().toDateString();
-                                const isPast = dateObj < new Date() && !isToday;
+                                const dateObj = record?.date ? new Date(record.date) : null;
+                                const isToday = dateObj && dateObj.toDateString() === new Date().toDateString();
+                                const isPast = dateObj && dateObj < new Date() && !isToday;
                                 
                                 return (
                                   <TableCell 
@@ -372,7 +377,7 @@ export function DirectorTrainingTab({
                         <div key={evaluation.id} className="flex items-center justify-between p-3 border rounded-lg">
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">{evaluation.traineeName}</p>
-                            <p className="text-sm text-[#6c757d]">{evaluation.date.toLocaleDateString()}</p>
+<p className="text-sm text-[#6c757d]">{evaluation?.date ? evaluation.date.toLocaleDateString() : "No Date Available"}</p>
                             {evaluation.notes && (
                               <p className="text-sm text-[#6c757d] mt-1 line-clamp-2">{evaluation.notes}</p>
                             )}
