@@ -3,7 +3,7 @@ import { TabsContent } from "./ui/tabs";
 import {
   Folder, CalendarClock, TrendingUp, Search, ChevronLeft,
   ChevronRight, Calendar, MapPin, ChevronDown, Check, X,
-  Send, User, FileText, Music, Phone, Mail, GraduationCap,
+  Send, User, Phone,
 } from "lucide-react";
 
 interface DirectorRecruitmentTabProps {
@@ -86,7 +86,6 @@ function Modal({
             pointerEvents: "auto", overflow: "hidden",
           }}
         >
-          {/* Header */}
           <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
             <div>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0 }}>{title}</h3>
@@ -96,9 +95,7 @@ function Modal({
               <X style={{ width: 16, height: 16 }} />
             </button>
           </div>
-          {/* Body */}
           <div style={{ padding: "20px 24px" }}>{children}</div>
-          {/* Footer */}
           <div style={{ padding: "12px 24px 20px", display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid #F1F5F9" }}>
             {footer}
           </div>
@@ -108,7 +105,6 @@ function Modal({
   );
 }
 
-/* ─── Shared form atoms ─── */
 const inputStyle: React.CSSProperties = {
   width: "100%", height: 40, padding: "0 12px",
   fontSize: 14, color: "#0F172A",
@@ -123,7 +119,6 @@ const labelStyle: React.CSSProperties = {
 };
 const fieldWrap: React.CSSProperties = { marginBottom: 16 };
 
-/* ─── Btn helpers ─── */
 function CancelBtn({ onClick }: { onClick: () => void }) {
   return (
     <button onClick={onClick} style={{
@@ -136,7 +131,6 @@ function CancelBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
-/* ─── Modal A: Schedule Interview ─── */
 function ScheduleModal({ app, onClose, onConfirm }: { app: any; onClose: () => void; onConfirm: (data: any) => void }) {
   const [form, setForm] = useState({ date: "", time: "", venue: "Music Building Room 201", notes: "" });
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -192,7 +186,6 @@ function ScheduleModal({ app, onClose, onConfirm }: { app: any; onClose: () => v
   );
 }
 
-/* ─── Modal B: Approve Application ─── */
 function ApproveModal({ app, onClose, onConfirm }: { app: any; onClose: () => void; onConfirm: () => void }) {
   const [notes, setNotes] = useState("");
   return (
@@ -215,7 +208,6 @@ function ApproveModal({ app, onClose, onConfirm }: { app: any; onClose: () => vo
         </button>
       </>}
     >
-      {/* Notice */}
       <div style={{
         background: "#F0FDF4", border: "1px solid #BBF7D0",
         borderRadius: 8, padding: "12px 14px", marginBottom: 20,
@@ -240,7 +232,6 @@ function ApproveModal({ app, onClose, onConfirm }: { app: any; onClose: () => vo
   );
 }
 
-/* ─── Modal C: Deny Application ─── */
 function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void; onConfirm: () => void }) {
   const [reason, setReason] = useState("");
   const [feedback, setFeedback] = useState("");
@@ -266,7 +257,6 @@ function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void;
         </button>
       </>}
     >
-      {/* Warning notice */}
       <div style={{
         background: "#FEF2F2", border: "1px solid #FECACA",
         borderRadius: 8, padding: "12px 14px", marginBottom: 20,
@@ -306,15 +296,11 @@ function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void;
   );
 }
 
-/* ─── Modal D: Student Profile ─── */
 function ProfileModal({ app, onClose }: { app: any; onClose: () => void }) {
   const info = app.personalInfo ?? {};
   const group = TALENT_GROUP_LABELS[app.talentGroup] ?? app.talentGroup ?? "—";
   const status = app.status ?? "pending";
   const badge = STATUS_MAP[status] ?? STATUS_MAP.pending;
-  const appliedDate = app.appliedAt
-    ? new Date(app.appliedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
-    : "—";
 
   const Section = ({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) => (
     <div style={{ marginBottom: 20 }}>
@@ -345,7 +331,6 @@ function ProfileModal({ app, onClose }: { app: any; onClose: () => void }) {
         </button>
       }
     >
-      {/* Identity strip */}
       <div style={{
         display: "flex", alignItems: "center", gap: 16,
         padding: "14px 16px", background: "#F8FAFC",
@@ -393,9 +378,6 @@ function ProfileModal({ app, onClose }: { app: any; onClose: () => void }) {
   );
 }
 
-/* ════════════════════════════════════════════════════════════
-   Main component
-════════════════════════════════════════════════════════════ */
 export function DirectorRecruitmentTab({
   pendingApps,
   scheduledInterviews,
@@ -414,7 +396,6 @@ export function DirectorRecruitmentTab({
   const [search,       setSearch]       = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // Modal state
   const [scheduleApp,  setScheduleApp]  = useState<any | null>(null);
   const [approveApp,   setApproveApp]   = useState<any | null>(null);
   const [denyApp,      setDenyApp]      = useState<any | null>(null);
@@ -448,35 +429,45 @@ export function DirectorRecruitmentTab({
   const calendarCells: (number | null)[] = [...Array(firstDaySlot).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
 
   return (
-    <TabsContent value="recruitment" id="tab-panel-recruitment" role="tabpanel" aria-label="Recruitment">
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <TabsContent 
+      value="recruitment" 
+      id="tab-panel-recruitment" 
+      style={{ display: "block", width: "100%", border: "none", padding: 0, margin: 0, boxSizing: "border-box" }}
+    >
+      {/* ── Main Side-by-Side 70/30 Grid Split Container ── */}
+      <div style={{ 
+        display: "grid", 
+        gridTemplateColumns: "7fr 3fr", 
+        gap: "24px", 
+        width: "100%", 
+        alignItems: "start", 
+        boxSizing: "border-box" 
+      }}>
 
-        {/* ── Metric Cards ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-          {[
-            { icon: Folder,        label: "Pending Applications",   val: pendingApps          },
-            { icon: CalendarClock, label: "Scheduled Interviews",   val: scheduledInterviews  },
-            { icon: TrendingUp,    label: "Applications This Week", val: applicationsThisWeek },
-          ].map(({ icon: Icon, label, val }) => (
-            <div key={label} style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "20px 24px", display: "flex", alignItems: "center", gap: 16 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 10, background: "#F9EAEA", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon style={{ width: 18, height: 18, color: "#7A1E1E" }} />
+        {/* ══ LEFT SECTION: Covers 70% Width (Quickstats + Workflow Table Container) ══ */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%", boxSizing: "border-box" }}>
+          
+          {/* Quickstat Metric Cards (Now inside the 70% layout side) */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", width: "100%", boxSizing: "border-box" }}>
+            {[
+              { icon: Folder,        label: "Pending Applications",   val: pendingApps          },
+              { icon: CalendarClock, label: "Scheduled Interviews",   val: scheduledInterviews  },
+              { icon: TrendingUp,    label: "Applications This Week", val: applicationsThisWeek },
+            ].map(({ icon: Icon, label, val }) => (
+              <div key={label} style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 14, boxSizing: "border-box" }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F9EAEA", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon style={{ width: 16, height: 16, color: "#7A1E1E" }} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, color: "#64748B", marginBottom: 4, lineHeight: 1, margin: 0 }}>{label}</p>
+                  <p style={{ fontSize: 24, fontWeight: 700, color: val === 0 ? "#CBD5E1" : "#0F172A", lineHeight: 1, margin: 0 }}>{val}</p>
+                </div>
               </div>
-              <div>
-                <p style={{ fontSize: 12, color: "#64748B", marginBottom: 6, lineHeight: 1 }}>{label}</p>
-                <p style={{ fontSize: 28, fontWeight: 700, color: val === 0 ? "#CBD5E1" : "#0F172A", lineHeight: 1 }}>{val}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
 
-        {/* ── 65/35 split ── */}
-        <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
-
-          {/* ══ LEFT: Pipeline Table ══ */}
-          <div style={{ flex: "0 0 65%", width: "65%", background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "24px" }}>
-
-            {/* Controls */}
+          {/* Workflow Table Card */}
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "24px", boxSizing: "border-box", width: "100%" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, color: "#0F172A", margin: 0 }}>Application Workflow Pipeline</h2>
               <div style={{ display: "flex", gap: 8 }}>
@@ -485,12 +476,12 @@ export function DirectorRecruitmentTab({
                   <input
                     type="text" value={search} onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search applicants..."
-                    style={{ ...inputStyle, width: 200, paddingLeft: 32 }}
+                    style={{ ...inputStyle, width: 180, paddingLeft: 32 }}
                   />
                 </div>
                 <div style={{ position: "relative" }}>
                   <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-                    style={{ ...inputStyle, width: 160, paddingRight: 28, appearance: "none", cursor: "pointer" }}>
+                    style={{ ...inputStyle, width: 150, paddingRight: 28, appearance: "none", cursor: "pointer" }}>
                     <option value="all">All Statuses</option>
                     <option value="pending">Pending</option>
                     <option value="scheduled">Scheduled</option>
@@ -502,7 +493,6 @@ export function DirectorRecruitmentTab({
               </div>
             </div>
 
-            {/* Table */}
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: "2px solid #F1F5F9" }}>
@@ -526,7 +516,6 @@ export function DirectorRecruitmentTab({
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#FAFAFA")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
-                      {/* Applicant details */}
                       <td style={{ padding: "16px 20px 16px 0" }}>
                         <button
                           onClick={() => setProfileApp(app)}
@@ -540,11 +529,9 @@ export function DirectorRecruitmentTab({
                           {app.personalInfo?.studentId ?? "—"}
                         </p>
                       </td>
-                      {/* Applied date */}
                       <td style={{ padding: "16px 20px 16px 0", fontSize: 13, color: "#64748B", whiteSpace: "nowrap" }}>
                         {appliedDate}
                       </td>
-                      {/* Status badge */}
                       <td style={{ padding: "16px 20px 16px 0" }}>
                         <span style={{
                           fontSize: 11, fontWeight: 600,
@@ -555,10 +542,8 @@ export function DirectorRecruitmentTab({
                           {badge.label}
                         </span>
                       </td>
-                      {/* Action icons */}
                       <td style={{ padding: "16px 0" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          {/* Schedule */}
                           <button
                             title="Schedule Interview"
                             onClick={() => setScheduleApp(app)}
@@ -568,7 +553,6 @@ export function DirectorRecruitmentTab({
                           >
                             <Calendar style={{ width: 14, height: 14, color: "#1D4ED8" }} />
                           </button>
-                          {/* Approve */}
                           <button
                             title="Approve Application"
                             onClick={() => setApproveApp(app)}
@@ -578,7 +562,6 @@ export function DirectorRecruitmentTab({
                           >
                             <Check style={{ width: 14, height: 14, color: "#15803D" }} />
                           </button>
-                          {/* Deny */}
                           <button
                             title="Deny Application"
                             onClick={() => setDenyApp(app)}
@@ -602,64 +585,72 @@ export function DirectorRecruitmentTab({
               </tbody>
             </table>
           </div>
+        </div>
 
-          {/* ══ RIGHT: Calendar 35% ══ */}
-          <div style={{ flex: "0 0 35%", width: "35%", background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* ══ RIGHT SECTION: Covers 30% Width (Sticky Calendar Column Beside It) ══ */}
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: 20, display: "flex", flexDirection: "column", gap: 16, boxSizing: "border-box", position: "sticky", top: 16, width: "100%" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Calendar style={{ width: 14, height: 14, color: "#7A1E1E" }} />
+                <span style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>Interview Schedule</span>
+              </div>
+              <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 3, lineHeight: 1, margin: 0 }}>Upcoming evaluations</p>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <button onClick={prevMonth} style={{ width: 26, height: 26, borderRadius: 6, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <ChevronLeft style={{ width: 12, height: 12, color: "#94A3B8" }} />
+              </button>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#0F172A", width: 90, textAlign: "center" }}>
+                {MONTH_NAMES[calMonth]} {calYear}
+              </span>
+              <button onClick={nextMonth} style={{ width: 26, height: 26, borderRadius: 6, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <ChevronRight style={{ width: 12, height: 12, color: "#94A3B8" }} />
+              </button>
+            </div>
+          </div>
 
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <Calendar style={{ width: 14, height: 14, color: "#7A1E1E" }} />
-                  <span style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>Interview Schedule</span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+            {DAY_ABBRS.map((d, i) => (
+              <div key={i} style={{ textAlign: "center", fontSize: 10, fontWeight: 600, color: "#CBD5E1", padding: "2px 0" }}>{d}</div>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginTop: -8 }}>
+            {calendarCells.map((day, i) => {
+              if (!day) return <div key={i} style={{ padding: "4px 0" }} />;
+              const isSelected = day === selectedDay;
+              const hasEvent   = interviewDays.has(day);
+              return (
+                <div
+                  key={i}
+                  onClick={() => setSelectedDay(day)}
+                  style={{
+                    textAlign: "center", fontSize: 12, fontWeight: 600,
+                    padding: "6px 0", cursor: "pointer", borderRadius: 6,
+                    position: "relative", margin: "2px",
+                    background: isSelected ? "#7A1E1E" : "transparent",
+                    color: isSelected ? "#fff" : "#334155",
+                  }}
+                >
+                  {day}
+                  {hasEvent && !isSelected && (
+                    <div style={{ position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)", width: 4, height: 4, borderRadius: "50%", background: "#7A1E1E" }} />
+                    )}
                 </div>
-                <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 3, lineHeight: 1 }}>Upcoming and completed evaluations</p>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <button onClick={prevMonth} style={{ width: 26, height: 26, borderRadius: 6, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                  <ChevronLeft style={{ width: 12, height: 12, color: "#94A3B8" }} />
-                </button>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#0F172A", width: 90, textAlign: "center" }}>
-                  {MONTH_NAMES[calMonth]} {calYear}
-                </span>
-                <button onClick={nextMonth} style={{ width: 26, height: 26, borderRadius: 6, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                  <ChevronRight style={{ width: 12, height: 12, color: "#94A3B8" }} />
-                </button>
-              </div>
-            </div>
+              );
+            })}
+          </div>
 
-            {/* Day labels */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
-              {DAY_ABBRS.map((d, i) => (
-                <div key={i} style={{ textAlign: "center", fontSize: 10, fontWeight: 600, color: "#CBD5E1", padding: "2px 0" }}>{d}</div>
-              ))}
-            </div>
-
-            {/* Date cells */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginTop: -8 }}>
-              {calendarCells.map((day, i) => {
-                if (!day) return <div key={i} style={{ padding: "4px 0" }} />;
-                const isSelected = day === selectedDay;
-                const hasEvent   = interviewDays.has(day);
-                return (
-                  <div key={i} onClick={() => setSelectedDay(day)} style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "3px 0", cursor: "pointer" }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: isSelected ? 700 : 400, background: isSelected ? "#7A1E1E" : "transparent", color: isSelected ? "#fff" : "#374151" }}>
-                      {day}
-                    </div>
-                    <div style={{ width: 4, height: 4, borderRadius: "50%", marginTop: 2, background: hasEvent ? (isSelected ? "rgba(255,255,255,0.6)" : "#7A1E1E") : "transparent" }} />
-                  </div>
-                );
-              })}
-            </div>
-
-            <div style={{ borderTop: "1px solid #F1F5F9" }} />
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                {MONTH_NAMES[calMonth]} {selectedDay} — Schedule
-              </p>
-              {selectedDayEvents.length > 0 ? selectedDayEvents.map((ev) => (
-                <div key={ev.id} style={{ background: "#EFF6FF", borderLeft: "3px solid #1D4ED8", borderRadius: "0 8px 8px 0", padding: "10px 12px" }}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: "#0F172A", margin: 0, lineHeight: 1.4 }}>{ev.applicantName} — {ev.time}</p>
+          <div style={{ borderTop: "1px solid #F1F5F9", paddingTop: 12, marginTop: 4 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, marginTop: 0 }}>
+              Schedule for {MONTH_NAMES[calMonth]} {selectedDay}
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 180, overflowY: "auto" }}>
+              {selectedDayEvents.length > 0 ? selectedDayEvents.map((ev: any, idx: number) => (
+                <div key={idx} style={{ background: "#F8FAFC", borderRadius: 8, padding: "10px 12px", borderLeft: "3px solid #7A1E1E" }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{ev.applicantName}</p>
+                  <p style={{ fontSize: 11, color: "#64748B", margin: "2px 0 0" }}>{ev.time} • {TALENT_GROUP_LABELS[ev.talentGroup] || ev.talentGroup}</p>
                   {ev.venue && (
                     <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
                       <MapPin style={{ width: 10, height: 10, color: "#94A3B8", flexShrink: 0 }} />
@@ -673,9 +664,10 @@ export function DirectorRecruitmentTab({
             </div>
           </div>
         </div>
+
       </div>
 
-      {/* ── Modals ── */}
+      {/* Action Modals */}
       {scheduleApp && (
         <ScheduleModal
           app={scheduleApp}
