@@ -11,11 +11,18 @@ final class ApplicationResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        // Determine actual status: if interview is loaded and exists, status is 'scheduled'
+        // Otherwise use the column value
+        $actualStatus = $this->status;
+        if ($this->relationLoaded('interview') && $this->interview !== null) {
+            $actualStatus = 'scheduled';
+        }
+
         return [
             'id'           => $this->id,
             'user_id'      => $this->user_id,
             'talent_group' => $this->talent_group,
-            'status'       => $this->status,
+            'status'       => $actualStatus,
 
             // Structured personal info matching frontend Application.personalInfo shape
             'personal_info' => $this->personal_info,

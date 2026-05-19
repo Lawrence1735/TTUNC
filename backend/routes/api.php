@@ -31,17 +31,19 @@ Route::prefix('v1/auth')->name('auth.')->group(function (): void {
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+        Route::post('/refresh', [AuthController::class, 'refresh'])->name('refresh');
         Route::get('/me',      [AuthController::class, 'me'])->name('me');
     });
 });
 
 // ── Public endpoints (no auth required) ──────────────────────────────────────
 Route::prefix('v1')->name('public.')->group(function (): void {
-    // Public scholarship application submission
+    // Public scholarship application submission (rate-limited to prevent spam/DoS)
     Route::post(
         '/applications',
         [RecruitmentController::class, 'store']
-    )->name('applications.store');
+    )->name('applications.store')
+     ->middleware('throttle:10,1'); // 10 requests per 1 minute per IP
 });
 
 // ── Protected endpoints (Sanctum token required) ──────────────────────────────
@@ -85,6 +87,12 @@ Route::prefix('v1')
                 '/applications/{application}/schedule-interview',
                 [RecruitmentController::class, 'scheduleInterview']
             )->name('applications.schedule-interview')
+             ->middleware('role:director,admin');
+
+            Route::post(
+                '/applications/{application}/reschedule-interview',
+                [RecruitmentController::class, 'rescheduleInterview']
+            )->name('applications.reschedule-interview')
              ->middleware('role:director,admin');
 
             Route::post(

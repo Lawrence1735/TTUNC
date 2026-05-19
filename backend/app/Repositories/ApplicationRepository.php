@@ -14,6 +14,8 @@ final class ApplicationRepository
 {
     /**
      * Paginated application list with optional filters.
+     * Uses eager loading (not joins) to include the interview relationship,
+     * ensuring applicants without interviews are NOT filtered out.
      */
     public function paginate(
         ?string $talentGroup,
@@ -22,6 +24,7 @@ final class ApplicationRepository
         int $perPage = 20
     ): LengthAwarePaginator {
         return Application::query()
+            // Eager load interview with reviewer (includes applicants without interviews)
             ->with(['interview.reviewer:id,name'])
             ->when($talentGroup, fn ($q) => $q->where('talent_group', $talentGroup))
             ->when($status, fn ($q) => $q->where('status', $status))

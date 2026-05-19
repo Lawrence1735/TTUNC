@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import apiClient from '../api/client';
 import { toast } from 'sonner';
 
@@ -32,6 +32,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   me: () => Promise<void>;
   setUser: (user: AuthUser | null) => void;
+  refreshToken: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,35 +42,127 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Decode JWT to get expiration time
+  const getTokenExpiration = (jwtToken: string): number | null => {
+    try {
+      const parts = jwtToken.split('.');
+      if (parts.length !== 3) return null;
+      const decoded = JSON.parse(atob(parts[1]));
+      return decoded.exp ? decoded.exp * 1000 : null; // Convert to milliseconds
+    } catch {
+      return null;
+    }
+  };
+
+  // Schedule token refresh before expiration
+  const scheduleTokenRefresh = (jwtToken: string) => {
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+
+    const expirationTime = getTokenExpiration(jwtToken);
+    if (!expirationTime) return;
+
+    const now = Date.now();
+    const timeUntilExpiration = expirationTime - now;
+    
+    // Refresh token 5 minutes before expiration
+    const refreshTime = Math.max(timeUntilExpiration - 5 * 60 * 1000, 1000);
+
+    refreshTimeoutRef.current = setTimeout(() => {
+      refreshTokenFn();
+    }, refreshTime);
+  };
+
+  // Attempt to refresh the token
+  const refreshTokenFn = async (): Promise<boolean> => {
+    try {
+      const response = await apiClient.post('/auth/refresh');
+      const { token: newToken } = response.data;
+
+      if (newToken) {
+        localStorage.setItem('auth_token', newToken);
+        setToken(newToken);
+        scheduleTokenRefresh(newToken);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Token refresh failed:', err);
+      // Clear auth on refresh failure
+      clearAuth();
+      return false;
+    }
+  };
+
+  const clearAuth = () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+    localStorage.removeItem('token_expiration');
+    setToken(null);
+    setUser(null);
+    setIsAuthenticated(false);
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+  };
 
   // Initialize from localStorage on mount
   useEffect(() => {
     const initAuth = async () => {
-      const storedToken = localStorage.getItem('auth_token');
-      const storedUser = localStorage.getItem('auth_user');
+      try {
+        const storedToken = localStorage.getItem('auth_token');
+        const storedUser = localStorage.getItem('auth_user');
 
-      if (storedToken && storedUser) {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-        setIsAuthenticated(true);
+        // STRICT LOADING LATCH: Check for localStorage immediately
+        if (storedToken && storedUser) {
+          try {
+            const parsedUser = JSON.parse(storedUser);
+            // IMMEDIATELY restore from localStorage
+            setToken(storedToken);
+            setUser(parsedUser);
+            setIsAuthenticated(true);
+            scheduleTokenRefresh(storedToken);
 
-        // Optionally call /me to refresh user data
-        try {
-          await me();
-        } catch (err) {
-          // If /me fails, clear auth (token may be invalid)
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('auth_user');
-          setToken(null);
-          setUser(null);
+            // Non-blocking: Try to refresh user data, but don't break session if it fails
+            try {
+              const response = await apiClient.get('/auth/me');
+              if (response.data) {
+                const updatedUser = response.data;
+                localStorage.setItem('auth_user', JSON.stringify(updatedUser));
+                setUser(updatedUser);
+              }
+            } catch (meErr) {
+              // If /auth/me fails, DON'T clear auth - we already have valid data
+              console.warn('Failed to refresh user data from /auth/me:', meErr);
+              // Token is still valid until exp claim says otherwise
+              // Keep using stored session
+            }
+          } catch (parseErr) {
+            console.error('Failed to parse stored user data:', parseErr);
+            clearAuth();
+          }
+        } else {
+          // No stored credentials
           setIsAuthenticated(false);
         }
+      } finally {
+        // CRITICAL: Set isLoading to false BEFORE any routing happens
+        // This prevents ProtectedRoute from redirecting while session restores
+        setIsLoading(false);
       }
-
-      setIsLoading(false);
     };
 
     initAuth();
+
+    // Cleanup on unmount
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+    };
   }, []);
 
   const login = async (
@@ -95,6 +188,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(responseUser);
       setIsAuthenticated(true);
 
+      // Schedule token refresh
+      scheduleTokenRefresh(responseToken);
+
       return { success: true };
     } catch (err: any) {
       const errorMsg = err.data?.message || 'Invalid credentials';
@@ -111,11 +207,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Even if logout API fails, clear local auth
       console.error('Logout API error:', err);
     } finally {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      setToken(null);
-      setUser(null);
-      setIsAuthenticated(false);
+      clearAuth();
     }
   };
 
@@ -144,6 +236,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         logout,
         me,
         setUser,
+        refreshToken: refreshTokenFn,
       }}
     >
       {children}

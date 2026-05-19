@@ -38,7 +38,7 @@ return new class extends Migration
             // Pipeline status
             $table->enum('status', [
                 'pending',
-                'interview_scheduled',
+                'scheduled',
                 'approved',
                 'rejected',
             ])->default('pending')->index();

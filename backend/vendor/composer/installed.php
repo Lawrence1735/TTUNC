@@ -3,7 +3,7 @@
         'name' => 'ttunc/talent-track-api',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '389254e0f6b4073547964b39aeb796389ab50f51',
+        'reference' => 'bd3926aa7b6a589e28f42e739e8b504003a41d1a',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -1412,7 +1412,7 @@
         'ttunc/talent-track-api' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '389254e0f6b4073547964b39aeb796389ab50f51',
+            'reference' => 'bd3926aa7b6a589e28f42e739e8b504003a41d1a',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

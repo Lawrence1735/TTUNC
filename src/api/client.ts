@@ -28,6 +28,7 @@ const apiClient: AxiosInstance = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
+  timeout: 10000, // 10 second timeout to prevent hanging requests
 });
 
 // Request interceptor: attach Bearer token
@@ -53,8 +54,44 @@ apiClient.interceptors.response.use(
     }
     return response;
   },
-  (error: AxiosError) => {
-    // 401 Unauthorized: clear token and redirect to login
+  async (error: AxiosError) => {
+    const originalRequest = error.config as any;
+
+    // 401 Unauthorized: attempt token refresh
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        // Attempt to refresh token
+        const refreshResponse = await axios.post(
+          `${API_URL}/auth/refresh`,
+          {},
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+            },
+          }
+        );
+
+        const { token: newToken } = refreshResponse.data;
+        if (newToken) {
+          // Update stored token
+          localStorage.setItem('auth_token', newToken);
+
+          // Retry original request with new token
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return apiClient(originalRequest);
+        }
+      } catch (refreshError) {
+        // Refresh failed, clear auth and redirect to login
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+
+    // For other errors or failed refresh, reject
     if (error.response?.status === 401) {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');

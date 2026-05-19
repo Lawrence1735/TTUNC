@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int         $id
  * @property int|null    $user_id
  * @property string      $talent_group
- * @property string      $status          pending|interview_scheduled|approved|rejected
+ * @property string      $status          pending|scheduled|approved|rejected
  * @property int         $applications_this_week_tracker
  * @property string      $applicant_name
  * @property string      $applicant_email

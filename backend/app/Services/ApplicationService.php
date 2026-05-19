@@ -64,7 +64,7 @@ final class ApplicationService
     }
 
     /**
-     * Transition: pending → interview_scheduled.
+     * Transition: pending → scheduled.
      * Creates or updates the Interview record atomically.
      *
      * @param array<string, mixed> $scheduleData
@@ -79,7 +79,7 @@ final class ApplicationService
         }
 
         return DB::transaction(function () use ($application, $reviewerId, $scheduleData): Interview {
-            $this->applicationRepository->update($application, ['status' => 'interview_scheduled']);
+            $this->applicationRepository->update($application, ['status' => 'scheduled']);
 
             return Interview::updateOrCreate(
                 ['application_id' => $application->id],
@@ -91,6 +91,38 @@ final class ApplicationService
                     'outcome'      => 'pending',
                 ]
             );
+        });
+    }
+
+    /**
+     * Transition: scheduled → scheduled (reschedule).
+     * Updates an existing interview with new date/time/venue.
+     *
+     * @param array<string, mixed> $scheduleData
+     */
+    public function rescheduleInterview(
+        Application $application,
+        int $reviewerId,
+        array $scheduleData
+    ): Interview {
+        if ($application->status !== 'scheduled') {
+            throw new \DomainException('Only scheduled applications can be rescheduled.');
+        }
+
+        $interview = $application->interview;
+        if (!$interview) {
+            throw new \DomainException('No interview found for this application.');
+        }
+
+        return DB::transaction(function () use ($interview, $reviewerId, $scheduleData): Interview {
+            $interview->update([
+                'reviewer_id'  => $reviewerId,
+                'scheduled_at' => $scheduleData['scheduled_at'],
+                'venue'        => $scheduleData['venue'] ?? $interview->venue,
+                'notes'        => $scheduleData['notes'] ?? $interview->notes,
+            ]);
+
+            return $interview;
         });
     }
 

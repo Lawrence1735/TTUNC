@@ -67,6 +67,39 @@ final class AuthController extends Controller
     }
 
     /**
+     * Refresh the authentication token.
+     * Issues a new token with the same abilities as the current token.
+     */
+    public function refresh(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $currentToken = $user->currentAccessToken();
+
+        if (!$currentToken) {
+            return response()->json([
+                'message' => 'No active token found.',
+            ], Response::HTTP_UNAUTHORIZED);
+        }
+
+        // Create new token with same abilities as current token
+        $abilities = $currentToken->abilities;
+
+        // Revoke old token
+        $currentToken->delete();
+
+        // Issue new token
+        $newToken = $user->createToken(
+            name: "api-token-{$user->id}-refreshed",
+            abilities: $abilities,
+        )->plainTextToken;
+
+        return response()->json([
+            'token' => $newToken,
+            'user'  => new UserResource($user),
+        ], Response::HTTP_OK);
+    }
+
+    /**
      * Maps roles to Sanctum token abilities.
      *
      * @return string[]
