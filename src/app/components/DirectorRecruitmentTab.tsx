@@ -1,21 +1,25 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { TabsContent } from "./ui/tabs";
+import { useAuth } from "../../context/AuthContext";
+import apiClient from "../../api/client";
+import { toast } from "sonner";
 import {
   Folder, CalendarClock, TrendingUp, Search, ChevronLeft,
   ChevronRight, Calendar, MapPin, ChevronDown, Check, X,
-  Send, User, Phone,
+  Send, User, Phone, AlertCircle,
 } from "lucide-react";
 
 interface DirectorRecruitmentTabProps {
-  pendingApps: number;
-  scheduledInterviews: number;
-  applicationsThisWeek: number;
-  filteredApplications: any[];
-  interviewSchedules: any[];
-  handleViewApplication: (app: any) => void;
-  handleSetSchedule: (app: any) => void;
-  handleApproveInterview: (id: string) => void;
-  handleRejectInterview: (id: string) => void;
+  // Props deprecated - now using API calls instead
+  pendingApps?: number;
+  scheduledInterviews?: number;
+  applicationsThisWeek?: number;
+  filteredApplications?: any[];
+  interviewSchedules?: any[];
+  handleViewApplication?: (app: any) => void;
+  handleSetSchedule?: (app: any) => void;
+  handleApproveInterview?: (id: string) => void;
+  handleRejectInterview?: (id: string) => void;
 }
 
 const TALENT_GROUP_LABELS: Record<string, string> = {
@@ -49,7 +53,6 @@ function getFirstDayOfMonth(y: number, m: number) { return new Date(y, m, 1).get
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_ABBRS   = ["S","M","T","W","T","F","S"];
 
-/* ─── Backdrop overlay ─── */
 function Backdrop({ onClick }: { onClick: () => void }) {
   return (
     <div
@@ -63,7 +66,6 @@ function Backdrop({ onClick }: { onClick: () => void }) {
   );
 }
 
-/* ─── Modal shell ─── */
 function Modal({
   title, subtitle, onClose, footer, children, width = 480,
 }: {
@@ -131,53 +133,50 @@ function CancelBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
-function ScheduleModal({ app, onClose, onConfirm }: { app: any; onClose: () => void; onConfirm: (data: any) => void }) {
+function ScheduleModal({ app, onClose, onConfirm, isLoading }: { app: any; onClose: () => void; onConfirm: (data: any) => void; isLoading?: boolean }) {
   const [form, setForm] = useState({ date: "", time: "", venue: "Music Building Room 201", notes: "" });
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
   return (
     <Modal
       title="Schedule Interview"
-      subtitle={`Set interview date and time for ${app.personalInfo?.name ?? "applicant"}`}
+      subtitle={`Set interview date and time for ${app.applicantName ?? app.personalInfo?.name ?? "applicant"}`}
       onClose={onClose}
       width={500}
       footer={<>
         <CancelBtn onClick={onClose} />
         <button
-          onClick={() => { onConfirm(form); onClose(); }}
-          disabled={!form.date || !form.time}
+          onClick={() => { onConfirm(form); }}
+          disabled={!form.date || !form.time || isLoading}
           style={{
             display: "flex", alignItems: "center", gap: 8,
             padding: "9px 20px", borderRadius: 8,
-            background: (!form.date || !form.time) ? "#CBD5E1" : "#7A1E1E",
+            background: (!form.date || !form.time || isLoading) ? "#CBD5E1" : "#7A1E1E",
             border: "none", fontSize: 14, fontWeight: 600,
-            color: "#fff", cursor: (!form.date || !form.time) ? "not-allowed" : "pointer",
-            transition: "background 0.15s",
+            color: "#fff", cursor: (!form.date || !form.time || isLoading) ? "not-allowed" : "pointer",
           }}
         >
-          <Send style={{ width: 14, height: 14 }} />
-          Send Schedule
+          {isLoading ? "Scheduling..." : "Schedule Interview"}
         </button>
       </>}
     >
       <div style={fieldWrap}>
         <label style={labelStyle}>Interview Date <span style={{ color: "#DC2626" }}>*</span></label>
-        <input type="date" value={form.date} onChange={set("date")} style={inputStyle} required />
+        <input type="date" value={form.date} onChange={set('date')} style={inputStyle} required />
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, ...fieldWrap }}>
-        <div>
-          <label style={labelStyle}>Time <span style={{ color: "#DC2626" }}>*</span></label>
-          <input type="time" value={form.time} onChange={set("time")} style={inputStyle} required />
-        </div>
-        <div>
-          <label style={labelStyle}>Venue</label>
-          <input type="text" value={form.venue} onChange={set("venue")} placeholder="Room / Location" style={inputStyle} />
-        </div>
+      <div style={fieldWrap}>
+        <label style={labelStyle}>Interview Time <span style={{ color: "#DC2626" }}>*</span></label>
+        <input type="time" value={form.time} onChange={set('time')} style={inputStyle} required />
+      </div>
+      <div style={fieldWrap}>
+        <label style={labelStyle}>Venue</label>
+        <input type="text" value={form.venue} onChange={set('venue')} placeholder="e.g., Music Building Room 201" style={inputStyle} />
       </div>
       <div>
-        <label style={labelStyle}>Notes <span style={{ color: "#94A3B8", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(Optional)</span></label>
+        <label style={labelStyle}>Notes</label>
         <textarea
-          value={form.notes} onChange={set("notes")}
-          placeholder="Any additional notes for this interview..."
+          value={form.notes}
+          onChange={set('notes')}
+          placeholder="Any special instructions or requirements..."
           rows={3}
           style={{ ...inputStyle, height: "auto", padding: "10px 12px", resize: "vertical", lineHeight: 1.5 }}
         />
@@ -186,25 +185,27 @@ function ScheduleModal({ app, onClose, onConfirm }: { app: any; onClose: () => v
   );
 }
 
-function ApproveModal({ app, onClose, onConfirm }: { app: any; onClose: () => void; onConfirm: () => void }) {
+function ApproveModal({ app, onClose, onConfirm, isLoading }: { app: any; onClose: () => void; onConfirm: (notes: string) => void; isLoading?: boolean }) {
   const [notes, setNotes] = useState("");
   return (
     <Modal
       title="Approve Application"
-      subtitle={`Confirm scholarship approval for ${app.personalInfo?.name ?? "applicant"}`}
+      subtitle={`Approve ${app.applicantName ?? app.personalInfo?.name ?? "applicant"}`}
       onClose={onClose}
-      width={480}
+      width={500}
       footer={<>
         <CancelBtn onClick={onClose} />
         <button
-          onClick={() => { onConfirm(); onClose(); }}
+          onClick={() => { onConfirm(notes); }}
+          disabled={isLoading}
           style={{
+            display: "flex", alignItems: "center", gap: 8,
             padding: "9px 20px", borderRadius: 8,
-            background: "#14532D", border: "none",
-            fontSize: 14, fontWeight: 600, color: "#fff", cursor: "pointer",
+            background: isLoading ? "#CBD5E1" : "#14532D", border: "none",
+            fontSize: 14, fontWeight: 600, color: "#fff", cursor: isLoading ? "not-allowed" : "pointer",
           }}
         >
-          Confirm Approval
+          {isLoading ? "Approving..." : "Confirm Approval"}
         </button>
       </>}
     >
@@ -215,11 +216,11 @@ function ApproveModal({ app, onClose, onConfirm }: { app: any; onClose: () => vo
       }}>
         <Check style={{ width: 16, height: 16, color: "#15803D", flexShrink: 0, marginTop: 1 }} />
         <p style={{ fontSize: 13, color: "#14532D", lineHeight: 1.5, margin: 0 }}>
-          Approving this application will move <strong>{app.personalInfo?.name ?? "this applicant"}</strong> to the official talent scholar roster and trigger onboarding.
+          Approving this application will move <strong>{app.applicantName ?? app.personalInfo?.name ?? "this applicant"}</strong> to the official talent scholar roster.
         </p>
       </div>
       <div>
-        <label style={labelStyle}>Approval Notes / Remarks <span style={{ color: "#94A3B8", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(Optional)</span></label>
+        <label style={labelStyle}>Approval Notes <span style={{ color: "#94A3B8", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(Optional)</span></label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -232,28 +233,28 @@ function ApproveModal({ app, onClose, onConfirm }: { app: any; onClose: () => vo
   );
 }
 
-function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void; onConfirm: () => void }) {
+function DenyModal({ app, onClose, onConfirm, isLoading }: { app: any; onClose: () => void; onConfirm: (reason: string, feedback: string) => void; isLoading?: boolean }) {
   const [reason, setReason] = useState("");
   const [feedback, setFeedback] = useState("");
   return (
     <Modal
       title="Deny Application"
-      subtitle={`Reject application for ${app.personalInfo?.name ?? "applicant"}`}
+      subtitle={`Reject application for ${app.applicantName ?? app.personalInfo?.name ?? "applicant"}`}
       onClose={onClose}
       width={480}
       footer={<>
         <CancelBtn onClick={onClose} />
         <button
-          onClick={() => { if (reason && feedback) { onConfirm(); onClose(); } }}
-          disabled={!reason || !feedback}
+          onClick={() => { if (reason && feedback) { onConfirm(reason, feedback); } }}
+          disabled={!reason || !feedback || isLoading}
           style={{
             padding: "9px 20px", borderRadius: 8,
-            background: (!reason || !feedback) ? "#CBD5E1" : "#7F1D1D",
+            background: (!reason || !feedback || isLoading) ? "#CBD5E1" : "#7F1D1D",
             border: "none", fontSize: 14, fontWeight: 600,
-            color: "#fff", cursor: (!reason || !feedback) ? "not-allowed" : "pointer",
+            color: "#fff", cursor: (!reason || !feedback || isLoading) ? "not-allowed" : "pointer",
           }}
         >
-          Confirm Rejection
+          {isLoading ? "Rejecting..." : "Confirm Rejection"}
         </button>
       </>}
     >
@@ -264,7 +265,7 @@ function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void;
       }}>
         <X style={{ width: 16, height: 16, color: "#B91C1C", flexShrink: 0, marginTop: 1 }} />
         <p style={{ fontSize: 13, color: "#7F1D1D", lineHeight: 1.5, margin: 0 }}>
-          This action will permanently deny <strong>{app.personalInfo?.name ?? "this applicant"}'s</strong> scholarship application. This cannot be undone.
+          This will permanently deny <strong>{app.applicantName ?? app.personalInfo?.name ?? "this applicant"}'s</strong> application. This cannot be undone.
         </p>
       </div>
       <div style={fieldWrap}>
@@ -282,11 +283,11 @@ function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void;
         </div>
       </div>
       <div>
-        <label style={labelStyle}>Additional Feedback / Notes <span style={{ color: "#DC2626" }}>*</span></label>
+        <label style={labelStyle}>Additional Feedback <span style={{ color: "#DC2626" }}>*</span></label>
         <textarea
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
-          placeholder="Provide specific feedback explaining this rejection decision..."
+          placeholder="Provide specific feedback explaining this rejection..."
           rows={4}
           style={{ ...inputStyle, height: "auto", padding: "10px 12px", resize: "vertical", lineHeight: 1.5 }}
           required
@@ -296,177 +297,218 @@ function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void;
   );
 }
 
-function ProfileModal({ app, onClose }: { app: any; onClose: () => void }) {
-  const info = app.personalInfo ?? {};
-  const group = TALENT_GROUP_LABELS[app.talentGroup] ?? app.talentGroup ?? "—";
-  const status = app.status ?? "pending";
-  const badge = STATUS_MAP[status] ?? STATUS_MAP.pending;
-
-  const Section = ({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) => (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <Icon style={{ width: 14, height: 14, color: "#7A1E1E" }} />
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#7A1E1E", textTransform: "uppercase", letterSpacing: "0.08em" }}>{title}</span>
-      </div>
-      <div style={{ background: "#F8FAFC", borderRadius: 8, padding: "12px 14px" }}>{children}</div>
-    </div>
-  );
-
-  const Row = ({ label, value }: { label: string; value: string }) => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8, gap: 16 }}>
-      <span style={{ fontSize: 12, color: "#64748B", flexShrink: 0 }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", textAlign: "right" }}>{value || "—"}</span>
-    </div>
-  );
-
+function LoadingSkeleton() {
   return (
-    <Modal
-      title="Student Profile"
-      subtitle={`Comprehensive application details for ${info.name ?? "applicant"}`}
-      onClose={onClose}
-      width={560}
-      footer={
-        <button onClick={onClose} style={{ padding: "9px 24px", borderRadius: 8, background: "#7A1E1E", border: "none", fontSize: 14, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
-          Close
-        </button>
-      }
-    >
-      <div style={{
-        display: "flex", alignItems: "center", gap: 16,
-        padding: "14px 16px", background: "#F8FAFC",
-        borderRadius: 10, marginBottom: 20,
-        border: "1px solid #E2E8F0",
-      }}>
-        <div style={{
-          width: 48, height: 48, borderRadius: "50%",
-          background: "#F9EAEA", border: "2px solid #7A1E1E",
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        }}>
-          <User style={{ width: 20, height: 20, color: "#7A1E1E" }} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>{info.name ?? "—"}</p>
-          <p style={{ fontSize: 12, color: "#94A3B8", margin: "2px 0 0", fontFamily: "monospace" }}>{info.studentId ?? "—"}</p>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 500, background: "#EFF6FF", color: "#1D4ED8", borderRadius: 999, padding: "3px 10px" }}>
-            {group}
-          </span>
-          <span style={{ fontSize: 11, fontWeight: 500, background: badge.bg, color: badge.text, borderRadius: 999, padding: "3px 10px", border: `1px solid ${badge.border}` }}>
-            {badge.label}
-          </span>
-        </div>
-      </div>
-
-      <Section icon={User} title="Personal Information">
-        <Row label="Full Name"     value={info.name} />
-        <Row label="Student ID"    value={info.studentId} />
-        <Row label="Email Address" value={info.email} />
-        <Row label="Phone Number"  value={info.phone} />
-        <Row label="Year Level"    value={info.yearLevel} />
-        <Row label="Course"        value={info.course} />
-        <Row label="Address"       value={info.address} />
-      </Section>
-
-      {(info.emergencyContact || info.emergencyPhone) && (
-        <Section icon={Phone} title="Emergency Contact">
-          <Row label="Contact Name"  value={info.emergencyContact} />
-          <Row label="Contact Phone" value={info.emergencyPhone} />
-        </Section>
-      )}
-    </Modal>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {[1, 2, 3].map(i => (
+        <div key={i} style={{
+          height: 60,
+          background: "#F1F5F9",
+          borderRadius: 8,
+          animation: "pulse 2s infinite",
+        }} />
+      ))}
+    </div>
   );
 }
 
-export function DirectorRecruitmentTab({
-  pendingApps,
-  scheduledInterviews,
-  applicationsThisWeek,
-  filteredApplications,
-  interviewSchedules,
-  handleViewApplication,
-  handleSetSchedule,
-  handleApproveInterview,
-  handleRejectInterview,
-}: DirectorRecruitmentTabProps) {
-  const today = new Date(2026, 4, 17);
-  const [calYear,      setCalYear]      = useState(today.getFullYear());
-  const [calMonth,     setCalMonth]     = useState(today.getMonth());
-  const [selectedDay,  setSelectedDay]  = useState(today.getDate());
-  const [search,       setSearch]       = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div style={{
+      textAlign: "center",
+      padding: "40px 20px",
+      background: "#F8FAFC",
+      borderRadius: 12,
+      border: "1px dashed #E2E8F0",
+    }}>
+      <AlertCircle style={{ width: 40, height: 40, color: "#94A3B8", margin: "0 auto 16px" }} />
+      <p style={{ fontSize: 14, color: "#64748B", margin: 0 }}>{message}</p>
+    </div>
+  );
+}
 
-  const [scheduleApp,  setScheduleApp]  = useState<any | null>(null);
-  const [approveApp,   setApproveApp]   = useState<any | null>(null);
-  const [denyApp,      setDenyApp]      = useState<any | null>(null);
-  const [profileApp,   setProfileApp]   = useState<any | null>(null);
+export function DirectorRecruitmentTab(_props: DirectorRecruitmentTabProps) {
+  const { user } = useAuth();
+  const today = new Date(2026, 4, 17);
+
+  // Data state
+  const [applications, setApplications] = useState<any[]>([]);
+  const [interviews, setInterviews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Modal state
+  const [calYear, setCalYear] = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth());
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [scheduleApp, setScheduleApp] = useState<any | null>(null);
+  const [approveApp, setApproveApp] = useState<any | null>(null);
+  const [denyApp, setDenyApp] = useState<any | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [appsRes, interviewsRes] = await Promise.all([
+        apiClient.get('/recruitment/applications?status=pending'),
+        apiClient.get('/recruitment/interviews'),
+      ]);
+
+      setApplications(appsRes.data.data || []);
+      setInterviews(interviewsRes.data.data || []);
+    } catch (err: any) {
+      const msg = err.data?.message || 'Failed to load recruitment data';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleApprove = async (applicationId: number, notes: string) => {
+    try {
+      setActionLoading(true);
+      await apiClient.post(`/recruitment/applications/${applicationId}/approve`, { approval_notes: notes });
+      toast.success('Application approved');
+      setApproveApp(null);
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.data?.message || 'Failed to approve application');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReject = async (applicationId: number, reason: string, feedback: string) => {
+    try {
+      setActionLoading(true);
+      await apiClient.post(`/recruitment/applications/${applicationId}/reject`, {
+        denial_reason: reason,
+        denial_feedback: feedback
+      });
+      toast.success('Application rejected');
+      setDenyApp(null);
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.data?.message || 'Failed to reject application');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleScheduleInterview = async (applicationId: number, data: any) => {
+    try {
+      setActionLoading(true);
+      await apiClient.post(`/recruitment/applications/${applicationId}/schedule-interview`, {
+        date: data.date,
+        time: data.time,
+        venue: data.venue,
+        notes: data.notes,
+      });
+      toast.success('Interview scheduled');
+      setScheduleApp(null);
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.data?.message || 'Failed to schedule interview');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Calculate stats
+  const applicationsThisWeek = applications.filter(app => {
+    const createdAt = new Date(app.createdAt);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    return createdAt >= sevenDaysAgo;
+  }).length;
 
   const prevMonth = () => { if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); } else setCalMonth(m => m - 1); setSelectedDay(1); };
   const nextMonth = () => { if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0); } else setCalMonth(m => m + 1); setSelectedDay(1); };
 
-  const daysInMonth  = getDaysInMonth(calYear, calMonth);
+  const daysInMonth = getDaysInMonth(calYear, calMonth);
   const firstDaySlot = getFirstDayOfMonth(calYear, calMonth);
 
   const interviewDays = useMemo(() => {
     const s = new Set<number>();
-    interviewSchedules.forEach((iv) => { const d = new Date(iv.date); if (d.getFullYear() === calYear && d.getMonth() === calMonth) s.add(d.getDate()); });
+    interviews.forEach((iv) => { const d = new Date(iv.date); if (d.getFullYear() === calYear && d.getMonth() === calMonth) s.add(d.getDate()); });
     return s;
-  }, [interviewSchedules, calYear, calMonth]);
+  }, [interviews, calYear, calMonth]);
 
   const selectedDayEvents = useMemo(() =>
-    interviewSchedules.filter((iv) => { const d = new Date(iv.date); return d.getFullYear() === calYear && d.getMonth() === calMonth && d.getDate() === selectedDay; }),
-    [interviewSchedules, calYear, calMonth, selectedDay]);
+    interviews.filter((iv) => { const d = new Date(iv.date); return d.getFullYear() === calYear && d.getMonth() === calMonth && d.getDate() === selectedDay; }),
+    [interviews, calYear, calMonth, selectedDay]);
 
   const displayedApps = useMemo(() =>
-    filteredApplications.filter((app) => {
-      const name = app.personalInfo?.name?.toLowerCase() ?? "";
-      const id   = app.personalInfo?.studentId?.toLowerCase() ?? "";
-      const q    = search.toLowerCase();
+    applications.filter((app) => {
+      const name = app.applicantName?.toLowerCase() ?? "";
+      const id = app.applicantStudentId?.toLowerCase() ?? "";
+      const q = search.toLowerCase();
       return (!q || name.includes(q) || id.includes(q)) && (statusFilter === "all" || (app.status ?? "pending") === statusFilter);
     }),
-    [filteredApplications, search, statusFilter]);
+    [applications, search, statusFilter]);
 
   const calendarCells: (number | null)[] = [...Array(firstDaySlot).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
 
+  if (error && !loading) {
+    return (
+      <TabsContent value="recruitment" id="tab-panel-recruitment" style={{ padding: "20px" }}>
+        <EmptyState message={`Error: ${error}`} />
+      </TabsContent>
+    );
+  }
+
   return (
-    <TabsContent 
-      value="recruitment" 
-      id="tab-panel-recruitment" 
+    <TabsContent
+      value="recruitment"
+      id="tab-panel-recruitment"
       style={{ display: "block", width: "100%", border: "none", padding: 0, margin: 0, boxSizing: "border-box" }}
     >
-      {/* ── Main Side-by-Side 70/30 Grid Split Container ── */}
-      <div style={{ 
-        display: "grid", 
-        gridTemplateColumns: "7fr 3fr", 
-        gap: "24px", 
-        width: "100%", 
-        alignItems: "start", 
-        boxSizing: "border-box" 
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "7fr 3fr",
+        gap: "24px",
+        width: "100%",
+        alignItems: "start",
+        boxSizing: "border-box"
       }}>
 
-        {/* ══ LEFT SECTION: Covers 70% Width (Quickstats + Workflow Table Container) ══ */}
         <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%", boxSizing: "border-box" }}>
-          
-          {/* Quickstat Metric Cards (Now inside the 70% layout side) */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", width: "100%", boxSizing: "border-box" }}>
-            {[
-              { icon: Folder,        label: "Pending Applications",   val: pendingApps          },
-              { icon: CalendarClock, label: "Scheduled Interviews",   val: scheduledInterviews  },
-              { icon: TrendingUp,    label: "Applications This Week", val: applicationsThisWeek },
-            ].map(({ icon: Icon, label, val }) => (
-              <div key={label} style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 14, boxSizing: "border-box" }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F9EAEA", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Icon style={{ width: 16, height: 16, color: "#7A1E1E" }} />
-                </div>
-                <div>
-                  <p style={{ fontSize: 11, color: "#64748B", marginBottom: 4, lineHeight: 1, margin: 0 }}>{label}</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: val === 0 ? "#CBD5E1" : "#0F172A", lineHeight: 1, margin: 0 }}>{val}</p>
-                </div>
-              </div>
-            ))}
-          </div>
 
-          {/* Workflow Table Card */}
+          {loading ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
+              {[1, 2, 3].map(i => (
+                <div key={i} style={{ height: 100, background: "#F1F5F9", borderRadius: 12, animation: "pulse 2s infinite" }} />
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", width: "100%", boxSizing: "border-box" }}>
+              {[
+                { icon: Folder, label: "Pending Applications", val: applications.length },
+                { icon: CalendarClock, label: "Scheduled Interviews", val: interviews.length },
+                { icon: TrendingUp, label: "Applications This Week", val: applicationsThisWeek },
+              ].map(({ icon: Icon, label, val }) => (
+                <div key={label} style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 14, boxSizing: "border-box" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F9EAEA", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon style={{ width: 16, height: 16, color: "#7A1E1E" }} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 11, color: "#64748B", marginBottom: 4, lineHeight: 1, margin: 0 }}>{label}</p>
+                    <p style={{ fontSize: 24, fontWeight: 700, color: val === 0 ? "#CBD5E1" : "#0F172A", lineHeight: 1, margin: 0 }}>{val}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "24px", boxSizing: "border-box", width: "100%" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
               <h2 style={{ fontSize: 17, fontWeight: 700, color: "#0F172A", margin: 0 }}>Application Workflow Pipeline</h2>
@@ -479,222 +521,122 @@ export function DirectorRecruitmentTab({
                     style={{ ...inputStyle, width: 180, paddingLeft: 32 }}
                   />
                 </div>
-                <div style={{ position: "relative" }}>
-                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-                    style={{ ...inputStyle, width: 150, paddingRight: 28, appearance: "none", cursor: "pointer" }}>
-                    <option value="all">All Statuses</option>
-                    <option value="pending">Pending</option>
-                    <option value="scheduled">Scheduled</option>
-                    <option value="approved">Approved</option>
-                    <option value="disapproved">Disapproved</option>
-                  </select>
-                  <ChevronDown style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, color: "#64748B", pointerEvents: "none" }} />
-                </div>
               </div>
             </div>
 
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: "2px solid #F1F5F9" }}>
-                  {["Applicant Details", "Applied Date", "Status", "Actions"].map((col) => (
-                    <th key={col} style={{ paddingBottom: 10, textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: "#94A3B8", paddingRight: col === "Actions" ? 0 : 20 }}>
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {displayedApps.length > 0 ? displayedApps.map((app) => {
-                  const status = app.status ?? "pending";
-                  const badge  = STATUS_MAP[status] ?? STATUS_MAP.pending;
-                  const appliedDate = app.appliedAt
-                    ? new Date(app.appliedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                    : "—";
-
-                  return (
-                    <tr key={app.id} style={{ borderBottom: "1px solid #F8FAFC" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "#FAFAFA")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                    >
-                      <td style={{ padding: "16px 20px 16px 0" }}>
-                        <button
-                          onClick={() => setProfileApp(app)}
-                          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}
-                        >
-                          <p style={{ fontSize: 14, fontWeight: 600, color: "#7A1E1E", margin: 0, lineHeight: 1.3, textDecoration: "underline", textDecorationColor: "rgba(122,30,30,0.3)" }}>
-                            {app.personalInfo?.name ?? "—"}
-                          </p>
-                        </button>
-                        <p style={{ fontSize: 11, color: "#94A3B8", margin: "3px 0 0", fontFamily: "monospace" }}>
-                          {app.personalInfo?.studentId ?? "—"}
-                        </p>
-                      </td>
-                      <td style={{ padding: "16px 20px 16px 0", fontSize: 13, color: "#64748B", whiteSpace: "nowrap" }}>
-                        {appliedDate}
-                      </td>
-                      <td style={{ padding: "16px 20px 16px 0" }}>
-                        <span style={{
-                          fontSize: 11, fontWeight: 600,
-                          background: badge.bg, color: badge.text,
-                          border: `1px solid ${badge.border}`,
-                          borderRadius: 999, padding: "4px 10px", whiteSpace: "nowrap",
-                        }}>
-                          {badge.label}
-                        </span>
-                      </td>
-                      <td style={{ padding: "16px 0" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <button
-                            title="Schedule Interview"
-                            onClick={() => setScheduleApp(app)}
-                            style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.15s" }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#EFF6FF"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#BFDBFE"; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#E2E8F0"; }}
-                          >
-                            <Calendar style={{ width: 14, height: 14, color: "#1D4ED8" }} />
-                          </button>
-                          <button
-                            title="Approve Application"
-                            onClick={() => setApproveApp(app)}
-                            style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.15s" }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#F0FDF4"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#BBF7D0"; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#E2E8F0"; }}
-                          >
-                            <Check style={{ width: 14, height: 14, color: "#15803D" }} />
-                          </button>
-                          <button
-                            title="Deny Application"
-                            onClick={() => setDenyApp(app)}
-                            style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.15s" }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#FEF2F2"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#FECACA"; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#E2E8F0"; }}
-                          >
-                            <X style={{ width: 14, height: 14, color: "#B91C1C" }} />
-                          </button>
-                        </div>
-                      </td>
+            {loading ? (
+              <LoadingSkeleton />
+            ) : displayedApps.length === 0 ? (
+              <EmptyState message="No applications found" />
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #E5E7EB" }}>
+                      <th style={{ textAlign: "left", padding: "12px 0", fontSize: 12, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Applicant Name</th>
+                      <th style={{ textAlign: "left", padding: "12px 0", fontSize: 12, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Email</th>
+                      <th style={{ textAlign: "left", padding: "12px 0", fontSize: 12, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Status</th>
+                      <th style={{ textAlign: "center", padding: "12px 0", fontSize: 12, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Actions</th>
                     </tr>
-                  );
-                }) : (
-                  <tr>
-                    <td colSpan={4} style={{ padding: "64px 0", textAlign: "center", fontSize: 13, color: "#CBD5E1" }}>
-                      No applications match your criteria.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* ══ RIGHT SECTION: Covers 30% Width (Sticky Calendar Column Beside It) ══ */}
-        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: 20, display: "flex", flexDirection: "column", gap: 16, boxSizing: "border-box", position: "sticky", top: 16, width: "100%" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Calendar style={{ width: 14, height: 14, color: "#7A1E1E" }} />
-                <span style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>Interview Schedule</span>
+                  </thead>
+                  <tbody>
+                    {displayedApps.map((app) => (
+                      <tr key={app.id} style={{ borderBottom: "1px solid #E5E7EB", "&:hover": { background: "#F8FAFC" } }}>
+                        <td style={{ padding: "16px 0", fontSize: 13, color: "#0F172A", fontWeight: 500 }}>{app.applicantName}</td>
+                        <td style={{ padding: "16px 0", fontSize: 13, color: "#64748B" }}>{app.applicantEmail}</td>
+                        <td style={{ padding: "16px 0" }}>
+                          <span style={{
+                            display: "inline-block",
+                            padding: "4px 12px",
+                            borderRadius: 20,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: STATUS_MAP[app.status || 'pending'].bg,
+                            color: STATUS_MAP[app.status || 'pending'].text,
+                            border: `1px solid ${STATUS_MAP[app.status || 'pending'].border}`,
+                          }}>
+                            {STATUS_MAP[app.status || 'pending'].label}
+                          </span>
+                        </td>
+                        <td style={{ padding: "16px 0", textAlign: "center" }}>
+                          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                            <button onClick={() => setScheduleApp(app)} style={{ padding: "6px 12px", fontSize: 12, background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 6, color: "#1E40AF", cursor: "pointer", fontWeight: 500 }}>Schedule</button>
+                            <button onClick={() => setApproveApp(app)} style={{ padding: "6px 12px", fontSize: 12, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 6, color: "#14532D", cursor: "pointer", fontWeight: 500 }}>Approve</button>
+                            <button onClick={() => setDenyApp(app)} style={{ padding: "6px 12px", fontSize: 12, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, color: "#7F1D1D", cursor: "pointer", fontWeight: 500 }}>Reject</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 3, lineHeight: 1, margin: 0 }}>Upcoming evaluations</p>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <button onClick={prevMonth} style={{ width: 26, height: 26, borderRadius: 6, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <ChevronLeft style={{ width: 12, height: 12, color: "#94A3B8" }} />
-              </button>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#0F172A", width: 90, textAlign: "center" }}>
-                {MONTH_NAMES[calMonth]} {calYear}
-              </span>
-              <button onClick={nextMonth} style={{ width: 26, height: 26, borderRadius: 6, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <ChevronRight style={{ width: 12, height: 12, color: "#94A3B8" }} />
-              </button>
-            </div>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
-            {DAY_ABBRS.map((d, i) => (
-              <div key={i} style={{ textAlign: "center", fontSize: 10, fontWeight: 600, color: "#CBD5E1", padding: "2px 0" }}>{d}</div>
-            ))}
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginTop: -8 }}>
-            {calendarCells.map((day, i) => {
-              if (!day) return <div key={i} style={{ padding: "4px 0" }} />;
-              const isSelected = day === selectedDay;
-              const hasEvent   = interviewDays.has(day);
-              return (
-                <div
-                  key={i}
-                  onClick={() => setSelectedDay(day)}
-                  style={{
-                    textAlign: "center", fontSize: 12, fontWeight: 600,
-                    padding: "6px 0", cursor: "pointer", borderRadius: 6,
-                    position: "relative", margin: "2px",
-                    background: isSelected ? "#7A1E1E" : "transparent",
-                    color: isSelected ? "#fff" : "#334155",
-                  }}
-                >
-                  {day}
-                  {hasEvent && !isSelected && (
-                    <div style={{ position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)", width: 4, height: 4, borderRadius: "50%", background: "#7A1E1E" }} />
-                    )}
-                </div>
-              );
-            })}
-          </div>
-
-          <div style={{ borderTop: "1px solid #F1F5F9", paddingTop: 12, marginTop: 4 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, marginTop: 0 }}>
-              Schedule for {MONTH_NAMES[calMonth]} {selectedDay}
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 180, overflowY: "auto" }}>
-              {selectedDayEvents.length > 0 ? selectedDayEvents.map((ev: any, idx: number) => (
-                <div key={idx} style={{ background: "#F8FAFC", borderRadius: 8, padding: "10px 12px", borderLeft: "3px solid #7A1E1E" }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{ev.applicantName}</p>
-                  <p style={{ fontSize: 11, color: "#64748B", margin: "2px 0 0" }}>{ev.time} • {TALENT_GROUP_LABELS[ev.talentGroup] || ev.talentGroup}</p>
-                  {ev.venue && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
-                      <MapPin style={{ width: 10, height: 10, color: "#94A3B8", flexShrink: 0 }} />
-                      <p style={{ fontSize: 11, color: "#64748B", margin: 0 }}>{ev.venue}</p>
-                    </div>
-                  )}
-                </div>
-              )) : (
-                <p style={{ fontSize: 12, color: "#CBD5E1", margin: 0, padding: "6px 0" }}>No interviews scheduled for this day.</p>
-              )}
-            </div>
+            )}
           </div>
         </div>
 
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "24px", boxSizing: "border-box" }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: "0 0 16px 0" }}>Interview Schedule</h3>
+
+          {loading ? (
+            <LoadingSkeleton />
+          ) : (
+            <>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <button onClick={prevMonth} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><ChevronLeft style={{ width: 16, height: 16 }} /></button>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, margin: 0 }}>{MONTH_NAMES[calMonth]} {calYear}</h4>
+                  <button onClick={nextMonth} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><ChevronRight style={{ width: 16, height: 16 }} /></button>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+                  {DAY_ABBRS.map(d => <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: "#94A3B8", padding: 8 }}>{d}</div>)}
+                  {calendarCells.map((day, i) => (
+                    <button
+                      key={i}
+                      onClick={() => day && setSelectedDay(day)}
+                      style={{
+                        padding: 8,
+                        border: day === selectedDay ? "2px solid #7A1E1E" : "1px solid #E5E7EB",
+                        borderRadius: 6,
+                        background: day === selectedDay ? "#FEF2F2" : day === null ? "transparent" : "#fff",
+                        cursor: day ? "pointer" : "default",
+                        fontSize: 12,
+                        fontWeight: day === selectedDay ? 700 : 500,
+                        color: day === null ? "transparent" : "#0F172A",
+                        position: "relative",
+                      }}
+                    >
+                      {day}
+                      {day && interviewDays.has(day) && <div style={{ position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)", width: 4, height: 4, borderRadius: "50%", background: "#7A1E1E" }} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 16 }}>
+                <h4 style={{ fontSize: 12, fontWeight: 700, color: "#475569", textTransform: "uppercase", margin: "0 0 12px 0" }}>Events on {MONTH_NAMES[calMonth]} {selectedDay}</h4>
+                {selectedDayEvents.length === 0 ? (
+                  <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>No interviews scheduled</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {selectedDayEvents.map((event) => (
+                      <div key={event.id} style={{ background: "#F8FAFC", padding: 10, borderRadius: 8, borderLeft: "3px solid #7A1E1E" }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: "#0F172A", margin: "0 0 4px 0" }}>{event.applicantName}</p>
+                        <p style={{ fontSize: 11, color: "#64748B", margin: "0 0 2px 0" }}>{event.time}</p>
+                        <p style={{ fontSize: 11, color: "#64748B", margin: 0 }}>{event.venue}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Action Modals */}
-      {scheduleApp && (
-        <ScheduleModal
-          app={scheduleApp}
-          onClose={() => setScheduleApp(null)}
-          onConfirm={(data) => handleSetSchedule({ ...scheduleApp, scheduleData: data })}
-        />
-      )}
-      {approveApp && (
-        <ApproveModal
-          app={approveApp}
-          onClose={() => setApproveApp(null)}
-          onConfirm={() => handleApproveInterview(approveApp.id)}
-        />
-      )}
-      {denyApp && (
-        <DenyModal
-          app={denyApp}
-          onClose={() => setDenyApp(null)}
-          onConfirm={() => handleRejectInterview(denyApp.id)}
-        />
-      )}
-      {profileApp && (
-        <ProfileModal
-          app={profileApp}
-          onClose={() => setProfileApp(null)}
-        />
-      )}
+      {scheduleApp && <ScheduleModal app={scheduleApp} onClose={() => setScheduleApp(null)} onConfirm={(data) => handleScheduleInterview(scheduleApp.id, data)} isLoading={actionLoading} />}
+      {approveApp && <ApproveModal app={approveApp} onClose={() => setApproveApp(null)} onConfirm={(notes) => handleApprove(approveApp.id, notes)} isLoading={actionLoading} />}
+      {denyApp && <DenyModal app={denyApp} onClose={() => setDenyApp(null)} onConfirm={(reason, feedback) => handleReject(denyApp.id, reason, feedback)} isLoading={actionLoading} />}
     </TabsContent>
   );
 }

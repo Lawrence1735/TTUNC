@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -14,17 +15,12 @@ final class InterviewResource extends JsonResource
         return [
             'id'             => $this->id,
             'application_id' => $this->application_id,
-            'reviewer_id'    => $this->reviewer_id,
-            'scheduled_at'   => $this->scheduled_at?->toISOString(),
+            'applicant_name' => $this->application?->applicant_name ?? null,
+            'date'           => Carbon::parse($this->scheduled_at)->toDateString(),
+            'time'           => Carbon::parse($this->scheduled_at)->format('H:i'),
             'venue'          => $this->venue,
             'notes'          => $this->notes,
-            'outcome'        => $this->outcome,
-            'outcome_notes'  => $this->outcome_notes,
-            'completed_at'   => $this->completed_at?->toISOString(),
-            'created_at'     => $this->created_at?->toISOString(),
-
-            'reviewer'     => $this->whenLoaded('reviewer', fn () => new UserResource($this->reviewer)),
-            'application'  => $this->whenLoaded('application', fn () => new ApplicationResource($this->application)),
+            'status'         => $this->outcome ?? 'scheduled',
         ];
     }
 }

@@ -8,6 +8,9 @@ import {
   PublicApplicationForm,
   ApplicationFormData,
 } from "./components/PublicApplicationForm";
+import { useAuth } from "../context/AuthContext";
+import { toast } from "sonner";
+
 // Lazy load heavy dashboard components for better performance
 const StudentDashboard = lazy(() => import("./components/StudentDashboard").then(module => ({ default: module.StudentDashboard })));
 const TrainingDashboard = lazy(() => import("./components/TrainingDashboard").then(module => ({ default: module.TrainingDashboard })));
@@ -19,21 +22,11 @@ const DirectorDashboard = lazy(() => import("./components/DirectorDashboardEnhan
 const Settings = lazy(() => import("./components/Settings").then(module => ({ default: module.Settings })));
 import { NotificationPanel } from "./components/NotificationPanel";
 import { Toaster } from "./components/ui/sonner";
-import { toast } from "sonner";
 import { initKeyboardNavigation } from "./utils/keyboardNavigation";
 import { SkipToContent } from "./components/accessibility/SkipToContent";
-import {
-  users as mockUsers,
-  evaluations as mockEvaluations,
-  events as mockEvents,
-  announcements as mockAnnouncements,
-  applications as mockApplications,
-  trainingRecords as mockTrainingRecords,
-  notifications as mockNotifications,
-  inventoryItems as mockInventoryItems,
-  benefits as mockBenefits,
-  renewals as mockRenewals,
-} from "./data/mockData";
+
+// NOTE: Mock data imports removed - using real API instead
+// TODO: Replace mock data in dashboards with API calls in Phase 2
 
 export interface Evaluation {
   id: string;
@@ -239,7 +232,10 @@ const DashboardLoader = () => (
   </div>
 );
 
-export default function App() {
+function AppContent() {
+  const { user, logout, login } = useAuth();
+  const [currentUser, setCurrentUser] = useState<User | null>(user || null);
+
   const [currentPage, setCurrentPage] = useState<
     | "landing"
     | "requirements"
@@ -248,9 +244,7 @@ export default function App() {
     | "login"
     | "forgot-password"
     | "dashboard"
-  >("login");
-
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  >(user ? "dashboard" : "login");
 
   const [currentView, setCurrentView] = useState<
     | "student"
@@ -287,23 +281,25 @@ export default function App() {
     });
   };
 
-  // Mock datasets (moved out of this file to ./data/mockData)
-  const [users, setUsers] = useState<User[]>(mockUsers);
-  const [evaluations, setEvaluations] = useState<Evaluation[]>(mockEvaluations);
+  // Sync currentUser with auth context user on changes
+  useEffect(() => {
+    if (user) {
+      setCurrentUser(user);
+    }
+  }, [user]);
 
-  const [events, setEvents] = useState<Event[]>(mockEvents);
-  const [announcements, setAnnouncements] = useState<Announcement[]>(mockAnnouncements);
-
-  const [applications, setApplications] = useState<Application[]>(mockApplications);
-  const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>(mockTrainingRecords);
-
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
-
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(mockInventoryItems);
-
-  const [benefits] = useState<Benefit[]>(mockBenefits);
-
-  const [renewals, setRenewals] = useState<ScholarshipRenewal[]>(mockRenewals);
+  // TODO: Replace with API calls in Phase 2
+  // Mock data for now - will be replaced with real API calls
+  const [users, setUsers] = useState<User[]>([]);
+  const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [benefits] = useState<Benefit[]>([]);
+  const [renewals, setRenewals] = useState<ScholarshipRenewal[]>([]);
 
 
   // Notification Panel State
@@ -359,47 +355,36 @@ export default function App() {
 
   const unreadNotificationsCount = userNotifications.filter(n => !n.read).length;
 
-  const handleLogin = (email: string, password: string, selectedRole: string) => {
-    const user = users.find((u) => u.email === email);
-    
-    if (user) {
-      // Check if the selected role matches the user's actual role
-      // Map "trainee" to "student" for role matching since trainees are students in training
-      const normalizedSelectedRole = selectedRole === 'trainee' ? 'student' : selectedRole;
-      
-      if (user.role !== normalizedSelectedRole) {
-        toast.error('Invalid credentials');
-        return { success: false, error: 'Invalid credentials' };
-      }
-      
-      // If trainee is selected, verify user is actually in training
-      if (selectedRole === 'trainee' && user.trainingStatus !== 'in_progress') {
-        toast.error('Invalid credentials');
-        return { success: false, error: 'Invalid credentials' };
-      }
-      
-      setCurrentUser(user);
+  const handleLogin = async (email: string, password: string, selectedRole: string) => {
+    const { success, error } = await login(email, password);
+
+    if (success) {
+      // User and role come from API response (in AuthContext)
+      // The API response determines the dashboard redirect
       startTransition(() => {
         setCurrentPage("dashboard");
-        if (user.role === "student") {
-          if (user.trainingStatus === "in_progress") {
+
+        // Role-based redirect based on authenticated user from API
+        if (currentUser?.role === "student") {
+          if (currentUser.trainingStatus === "in_progress") {
             setCurrentView("training");
           } else {
             setCurrentView("student");
           }
-        } else if (user.role === "scholar") {
+        } else if (currentUser?.role === "scholar") {
           setCurrentView("member-profile");
         }
       });
-      toast.success(`Welcome back, ${user.name}!`);
+      toast.success(`Welcome back, ${currentUser?.name}!`);
       return { success: true };
     }
-    
-    toast.error("Invalid email or password");
-    return { success: false, error: "Invalid email or password" };
+
+    toast.error(error || "Invalid email or password");
+    return { success: false, error };
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout();
     setCurrentUser(null);
     startTransition(() => {
       setCurrentPage("landing");
@@ -1011,6 +996,15 @@ export default function App() {
           />
         )}
       </div>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      {/* Wrap app with AuthProvider for auth context */}
+      <AppContent />
     </>
   );
 }

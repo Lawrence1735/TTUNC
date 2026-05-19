@@ -66,6 +66,13 @@ Route::prefix('v1')
             )->name('applications.index')
              ->middleware('role:director,admin');
 
+            // Interview listing (director/admin only)
+            Route::get(
+                '/interviews',
+                [RecruitmentController::class, 'indexInterviews']
+            )->name('interviews.index')
+             ->middleware('role:director,admin');
+
             // Single application detail
             Route::get(
                 '/applications/{application}',

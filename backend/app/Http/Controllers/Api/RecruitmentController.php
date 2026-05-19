@@ -12,6 +12,7 @@ use App\Http\Requests\Recruitment\StoreApplicationRequest;
 use App\Http\Resources\ApplicationResource;
 use App\Http\Resources\InterviewResource;
 use App\Models\Application;
+use App\Models\Interview;
 use App\Services\ApplicationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,6 +41,25 @@ final class RecruitmentController extends Controller
         );
 
         return ApplicationResource::collection($applications);
+    }
+
+    /**
+     * GET /api/v1/recruitment/interviews
+     * Return all interviews for the authenticated director's talent group.
+     */
+    public function indexInterviews(Request $request): AnonymousResourceCollection
+    {
+        $talentGroup = $request->user()->talent_group;
+
+        $interviews = Interview::query()
+            ->whereHas('application', function ($query) use ($talentGroup) {
+                $query->where('talent_group', $talentGroup);
+            })
+            ->with(['application'])
+            ->orderBy('scheduled_at', 'desc')
+            ->get();
+
+        return InterviewResource::collection($interviews);
     }
 
     /**
