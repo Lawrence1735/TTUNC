@@ -1,215 +1,190 @@
 <?php
 
 declare(strict_types=1);
-
+ 
 namespace App\Http\Controllers\Api;
-
+ 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Training\BatchAttendanceRequest;
-use App\Http\Requests\Training\StoreEvaluationRequest;
-use App\Http\Requests\Training\UpdateTraineeRequest;
-use App\Http\Resources\AttendanceRecordResource;
-use App\Http\Resources\EvaluationResource;
-use App\Http\Resources\TraineeResource;
 use App\Models\AttendanceRecord;
 use App\Models\Evaluation;
 use App\Models\Trainee;
-use App\Services\AttendanceService;
-use App\Services\EvaluationService;
-use App\Services\TraineeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Symfony\Component\HttpFoundation\Response;
-
-/**
- * Thin HTTP adapter for training-related endpoints.
- *
- * Responsibilities:
- *  - Parse and validate HTTP input (via FormRequests)
- *  - Call the appropriate Service method
- *  - Shape the HTTP response via API Resources
- *
- * No business logic, no DB queries, no transactions here.
- */
+ 
 final class TrainingController extends Controller
 {
-    public function __construct(
-        private readonly TraineeService    $traineeService,
-        private readonly AttendanceService $attendanceService,
-        private readonly EvaluationService $evaluationService,
-    ) {}
-
-    // ─── Trainees ─────────────────────────────────────────────────────────────
-
-    /**
-     * GET /api/v1/training/trainees
-     */
-    public function indexTrainees(Request $request): AnonymousResourceCollection
+    // ── Trainees ──────────────────────────────────────────────────────────────
+ 
+    public function indexTrainees(Request $request): JsonResponse
     {
-        $trainees = $this->traineeService->list(
-            talentGroup: $request->user()->talent_group,
-            search:      $request->string('search')->value() ?: null,
-            status:      $request->string('status')->value() ?: null,
-        );
-
-        return TraineeResource::collection($trainees);
+        $query = Trainee::with('user');
+ 
+        if ($request->user()->role === 'director') {
+            $query->whereHas('user', fn($q) => $q->where('talent_group', $request->user()->talent_group));
+        }
+ 
+        if ($request->filled('status')) {
+            $query->where('current_status', $request->status);
+        }
+ 
+        $trainees = $query->paginate(20);
+        return response()->json($trainees);
     }
-
-    /**
-     * GET /api/v1/training/trainees/{trainee}
-     */
+ 
     public function showTrainee(Trainee $trainee): JsonResponse
     {
-        $trainee = $this->traineeService->getWithRelations($trainee->id);
-
-        return response()->json(['data' => new TraineeResource($trainee)]);
+        return response()->json(['data' => $trainee->load('user', 'attendanceRecords', 'evaluations')]);
     }
-
-    /**
-     * PATCH /api/v1/training/trainees/{trainee}
-     */
-    public function updateTrainee(UpdateTraineeRequest $request, Trainee $trainee): JsonResponse
+ 
+    public function updateTrainee(Request $request, Trainee $trainee): JsonResponse
     {
-        $updated = $this->traineeService->update($trainee, $request->validated());
-
-        return response()->json(['data' => new TraineeResource($updated)]);
+        $data = $request->validate([
+            'current_status'          => ['nullable', 'in:active,inactive,completed,dropped'],
+            'instrument'              => ['nullable', 'string'],
+            'voice'                   => ['nullable', 'string'],
+            'chapter'                 => ['nullable', 'string'],
+            'total_expected_sessions' => ['nullable', 'integer'],
+        ]);
+ 
+        $trainee->update($data);
+        return response()->json(['data' => $trainee->fresh('user')]);
     }
-
-    /**
-     * DELETE /api/v1/training/trainees/{trainee}
-     */
+ 
     public function destroyTrainee(Trainee $trainee): JsonResponse
     {
-        $this->traineeService->delete($trainee);
-
-        return response()->json(['message' => 'Trainee record deleted.'], Response::HTTP_OK);
+        $trainee->delete();
+        return response()->json(['message' => 'Trainee deleted.']);
     }
-
-    /**
-     * GET /api/v1/training/trainees/{trainee}/stats
-     */
+ 
     public function traineeStats(Trainee $trainee): JsonResponse
     {
-        $base  = $this->traineeService->stats($trainee);
-        $extra = $this->evaluationService->traineeStatsPayload($trainee->id);
-
+        $attended = $trainee->attendanceRecords()->where('status', 'present')->where('no_practice', false)->count();
+        $total    = $trainee->attendanceRecords()->where('no_practice', false)->count();
+        $rate     = $total > 0 ? round(($attended / $total) * 100, 1) : 0;
+ 
         return response()->json([
             'data' => [
-                'trainee'            => new TraineeResource($base['trainee']),
-                'completion_rate'    => $base['completion_rate'],
-                'attendance_rate'    => $base['attendance_rate'],
-                'monthly_attendance' => $extra['monthly_attendance'],
-                'evaluation_trend'   => $extra['evaluation_trend'],
-                'latest_rating'      => $extra['latest_rating'],
+                'trainee'         => $trainee->load('user'),
+                'attendance_rate' => $rate,
+                'attended'        => $attended,
+                'total_sessions'  => $total,
+                'completion_rate' => $trainee->completion_rate,
             ],
         ]);
     }
-
-    // ─── Attendance ───────────────────────────────────────────────────────────
-
-    /**
-     * GET /api/v1/training/attendance
-     */
+ 
+    // ── Attendance ────────────────────────────────────────────────────────────
+ 
     public function indexAttendance(Request $request): JsonResponse
     {
-        $request->validate([
-            'date_from' => ['nullable', 'date'],
-            'date_to'   => ['nullable', 'date', 'after_or_equal:date_from'],
-        ]);
-
-        $records = $this->attendanceService->getMatrix(
-            talentGroup: $request->user()->talent_group,
-            dateFrom:    $request->string('date_from')->value() ?: null,
-            dateTo:      $request->string('date_to')->value() ?: null,
-        );
-
-        return response()->json(['data' => AttendanceRecordResource::collection($records)]);
+        $query = AttendanceRecord::with('trainee.user');
+ 
+        if ($request->user()->role === 'director') {
+            $query->whereHas('trainee.user', fn($q) => $q->where('talent_group', $request->user()->talent_group));
+        }
+ 
+        if ($request->filled('date_from')) {
+            $query->where('session_date', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->where('session_date', '<=', $request->date_to);
+        }
+ 
+        return response()->json(['data' => $query->orderByDesc('session_date')->get()]);
     }
-
-    /**
-     * POST /api/v1/training/attendance/batch
-     */
-    public function batchUpsertAttendance(BatchAttendanceRequest $request): JsonResponse
+ 
+    public function batchUpsertAttendance(Request $request): JsonResponse
     {
-        $validated = $request->validated();
-
-        $this->attendanceService->batchUpsert(
-            sessionDate: $validated['session_date'],
-            noPractice:  (bool) $validated['no_practice'],
-            records:     $validated['records'],
-        );
-
-        return response()->json([
-            'message'       => 'Attendance recorded successfully.',
-            'session_date'  => $validated['session_date'],
-            'no_practice'   => (bool) $validated['no_practice'],
-            'records_count' => count($validated['records']),
+        $data = $request->validate([
+            'session_date' => ['required', 'date'],
+            'no_practice'  => ['boolean'],
+            'records'      => ['required', 'array'],
+            'records.*.trainee_id' => ['required', 'integer', 'exists:trainees,id'],
+            'records.*.attended'   => ['required', 'boolean'],
         ]);
+ 
+        foreach ($data['records'] as $record) {
+            AttendanceRecord::updateOrCreate(
+                ['trainee_id' => $record['trainee_id'], 'session_date' => $data['session_date']],
+                [
+                    'status'      => $record['attended'] ? 'present' : 'absent',
+                    'no_practice' => $data['no_practice'] ?? false,
+                ]
+            );
+        }
+ 
+        return response()->json(['message' => 'Attendance saved.', 'session_date' => $data['session_date']]);
     }
-
-    /**
-     * PATCH /api/v1/training/attendance/{record}/toggle-no-practice
-     */
+ 
     public function toggleNoPractice(AttendanceRecord $record): JsonResponse
     {
-        $updated = $this->attendanceService->toggleNoPractice($record);
-
-        return response()->json([
-            'message'     => 'No-practice flag toggled.',
-            'no_practice' => $updated->no_practice,
+        $record->update(['no_practice' => ! $record->no_practice]);
+        return response()->json(['message' => 'Toggled.', 'no_practice' => $record->no_practice]);
+    }
+ 
+    // ── Evaluations ───────────────────────────────────────────────────────────
+ 
+    public function indexEvaluations(Request $request): JsonResponse
+    {
+        $query = Evaluation::with('trainee.user', 'evaluator');
+ 
+        if ($request->user()->role === 'director') {
+            $query->whereHas('trainee.user', fn($q) => $q->where('talent_group', $request->user()->talent_group));
+        }
+ 
+        if ($request->filled('trainee_id')) {
+            $query->where('trainee_id', $request->trainee_id);
+        }
+ 
+        return response()->json(['data' => $query->orderByDesc('evaluation_date')->get()]);
+    }
+ 
+    public function storeEvaluation(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'trainee_id'       => ['required', 'integer', 'exists:trainees,id'],
+            'rating'           => ['required', 'integer', 'min:1', 'max:100'],
+            'recommendation'   => ['required', 'in:continue,probation,discontinue'],
+            'evaluation_date'  => ['required', 'date'],
+            'semester'         => ['nullable', 'string'],
+            'academic_year'    => ['nullable', 'string'],
+            'notes'            => ['nullable', 'string'],
+            'strengths'        => ['nullable', 'string'],
+            'improvements'     => ['nullable', 'string'],
+            'section_a'        => ['nullable', 'array'],
+            'section_b'        => ['nullable', 'array'],
+            'section_c'        => ['nullable', 'array'],
+            'status'           => ['nullable', 'in:draft,submitted'],
         ]);
+ 
+        $evaluation = Evaluation::create([
+            ...$data,
+            'evaluator_id' => $request->user()->id,
+            'status'       => $data['status'] ?? 'submitted',
+        ]);
+ 
+        return response()->json(['data' => $evaluation->load('trainee.user', 'evaluator')], Response::HTTP_CREATED);
     }
-
-    // ─── Evaluations ──────────────────────────────────────────────────────────
-
-    /**
-     * GET /api/v1/training/evaluations
-     */
-    public function indexEvaluations(Request $request): AnonymousResourceCollection
-    {
-        $evaluations = $this->evaluationService->list(
-            talentGroup: $request->user()->talent_group,
-            traineeId:   $request->integer('trainee_id') ?: null,
-            status:      $request->string('status')->value() ?: null,
-        );
-
-        return EvaluationResource::collection($evaluations);
-    }
-
-    /**
-     * POST /api/v1/training/evaluations
-     */
-    public function storeEvaluation(StoreEvaluationRequest $request): JsonResponse
-    {
-        $evaluation = $this->evaluationService->create(
-            data:        $request->validated(),
-            evaluatorId: $request->user()->id,
-        );
-
-        return response()->json(
-            ['data' => new EvaluationResource($evaluation)],
-            Response::HTTP_CREATED
-        );
-    }
-
-    /**
-     * GET /api/v1/training/evaluations/{evaluation}
-     */
+ 
     public function showEvaluation(Evaluation $evaluation): JsonResponse
     {
-        $evaluation = $this->evaluationService->get($evaluation->id);
-
-        return response()->json(['data' => new EvaluationResource($evaluation)]);
+        return response()->json(['data' => $evaluation->load('trainee.user', 'evaluator')]);
     }
-
-    /**
-     * PATCH /api/v1/training/evaluations/{evaluation}
-     */
-    public function updateEvaluation(StoreEvaluationRequest $request, Evaluation $evaluation): JsonResponse
+ 
+    public function updateEvaluation(Request $request, Evaluation $evaluation): JsonResponse
     {
-        $updated = $this->evaluationService->update($evaluation, $request->validated());
-
-        return response()->json(['data' => new EvaluationResource($updated)]);
+        $data = $request->validate([
+            'rating'          => ['nullable', 'integer', 'min:1', 'max:100'],
+            'recommendation'  => ['nullable', 'in:continue,probation,discontinue'],
+            'evaluation_date' => ['nullable', 'date'],
+            'notes'           => ['nullable', 'string'],
+            'strengths'       => ['nullable', 'string'],
+            'improvements'    => ['nullable', 'string'],
+            'status'          => ['nullable', 'in:draft,submitted'],
+        ]);
+ 
+        $evaluation->update($data);
+        return response()->json(['data' => $evaluation->fresh('trainee.user', 'evaluator')]);
     }
 }

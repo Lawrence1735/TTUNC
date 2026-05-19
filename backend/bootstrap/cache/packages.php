@@ -1,4 +1,11 @@
 <?php return array (
+  'laravel/pail' => 
+  array (
+    'providers' => 
+    array (
+      0 => 'Laravel\\Pail\\PailServiceProvider',
+    ),
+  ),
   'laravel/sail' => 
   array (
     'providers' => 
@@ -39,13 +46,6 @@
     'providers' => 
     array (
       0 => 'Termwind\\Laravel\\TermwindServiceProvider',
-    ),
-  ),
-  'pestphp/pest-plugin-laravel' => 
-  array (
-    'providers' => 
-    array (
-      0 => 'Pest\\Laravel\\PestServiceProvider',
     ),
   ),
 );
