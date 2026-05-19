@@ -1,15 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Separator } from './ui/separator';
 import { GraduationCap } from './ui/icons';
+import { EvaluationConfirmationDialog } from './EvaluationConfirmationDialog';
 import type { User } from '../App';
 import type { Evaluation } from './types';
 
@@ -48,41 +48,79 @@ export function EvaluationFormDialog({
   getAdjectivalRating,
   currentUser
 }: EvaluationFormDialogProps) {
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
-  const updateSectionA = (field: string, value: number) => {
+        const updateSectionA = (field: string, value: number) => {
     setEvaluationForm({
       ...evaluationForm,
-      sectionA: { ...evaluationForm.sectionA, [field]: value }
+      sectionA: { ...(evaluationForm.sectionA || {}), [field]: value }
     });
+  };
+
+  const getRatingPeriodFromTimeline = (date: Date) => {
+    // NOTE: timeline profile is not currently centralized in a separate file.
+    // Default fallback matches the prior hardcoded behavior.
+    // Future: replace with real timeline profile lookup.
+    const month = date.getMonth() + 1; // 1-12
+    const year = date.getFullYear();
+    if (month >= 1 && month <= 5) return `1st Semester, SY ${year}-${year + 1}`;
+    return `2nd Semester, SY ${year}-${year + 1}`;
+  };
+
+  const getTalentUnitAuto = () => {
+    // Removed manual Talent Unit selection. Use logged-in trainee context.
+    return selectedTrainee?.talentGroup || '';
+  };
+
+  const computeScholarshipTierFromOverall = (overall: number) => {
+    // Auto-assign reward tier based on final computed score.
+    // Mapping (0-5 scale): >=4.5 => 100, >=3.75 => 75, >=3.0 => 50, else 25
+    if (overall >= 4.5) return 100;
+    if (overall >= 3.75) return 75;
+    if (overall >= 3.0) return 50;
+    return 25;
+  };
+
+  const handleSubmitClick = () => {
+    // Show confirmation dialog before final submission
+    setShowConfirmation(true);
+  };
+
+  const handleConfirmSubmit = () => {
+    // Finalize and submit the evaluation
+    onSubmit();
+    onOpenChange(false);
   };
 
   const updateSectionB = (field: string, value: number) => {
     setEvaluationForm({
       ...evaluationForm,
-      sectionB: { ...evaluationForm.sectionB, [field]: value }
+      sectionB: { ...(evaluationForm.sectionB || {}), [field]: value }
     });
   };
 
   const updateSectionC = (field: string, value: number) => {
     setEvaluationForm({
       ...evaluationForm,
-      sectionC: { ...evaluationForm.sectionC, [field]: value }
+      sectionC: { ...(evaluationForm.sectionC || {}), [field]: value }
     });
   };
 
   React.useEffect(() => {
     if (selectedTrainee && open) {
-      const today = new Date().toISOString().split('T')[0];
-      setEvaluationForm(prev => ({
-        ...prev,
+      const todayObj = new Date();
+      const today = todayObj.toISOString().split('T')[0];
+      setEvaluationForm({
+        ...evaluationForm,
         scholarName: selectedTrainee.name || '',
-        talentUnit: selectedTrainee.talentGroup || '',
-        ratingPeriod: prev.ratingPeriod || '2nd Semester, SY 2024-2025',
+        ratingPeriod: getRatingPeriodFromTimeline(todayObj),
+        talentUnit: getTalentUnitAuto(),
         ratedBy: currentUser?.name || '',
         ratedDate: today
-      }));
+      });
     }
   }, [selectedTrainee, open, currentUser?.name]);
+
 
   const RatingButton = ({ value, currentValue, onClick }: { value: number; currentValue: number; onClick: () => void }) => (
     <button
@@ -123,16 +161,12 @@ export function EvaluationFormDialog({
                   </div>
                   <div>
                     <Label className="text-sm text-[#6c757d]">Talent Unit</Label>
-                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.talentUnit}</p>
+                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">{getTalentUnitAuto()}</p>
                   </div>
+
                   <div>
                     <Label className="text-sm text-[#6c757d]">Rating Period</Label>
-                    <Input
-                      value={evaluationForm.ratingPeriod}
-                      onChange={(e) => setEvaluationForm({ ...evaluationForm, ratingPeriod: e.target.value })}
-                      className="mt-1"
-                      placeholder="e.g., 2nd Semester, SY 2023-2024"
-                    />
+                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.ratingPeriod}</p>
                   </div>
                 </div>
               </CardContent>
@@ -174,26 +208,10 @@ export function EvaluationFormDialog({
                         ))}
                       </TableRow>
                       <TableRow>
-                        <TableCell>Reports to practices/rehearsals on time</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.practicesOnTime} onClick={() => updateSectionA('practicesOnTime', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
-                        <TableCell>Reports to practices/rehearsals regularly</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.practicesRegularly} onClick={() => updateSectionA('practicesRegularly', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow>
                         <TableCell>Spends no time away from duties unnecessarily</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.noUnnecessaryAbsence} onClick={() => updateSectionA('noUnnecessaryAbsence', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionA?.noUnnecessaryAbsence ?? 0} onClick={() => updateSectionA('noUnnecessaryAbsence', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -250,7 +268,7 @@ export function EvaluationFormDialog({
                         <TableCell>Shows interest in improving skills and talents</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.improvementInterest} onClick={() => updateSectionB('improvementInterest', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionB.improvementInterest ?? 0} onClick={() => updateSectionB('improvementInterest', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -258,31 +276,23 @@ export function EvaluationFormDialog({
                         <TableCell>Shows interest in doing a good performance</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.performanceInterest} onClick={() => updateSectionB('performanceInterest', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionB.performanceInterest ?? 0} onClick={() => updateSectionB('performanceInterest', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
                       <TableRow>
-                        <TableCell>Demonstrates strong work ethic</TableCell>
+                        <TableCell>Exhibits initiative and resourcefulness</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.workEthic} onClick={() => updateSectionB('workEthic', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionB.initiative ?? 0} onClick={() => updateSectionB('initiative', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
                       <TableRow className="bg-gray-50/50">
-                        <TableCell>Exhibits initiative and resourcefulness</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.initiative} onClick={() => updateSectionB('initiative', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow>
                         <TableCell>Uses time and resources efficiently</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.efficiency} onClick={() => updateSectionB('efficiency', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionB.efficiency ?? 0} onClick={() => updateSectionB('efficiency', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -336,14 +346,6 @@ export function EvaluationFormDialog({
                         ))}
                       </TableRow>
                       <TableRow>
-                        <TableCell>Treats everyone with courtesy and respect</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionC.courtesy} onClick={() => updateSectionC('courtesy', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
                         <TableCell>Exhibits a pleasant disposition</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
@@ -383,60 +385,33 @@ export function EvaluationFormDialog({
               </CardContent>
             </Card>
 
-            {/* Scholarship Percentage */}
+            {/* Scholarship Percentage (Auto-computed) */}
             <Card className="border-2 border-[#7A1E1E]/20 bg-gradient-to-br from-[#7A1E1E]/5 to-transparent">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <GraduationCap className="w-5 h-5 text-[#7A1E1E]" />
-                  Scholarship Percentage
+                  Scholarship Reward Tier
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <Label className="text-sm text-[#6c757d]">Select the scholarship grant percentage</Label>
-                  <Select
-                    value={evaluationForm.scholarshipPercentage?.toString() || ''}
-                    onValueChange={(value) => setEvaluationForm({ ...evaluationForm, scholarshipPercentage: parseInt(value) })}
-                  >
-                    <SelectTrigger className="h-12 text-lg border-2 hover:border-[#7A1E1E]/50 transition-colors">
-                      <SelectValue placeholder="Select scholarship percentage" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="25" className="text-lg py-3">
-                        <div className="flex items-center justify-between w-full">
-                          <span>25%</span>
-                          <span className="text-sm text-[#6c757d] ml-4">Quarter Scholarship</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="50" className="text-lg py-3">
-                        <div className="flex items-center justify-between w-full">
-                          <span>50%</span>
-                          <span className="text-sm text-[#6c757d] ml-4">Half Scholarship</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="75" className="text-lg py-3">
-                        <div className="flex items-center justify-between w-full">
-                          <span>75%</span>
-                          <span className="text-sm text-[#6c757d] ml-4">Three-Quarter Scholarship</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="100" className="text-lg py-3">
-                        <div className="flex items-center justify-between w-full">
-                          <span>100%</span>
-                          <span className="text-sm text-[#6c757d] ml-4">Full Scholarship</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {evaluationForm.scholarshipPercentage && (
-                    <div className="mt-3 p-3 bg-white rounded-lg border border-[#7A1E1E]/20 text-center">
-                      <p className="text-sm text-[#6B7280]">Recommended Scholarship</p>
-                      <p className="text-2xl font-bold text-[#7A1E1E] mt-1">{evaluationForm.scholarshipPercentage}% Scholarship</p>
-                    </div>
-                  )}
+                  <p className="text-sm text-[#6c757d]">Automatically assigned based on final computed evaluation score.</p>
+
+                  {(() => {
+                    const overallStr = calculateOverallRating();
+                    const overall = typeof overallStr === 'string' ? parseFloat(overallStr) : Number(overallStr);
+                    const tier = Number.isFinite(overall) ? computeScholarshipTierFromOverall(overall) : 25;
+                    return (
+                      <div className="mt-3 p-3 bg-white rounded-lg border border-[#7A1E1E]/20 text-center">
+                        <p className="text-sm text-[#6B7280]">Assigned Scholarship</p>
+                        <p className="text-2xl font-bold text-[#7A1E1E] mt-1">{tier}% Scholarship</p>
+                      </div>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>
+
 
             {/* Open Text Fields */}
             <Card>
@@ -513,10 +488,31 @@ export function EvaluationFormDialog({
         </div>
 
         <DialogFooter className="px-4 sm:px-8 py-4 shrink-0 border-t border-[#E5E7EB]">
-          <Button onClick={onSubmit} className="bg-[#7A1E1E] hover:bg-[#6A1919]">
+          <Button 
+            onClick={handleSubmitClick} 
+            className="bg-[#7A1E1E] hover:bg-[#6A1919]"
+          >
             Submit Evaluation
           </Button>
         </DialogFooter>
+
+        {/* Evaluation Confirmation Dialog */}
+        <EvaluationConfirmationDialog
+          open={showConfirmation}
+          onOpenChange={setShowConfirmation}
+          traineeName={selectedTrainee?.name || ''}
+          overallRating={calculateOverallRating()}
+          adjectivalRating={getAdjectivalRating()}
+          scholarshipTier={
+            (() => {
+              const overallStr = calculateOverallRating();
+              const overall = typeof overallStr === 'string' ? parseFloat(overallStr) : Number(overallStr);
+              return Number.isFinite(overall) ? computeScholarshipTierFromOverall(overall) : 25;
+            })()
+          }
+          onConfirm={handleConfirmSubmit}
+          onCancel={() => setShowConfirmation(false)}
+        />
       </DialogContent>
     </Dialog>
   );
