@@ -1,7 +1,6 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
@@ -16,19 +15,9 @@ import type { Evaluation } from './types';
 interface EvaluationFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  selectedTrainee: User;
+  selectedTrainee?: User | null;
   evaluationForm: Evaluation;
-  setEvaluationForm: (form: Evaluation) => void;
-  onSubmit: () => void;
-  calculateSectionATotal: () => number;
-  calculateSectionAAverage: () => string;
-  calculateSectionBTotal: () => number;
-  calculateSectionBAverage: () => string;
-  calculateSectionCTotal: () => number;
-  calculateSectionCAverage: () => string;
-  calculateOverallRating: () => string;
-  getAdjectivalRating: () => string;
-  currentUser: User;
+  setEvaluationForm: (form: React.SetStateAction<Evaluation>) => void;
 }
 
 export function EvaluationFormDialog({
@@ -37,52 +26,91 @@ export function EvaluationFormDialog({
   selectedTrainee,
   evaluationForm,
   setEvaluationForm,
-  onSubmit,
-  calculateSectionATotal,
-  calculateSectionAAverage,
-  calculateSectionBTotal,
-  calculateSectionBAverage,
-  calculateSectionCTotal,
-  calculateSectionCAverage,
-  calculateOverallRating,
-  getAdjectivalRating,
-  currentUser
 }: EvaluationFormDialogProps) {
+  // Return null if required data is not loaded yet
+  if (!open || !selectedTrainee || !evaluationForm) {
+    return null;
+  }
 
   const updateSectionA = (field: string, value: number) => {
-    setEvaluationForm({
-      ...evaluationForm,
-      sectionA: { ...evaluationForm.sectionA, [field]: value }
-    });
+    setEvaluationForm(prev => ({
+      ...prev,
+      sectionA: { ...prev.sectionA, [field]: value }
+    }));
   };
 
   const updateSectionB = (field: string, value: number) => {
-    setEvaluationForm({
-      ...evaluationForm,
-      sectionB: { ...evaluationForm.sectionB, [field]: value }
-    });
+    setEvaluationForm(prev => ({
+      ...prev,
+      sectionB: { ...prev.sectionB, [field]: value }
+    }));
   };
 
   const updateSectionC = (field: string, value: number) => {
-    setEvaluationForm({
-      ...evaluationForm,
-      sectionC: { ...evaluationForm.sectionC, [field]: value }
-    });
+    setEvaluationForm(prev => ({
+      ...prev,
+      sectionC: { ...prev.sectionC, [field]: value }
+    }));
+  };
+
+  // Helper functions for calculations
+  const calculateSectionATotal = (): number => {
+    const section = evaluationForm.sectionA;
+    if (!section) return 0;
+    return (section.reportsOnTime || 0) + (section.reportsRegularly || 0) + (section.practicesOnTime || 0) 
+      + (section.practicesRegularly || 0) + (section.noUnnecessaryAbsence || 0) + (section.mastersyTasks || 0) + (section.maintainsCleanliness || 0);
+  };
+
+  const calculateSectionAAverage = (): string => {
+    const total = calculateSectionATotal();
+    return total > 0 ? (total / 7).toFixed(2) : '0.00';
+  };
+
+  const calculateSectionBTotal = (): number => {
+    const section = evaluationForm.sectionB;
+    if (!section) return 0;
+    return (section.improvementInterest || 0) + (section.performanceInterest || 0) + (section.workEthic || 0) 
+      + (section.initiative || 0) + (section.efficiency || 0);
+  };
+
+  const calculateSectionBAverage = (): string => {
+    const total = calculateSectionBTotal();
+    return total > 0 ? (total / 5).toFixed(2) : '0.00';
+  };
+
+  const calculateSectionCTotal = (): number => {
+    const section = evaluationForm.sectionC;
+    if (!section) return 0;
+    return (section.teamwork || 0) + (section.tact || 0) + (section.courtesy || 0) + (section.disposition || 0);
+  };
+
+  const calculateSectionCAverage = (): string => {
+    const total = calculateSectionCTotal();
+    return total > 0 ? (total / 4).toFixed(2) : '0.00';
+  };
+
+  const calculateOverallRating = (): string => {
+    const totals = [calculateSectionATotal(), calculateSectionBTotal(), calculateSectionCTotal()];
+    const grandTotal = totals.reduce((a, b) => a + b, 0);
+    const maxPossible = (7 + 5 + 4) * 5; // 16 criteria * 5 points max
+    return maxPossible > 0 ? ((grandTotal / maxPossible) * 5).toFixed(2) : '0.00';
+  };
+
+  const getAdjectivalRating = (): string => {
+    const rating = parseFloat(calculateOverallRating());
+    if (rating >= 4.5) return 'Excellent';
+    if (rating >= 3.5) return 'Very Good';
+    if (rating >= 2.5) return 'Good';
+    if (rating >= 1.5) return 'Fair';
+    return 'Poor';
   };
 
   React.useEffect(() => {
     if (selectedTrainee && open) {
-      const today = new Date().toISOString().split('T')[0];
-      setEvaluationForm(prev => ({
-        ...prev,
-        scholarName: selectedTrainee.name || '',
-        talentUnit: selectedTrainee.talentGroup || '',
-        ratingPeriod: prev.ratingPeriod || '2nd Semester, SY 2024-2025',
-        ratedBy: currentUser?.name || '',
-        ratedDate: today
-      }));
+      // Initialize evaluation with selected trainee data
+      // scholarName, talentUnit, ratingPeriod will be filled via component props
     }
-  }, [selectedTrainee, open, currentUser?.name]);
+  }, [selectedTrainee, open]);
 
   const RatingButton = ({ value, currentValue, onClick }: { value: number; currentValue: number; onClick: () => void }) => (
     <button
@@ -119,20 +147,15 @@ export function EvaluationFormDialog({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <Label className="text-sm text-[#6c757d]">Talent Scholar Name</Label>
-                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.scholarName}</p>
+                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">{selectedTrainee?.name || 'Loading...'}</p>
                   </div>
                   <div>
                     <Label className="text-sm text-[#6c757d]">Talent Unit</Label>
-                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.talentUnit}</p>
+                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">{selectedTrainee?.talentGroup || 'Loading...'}</p>
                   </div>
                   <div>
                     <Label className="text-sm text-[#6c757d]">Rating Period</Label>
-                    <Input
-                      value={evaluationForm.ratingPeriod}
-                      onChange={(e) => setEvaluationForm({ ...evaluationForm, ratingPeriod: e.target.value })}
-                      className="mt-1"
-                      placeholder="e.g., 2nd Semester, SY 2023-2024"
-                    />
+                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">2nd Semester, SY 2024-2025</p>
                   </div>
                 </div>
               </CardContent>
@@ -161,7 +184,7 @@ export function EvaluationFormDialog({
                         <TableCell>Reports to engagements (internal & external) on time</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.reportsOnTime} onClick={() => updateSectionA('reportsOnTime', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionA?.reportsOnTime || 0} onClick={() => updateSectionA('reportsOnTime', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -169,7 +192,7 @@ export function EvaluationFormDialog({
                         <TableCell>Reports to engagements regularly</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.reportsRegularly} onClick={() => updateSectionA('reportsRegularly', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionA?.reportsRegularly || 0} onClick={() => updateSectionA('reportsRegularly', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -177,7 +200,7 @@ export function EvaluationFormDialog({
                         <TableCell>Reports to practices/rehearsals on time</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.practicesOnTime} onClick={() => updateSectionA('practicesOnTime', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionA?.practicesOnTime || 0} onClick={() => updateSectionA('practicesOnTime', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -185,7 +208,7 @@ export function EvaluationFormDialog({
                         <TableCell>Reports to practices/rehearsals regularly</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.practicesRegularly} onClick={() => updateSectionA('practicesRegularly', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionA?.practicesRegularly || 0} onClick={() => updateSectionA('practicesRegularly', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -193,7 +216,7 @@ export function EvaluationFormDialog({
                         <TableCell>Spends no time away from duties unnecessarily</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.noUnnecessaryAbsence} onClick={() => updateSectionA('noUnnecessaryAbsence', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionA?.noUnnecessaryAbsence || 0} onClick={() => updateSectionA('noUnnecessaryAbsence', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -201,7 +224,7 @@ export function EvaluationFormDialog({
                         <TableCell>Exhibits mastery of assigned tasks/routines</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.mastersyTasks} onClick={() => updateSectionA('mastersyTasks', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionA?.mastersyTasks || 0} onClick={() => updateSectionA('mastersyTasks', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -209,7 +232,7 @@ export function EvaluationFormDialog({
                         <TableCell>Helps maintain cleanliness and orderliness of venue/office</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.maintainsCleanliness} onClick={() => updateSectionA('maintainsCleanliness', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionA?.maintainsCleanliness || 0} onClick={() => updateSectionA('maintainsCleanliness', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -250,7 +273,7 @@ export function EvaluationFormDialog({
                         <TableCell>Shows interest in improving skills and talents</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.improvementInterest} onClick={() => updateSectionB('improvementInterest', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionB?.improvementInterest || 0} onClick={() => updateSectionB('improvementInterest', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -258,7 +281,7 @@ export function EvaluationFormDialog({
                         <TableCell>Shows interest in doing a good performance</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.performanceInterest} onClick={() => updateSectionB('performanceInterest', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionB?.performanceInterest || 0} onClick={() => updateSectionB('performanceInterest', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -266,7 +289,7 @@ export function EvaluationFormDialog({
                         <TableCell>Demonstrates strong work ethic</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.workEthic} onClick={() => updateSectionB('workEthic', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionB?.workEthic || 0} onClick={() => updateSectionB('workEthic', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -274,7 +297,7 @@ export function EvaluationFormDialog({
                         <TableCell>Exhibits initiative and resourcefulness</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.initiative} onClick={() => updateSectionB('initiative', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionB?.initiative || 0} onClick={() => updateSectionB('initiative', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -282,7 +305,7 @@ export function EvaluationFormDialog({
                         <TableCell>Uses time and resources efficiently</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.efficiency} onClick={() => updateSectionB('efficiency', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionB?.efficiency || 0} onClick={() => updateSectionB('efficiency', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -323,7 +346,7 @@ export function EvaluationFormDialog({
                         <TableCell>Works effectively as a member of the talent group</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionC.teamwork} onClick={() => updateSectionC('teamwork', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionC?.teamwork || 0} onClick={() => updateSectionC('teamwork', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -331,7 +354,7 @@ export function EvaluationFormDialog({
                         <TableCell>Demonstrates tact in dealing with others</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionC.tact} onClick={() => updateSectionC('tact', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionC?.tact || 0} onClick={() => updateSectionC('tact', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -339,7 +362,7 @@ export function EvaluationFormDialog({
                         <TableCell>Treats everyone with courtesy and respect</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionC.courtesy} onClick={() => updateSectionC('courtesy', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionC?.courtesy || 0} onClick={() => updateSectionC('courtesy', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -347,7 +370,7 @@ export function EvaluationFormDialog({
                         <TableCell>Exhibits a pleasant disposition</TableCell>
                         {[1, 2, 3, 4, 5].map(val => (
                           <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionC.disposition} onClick={() => updateSectionC('disposition', val)} />
+                            <RatingButton value={val} currentValue={evaluationForm.sectionC?.disposition || 0} onClick={() => updateSectionC('disposition', val)} />
                           </TableCell>
                         ))}
                       </TableRow>
@@ -513,9 +536,8 @@ export function EvaluationFormDialog({
         </div>
 
         <DialogFooter className="px-4 sm:px-8 py-4 shrink-0 border-t border-[#E5E7EB]">
-          <Button onClick={onSubmit} className="bg-[#7A1E1E] hover:bg-[#6A1919]">
-            Submit Evaluation
-          </Button>
+          <Button onClick={() => onOpenChange(false)} variant="outline" className="mr-2">Cancel</Button>
+          <Button className="bg-[#7A1E1E] hover:bg-[#6A1919]">Submit Evaluation</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

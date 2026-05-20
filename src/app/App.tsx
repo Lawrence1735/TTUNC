@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense, useTransition } from "react";
+import { useState, useEffect, lazy, Suspense, useTransition } from "react";
 import { TalentTrackLanding } from "./components/TalentTrackLanding";
 import { TalentTrackLogin } from "./components/TalentTrackLogin";
 import { AccountRecovery } from "./components/AccountRecovery";
@@ -8,7 +8,7 @@ import {
   PublicApplicationForm,
   ApplicationFormData,
 } from "./components/PublicApplicationForm";
-import { useAuth } from "../context/AuthContext";
+import { useAuth, AuthUser } from "../context/AuthContext";
 import { toast } from "sonner";
 
 // Lazy load heavy dashboard components for better performance
@@ -234,7 +234,10 @@ const DashboardLoader = () => (
 
 function AppContent() {
   const { user, logout, login } = useAuth();
-  const [currentUser, setCurrentUser] = useState<User | null>(user || null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(user || null);
+
+  // Cast AuthUser to User for component compatibility
+  const userAsComponentUser = currentUser ? (currentUser as unknown as User) : null;
 
   const [currentPage, setCurrentPage] = useState<
     | "landing"
@@ -292,8 +295,8 @@ function AppContent() {
   // Mock data for now - will be replaced with real API calls
   const [users, setUsers] = useState<User[]>([]);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [events] = useState<Event[]>([]);
+  const [announcements] = useState<Announcement[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -355,7 +358,7 @@ function AppContent() {
 
   const unreadNotificationsCount = userNotifications.filter(n => !n.read).length;
 
-  const handleLogin = async (email: string, password: string, selectedRole: string) => {
+  const handleLogin = async (email: string, password: string) => {
     const { success, error } = await login(email, password);
 
     if (success) {
@@ -400,7 +403,7 @@ function AppContent() {
     }
   };
 
-  const handleUpdatePassword = async (userId: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+  const handleUpdatePassword = async (userId: string, currentPassword: string): Promise<{ success: boolean; error?: string }> => {
     // In a real application, this would make an API call to verify the current password
     // For demo purposes, we'll simulate validation
     const user = users.find(u => u.id === userId);
@@ -441,7 +444,7 @@ function AppContent() {
         guardianContactNo: formData.guardianContactNo,
         guardianRelationship: formData.guardianRelationship,
         // Marching Band specific
-        hasBandExperience: formData.hasBandExperience,
+        hasBandExperience: formData.hasBandExperience ?? false,
         // Glee Club specific
         vocalRange: formData.vocalRange,
         previousSingingExperience: formData.previousSingingExperience,
@@ -484,7 +487,7 @@ function AppContent() {
     startTransition(() => setCurrentPage("landing"));
   };
 
-  const handleCreateUserAccount = (application: Application, tempPassword: string) => {
+  const handleCreateUserAccount = (application: Application) => {
     const newUser: User = {
       id: `user_${Date.now()}`,
       name: application.personalInfo.name,
@@ -515,7 +518,7 @@ function AppContent() {
     
     // Notify the new user about their account
     addNotification(
-      newUser.id,
+      newUser.id || '',
       'Welcome to TalentTrackUNC!',
       `Your account has been created successfully. You can now access the training dashboard. Your temporary password has been sent to ${newUser.email}.`,
       'acceptance'
@@ -601,7 +604,7 @@ function AppContent() {
                 return (
                   <Suspense fallback={<DashboardLoader />}>
                     <Settings
-                      user={currentUser}
+                      user={userAsComponentUser}
                       onLogout={handleLogout}
                       allUsers={users}
                       onUpdateUser={handleUpdateUser}
@@ -618,7 +621,7 @@ function AppContent() {
               return (
                 <Suspense fallback={<DashboardLoader />}>
                   <TrainingDashboard
-                    user={currentUser}
+                    user={userAsComponentUser}
                     onLogout={handleLogout}
                     trainingRecord={trainingRecords.find((tr) => tr.userId === currentUser.id) || null}
                     unreadNotifications={unreadNotificationsCount}
@@ -634,7 +637,7 @@ function AppContent() {
             return (
               <Suspense fallback={<DashboardLoader />}>
                 <StudentDashboard
-                  user={currentUser}
+                  user={userAsComponentUser}
                   onLogout={handleLogout}
                   applications={applications.filter((app) => app.userId === currentUser.id)}
                   notifications={notifications.filter((n) => n.userId === currentUser.id)}
@@ -652,7 +655,7 @@ function AppContent() {
               return (
                 <Suspense fallback={<DashboardLoader />}>
                   <Settings
-                    user={currentUser}
+                    user={userAsComponentUser}
                     onLogout={handleLogout}
                     allUsers={users}
                     onUpdateUser={handleUpdateUser}
@@ -671,7 +674,7 @@ function AppContent() {
                 return (
                   <Suspense fallback={<DashboardLoader />}>
                     <MemberProfileDashboard
-                      user={currentUser}
+                      user={userAsComponentUser}
                       onLogout={handleLogout}
                       onNavigate={(view, tab) => {
                         navigateTo(view as any, tab ?? undefined);
@@ -695,13 +698,13 @@ function AppContent() {
                 return (
                   <Suspense fallback={<DashboardLoader />}>
                     <EngagementDashboard
-                      user={currentUser}
+                      user={userAsComponentUser}
                       onLogout={handleLogout}
                       onNavigate={(view, tab) => {
                         navigateTo(view as any, tab ?? undefined);
                       }}
-                      events={events.filter((e) => e.talentGroups.includes(currentUser.talentGroup || ""))}
-                      notifications={notifications.filter((n) => n.userId === currentUser.id)}
+                      events={events.filter((e: any) => e.talentGroups.includes(currentUser?.talentGroup || ""))}
+                      notifications={notifications.filter((n) => n.userId === currentUser?.id)}
                       onMarkNotificationRead={(notificationId) => {
                         setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                       }}
@@ -716,15 +719,15 @@ function AppContent() {
                 return (
                   <Suspense fallback={<DashboardLoader />}>
                     <ScholarshipDashboard
-                      user={currentUser}
+                      user={userAsComponentUser}
                       onLogout={handleLogout}
                       onNavigate={(view, tab) => {
                         navigateTo(view as any, tab ?? undefined);
                       }}
                       benefits={benefits}
                       renewals={renewals}
-                      evaluations={evaluations.filter((e) => e.traineeId === currentUser.id)}
-                      notifications={notifications.filter((n) => n.userId === currentUser.id)}
+                      evaluations={evaluations.filter((e: any) => e.traineeId === currentUser?.id)}
+                      notifications={notifications.filter((n) => n.userId === currentUser?.id)}
                       onMarkNotificationRead={(notificationId) => {
                         setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                       }}
@@ -747,11 +750,11 @@ function AppContent() {
               return (
                 <Suspense fallback={<DashboardLoader />}>
                   <MemberProfileDashboard
-                    user={currentUser}
+                    user={userAsComponentUser}
                     onLogout={handleLogout}
                     onNavigate={(view) => navigateTo(view as any)}
-                    inventory={inventoryItems.filter((item) => item.userId === currentUser.id)}
-                    notifications={notifications.filter((n) => n.userId === currentUser.id)}
+                    inventory={inventoryItems.filter((item) => item.userId === currentUser?.id)}
+                    notifications={notifications.filter((n) => n.userId === currentUser?.id)}
                     onMarkNotificationRead={(notificationId) => {
                       setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                     }}
@@ -767,10 +770,10 @@ function AppContent() {
               return (
                 <Suspense fallback={<DashboardLoader />}>
                   <StudentDashboard
-                    user={currentUser}
+                    user={userAsComponentUser}
                     onLogout={handleLogout}
-                    applications={applications.filter((app) => app.userId === currentUser.id)}
-                    notifications={notifications.filter((n) => n.userId === currentUser.id)}
+                    applications={applications.filter((app) => app.userId === currentUser?.id)}
+                    notifications={notifications.filter((n) => n.userId === currentUser?.id)}
                     onMarkNotificationRead={(notificationId) => {
                       setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                     }}
@@ -784,7 +787,7 @@ function AppContent() {
               return (
                 <Suspense fallback={<DashboardLoader />}>
                   <Settings
-                    user={currentUser}
+                    user={userAsComponentUser}
                     onLogout={handleLogout}
                     allUsers={users}
                     onUpdateUser={handleUpdateUser}
@@ -801,14 +804,14 @@ function AppContent() {
             return (
               <Suspense fallback={<DashboardLoader />}>
                 <AdminDashboard
-                user={currentUser}
-                onLogout={handleLogout}
-                applications={applications}
-                users={users}
-                events={events}
-                announcements={announcements}
-                trainingRecords={trainingRecords}
-                evaluations={evaluations}
+                  user={userAsComponentUser}
+                  onLogout={handleLogout}
+                  applications={applications}
+                  users={users}
+                  events={events}
+                  announcements={announcements}
+                  trainingRecords={trainingRecords}
+                  evaluations={evaluations}
                 onUpdateApplicationStatus={(applicationId, status) => {
                   setApplications(applications.map((app) => 
                     app.id === applicationId ? { ...app, status } : app
@@ -831,7 +834,7 @@ function AppContent() {
               return (
                 <Suspense fallback={<DashboardLoader />}>
                   <Settings
-                  user={currentUser}
+                  user={userAsComponentUser}
                   onLogout={handleLogout}
                   allUsers={users}
                   onUpdateUser={handleUpdateUser}
@@ -848,7 +851,7 @@ function AppContent() {
             return (
               <Suspense fallback={<DashboardLoader />}>
                 <DirectorDashboard
-                user={currentUser}
+                user={userAsComponentUser}
                 onLogout={handleLogout}
                 applications={applications}
                 users={users}
