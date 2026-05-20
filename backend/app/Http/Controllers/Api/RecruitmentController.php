@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -35,44 +35,13 @@ final class RecruitmentController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-<<<<<<< HEAD
-        $applications = $this->applicationService->list(
+$applications = $this->applicationService->list(
             talentGroup: $request->user()->talent_group,
             status:      $request->string('status')->value() ?: null,
             search:      $request->string('search')->value() ?: null,
         );
 
         return ApplicationResource::collection($applications);
-=======
-        $query = Application::query()->with('interview');
- 
-        // Directors can only see applications for their assigned talent group
-        if ($request->user()->role === 'director') {
-            if (!$request->user()->talent_group) {
-                return response()->json(['message' => 'Director talent group not assigned'], Response::HTTP_FORBIDDEN);
-            }
-            $query->where('talent_group', $request->user()->talent_group);
-        }
- 
-        // Filter by status if provided
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
- 
-        // Filter by talent_group if provided (for admins)
-        if ($request->filled('talent_group') && $request->user()->role === 'admin') {
-            $query->where('talent_group', $request->talent_group);
-        }
- 
-        // Search by applicant name
-        if ($request->filled('search')) {
-            $query->where('applicant_name', 'like', '%' . $request->search . '%');
-        }
- 
-        $applications = $query->orderByDesc('applied_at')->paginate(20);
- 
-        return response()->json($applications);
->>>>>>> 2b86443 (feat: add Progress, Table, Tabs, Textarea components and ApplicationClient API)
     }
 
     /**
@@ -81,8 +50,7 @@ final class RecruitmentController extends Controller
      */
     public function indexInterviews(Request $request): AnonymousResourceCollection
     {
-<<<<<<< HEAD
-        $talentGroup = $request->user()->talent_group;
+$talentGroup = $request->user()->talent_group;
         $perPage = min((int)$request->get('per_page', 20), 100); // Max 100 per page
 
         $interviews = Interview::query()
@@ -94,47 +62,6 @@ final class RecruitmentController extends Controller
             ->paginate($perPage);
 
         return InterviewResource::collection($interviews);
-=======
-        $data = $request->validate([
-            'talent_group'                => ['required', 'in:marching-band,glee-club,dance-club,majorettes'],
-            'applicant_name'              => ['required', 'string', 'max:255'],
-            'applicant_email'             => ['required', 'email'],
-            'applicant_student_id'        => ['nullable', 'string'],
-            'applicant_phone'             => ['nullable', 'string'],
-            'applicant_year_level'        => ['nullable', 'string'],
-            'applicant_course'            => ['nullable', 'string'],
-            'applicant_department'        => ['nullable', 'string'],
-            'applicant_address'           => ['nullable', 'string'],
-            'applicant_gender'            => ['nullable', 'string'],
-            'applicant_birthdate'         => ['nullable', 'date'],
-            'applicant_age'               => ['nullable', 'string'],
-            'guardian_name'               => ['nullable', 'string'],
-            'guardian_phone'              => ['nullable', 'string'],
-            'guardian_relationship'       => ['nullable', 'string'],
-            'instruments'                 => ['nullable', 'string'],
-            'voices'                      => ['nullable', 'string'],
-            'vocal_range'                 => ['nullable', 'string'],
-            'primary_dance_genre'         => ['nullable', 'string'],
-            'years_of_experience'         => ['nullable', 'string'],
-            'experience'                  => ['nullable', 'string'],
-            'motivation'                  => ['nullable', 'string'],
-        ]);
- 
-        // Get user_id from authenticated request, or null for public submissions
-        $userId = $request->user()?->id;
- 
-        $application = Application::create([
-            ...$data,
-            'user_id'    => $userId,
-            'status'     => 'pending',
-            'applied_at' => now(),
-        ]);
- 
-        return response()->json(
-            ['data' => $application->load('interview')],
-            Response::HTTP_CREATED
-        );
->>>>>>> 2b86443 (feat: add Progress, Table, Tabs, Textarea components and ApplicationClient API)
     }
 
     /**
@@ -155,8 +82,7 @@ final class RecruitmentController extends Controller
      */
     public function show(Application $application): JsonResponse
     {
-<<<<<<< HEAD
-        $application = $this->applicationService->get($application->id);
+$application = $this->applicationService->get($application->id);
 
         return response()->json(['data' => new ApplicationResource($application)]);
     }
@@ -235,82 +161,6 @@ final class RecruitmentController extends Controller
         } catch (\DomainException $e) {
             return response()->json(['message' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
-=======
-        return response()->json(['data' => $application->load('interview')]);
-    }
- 
-    public function scheduleInterview(Request $request, Application $application): JsonResponse
-    {
-        // Only directors and admins can schedule interviews
-        if (!in_array($request->user()->role, ['director', 'admin'])) {
-            return response()->json(['message' => 'Unauthorized'], Response::HTTP_FORBIDDEN);
-        }
- 
-        // Directors can only schedule for their assigned talent group
-        if ($request->user()->role === 'director' && $application->talent_group !== $request->user()->talent_group) {
-            return response()->json(['message' => 'Cannot schedule interviews for other talent groups'], Response::HTTP_FORBIDDEN);
-        }
- 
-        $data = $request->validate([
-            'scheduled_at' => ['required', 'date'],
-            'venue'        => ['nullable', 'string'],
-            'notes'        => ['nullable', 'string'],
-        ]);
- 
-        $application->update(['status' => 'interview_scheduled']);
- 
-        $interview = $application->interview()->updateOrCreate(
-            ['application_id' => $application->id],
-            [
-                'reviewer_id'  => $request->user()->id,
-                'scheduled_at' => $data['scheduled_at'],
-                'venue'        => $data['venue'] ?? null,
-                'notes'        => $data['notes'] ?? null,
-            ]
-        );
- 
-        return response()->json(['message' => 'Interview scheduled.', 'interview' => $interview]);
-    }
-
-    public function handleApproveInterview(Request $request, Application $application): JsonResponse
-    {
-        // Only directors and admins can approve
-        if (!in_array($request->user()->role, ['director', 'admin'])) {
-            return response()->json(['message' => 'Unauthorized'], Response::HTTP_FORBIDDEN);
-        }
- 
-        // Directors can only approve for their assigned talent group
-        if ($request->user()->role === 'director' && $application->talent_group !== $request->user()->talent_group) {
-            return response()->json(['message' => 'Cannot approve applications for other talent groups'], Response::HTTP_FORBIDDEN);
-        }
- 
-        $request->validate(['approval_notes' => ['nullable', 'string']]);
-
-        $application->update([
-            'status'         => 'approved',
-            'approval_notes' => $request->input('approval_notes'),
-        ]);
-
-        return response()->json(['message' => 'Application approved.', 'data' => $application]);
-    }
-
-    public function handleRejectInterview(Request $request, Application $application): JsonResponse
-    {
-        // Only directors and admins can reject
-        if (!in_array($request->user()->role, ['director', 'admin'])) {
-            return response()->json(['message' => 'Unauthorized'], Response::HTTP_FORBIDDEN);
-        }
- 
-        // Directors can only reject for their assigned talent group
-        if ($request->user()->role === 'director' && $application->talent_group !== $request->user()->talent_group) {
-            return response()->json(['message' => 'Cannot reject applications for other talent groups'], Response::HTTP_FORBIDDEN);
-        }
- 
-        $data = $request->validate([
-            'denial_reason'   => ['required', 'string'],
-            'denial_feedback' => ['nullable', 'string'],
-        ]);
->>>>>>> 2b86443 (feat: add Progress, Table, Tabs, Textarea components and ApplicationClient API)
 
         $interview->load('reviewer:id,name');
 
