@@ -11,6 +11,7 @@ export interface Trainee {
   completion_rate: number;
   current_status: 'active' | 'inactive' | 'completed' | 'dropped';
   chapter?: string;
+  chapters_completed?: Record<number, boolean>;
   instrument?: string;
   voice?: string;
   total_expected_sessions: number;

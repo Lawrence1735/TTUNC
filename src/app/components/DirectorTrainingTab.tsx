@@ -248,7 +248,7 @@ export function DirectorTrainingTab({
                     <CardTitle>Training Attendance</CardTitle>
                     <CardDescription>Check the box to mark present. Leave unchecked for absent. Toggle "No Practice" for non-training days.</CardDescription>
                   </div>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-3 shrink-0">
                     <Button
                       onClick={() => {
                         if (trainees.length === 0) {
@@ -257,20 +257,18 @@ export function DirectorTrainingTab({
                         }
                         setShowAddDateDialog(true);
                       }}
-                      className="bg-[#7A1E1E] hover:bg-[#6A1919]"
-                      size="sm"
+                      className="bg-[#7A1E1E] hover:bg-[#6A1919] px-4 py-2"
                     >
-                      <Calendar className="w-4 h-4 mr-1" />
+                      <Calendar className="w-4 h-4 mr-2" />
                       <span className="hidden sm:inline">{trainingAttendance.length === 0 ? 'Generate Dates' : 'Manage Dates'}</span>
                       <span className="sm:hidden">{trainingAttendance.length === 0 ? 'Generate' : 'Manage'}</span>
                     </Button>
                     <Button
-                      size="sm"
-                      className="bg-[#7A1E1E] hover:bg-[#6A1919] text-white"
+                      className="bg-[#7A1E1E] hover:bg-[#6A1919] text-white px-4 py-2"
                       onClick={() => setShowSummaryReportDialog(true)}
                       disabled={trainingAttendance.length === 0}
                     >
-                      <FileText className="w-4 h-4 mr-1" />
+                      <FileText className="w-4 h-4 mr-2" />
                       <span className="hidden sm:inline">Summary Report</span>
                       <span className="sm:hidden">Report</span>
                     </Button>
@@ -314,14 +312,20 @@ export function DirectorTrainingTab({
                       <div className="col-span-1 py-2"></div>
                       {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
                         const date = new Date(selectedWeekStart.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+                        const isToday = date.toDateString() === new Date().toDateString();
                         return (
                           <div key={dayOffset} className="text-center py-2">
-                            <p className="text-xs font-medium text-[#6c757d]">
+                            <p className={`text-xs font-medium ${isToday ? 'text-[#7A1E1E] font-semibold' : 'text-[#6c757d]'}`}>
                               {date.toLocaleDateString('en-US', { weekday: 'short' })}
                             </p>
-                            <p className="text-base font-bold text-[#1a1a1a] mt-1">
-                              {date.getDate()}
-                            </p>
+                            <div className="flex justify-center mt-1">
+                              <span className={`text-base font-bold w-8 h-8 flex items-center justify-center rounded-full ${
+                                isToday ? 'bg-[#7A1E1E] text-white' : 'text-[#1a1a1a]'
+                              }`}>
+                                {date.getDate()}
+                              </span>
+                            </div>
+                            {isToday && <div className="text-[10px] text-[#7A1E1E] font-medium mt-0.5">Today</div>}
                           </div>
                         );
                       })}
@@ -456,18 +460,27 @@ export function DirectorTrainingTab({
                             >
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <p className="font-medium truncate">{evaluation.traineeName}</p>
+                                  <p className="font-medium truncate">
+                                    {evaluation.traineeName || evaluation?.trainee?.user?.name || evaluation?.trainee_name || 'Unknown Trainee'}
+                                  </p>
                                   {isExpanded && <ChevronDown className="w-4 h-4 text-[#6c757d] shrink-0" />}
                                   {!isExpanded && <ChevronRight className="w-4 h-4 text-[#6c757d] shrink-0" />}
                                 </div>
-                                <p className="text-sm text-[#6c757d]">{evaluation?.date ? evaluation.date.toLocaleDateString() : "No Date Available"}</p>
+                                <p className="text-sm text-[#6c757d]">
+                                  {(() => {
+                                    const raw = evaluation?.date ?? evaluation?.evaluation_date;
+                                    if (!raw) return 'No Date Available';
+                                    const d = raw instanceof Date ? raw : new Date(raw);
+                                    return isNaN(d.getTime()) ? 'No Date Available' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                                  })()}
+                                </p>
                               </div>
                               <div className="text-right ml-4 shrink-0">
-                                <div className={`text-lg font-medium ${getScoreColor(evaluation.rating)}`}>
-                                  {evaluation.rating}/100
+                                <div className={`text-lg font-medium ${getScoreColor(evaluation.rating ?? 0)}`}>
+                                  {evaluation.rating ?? '—'}/100
                                 </div>
-                                <div className="text-xs text-[#6c757d] mt-1">
-                                  {evaluation.adjectivalRating || 'Rated'}
+                                <div className="text-xs text-[#6c757d] mt-1 capitalize">
+                                  {evaluation.adjectivalRating || evaluation.recommendation || 'Rated'}
                                 </div>
                               </div>
                             </div>
