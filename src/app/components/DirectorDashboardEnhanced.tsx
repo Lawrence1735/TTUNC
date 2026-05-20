@@ -66,8 +66,6 @@ import {
 } from './ui/dropdown-menu';
 // ── Accessibility components (WCAG 2.1 AA / ISO 9241 / ISO 25010) ──────────────
 import { SkipToContent, EmptyState } from './accessibility';
-// ── Inventory seed data (extracted to keep this file below Babel's 500KB limit) ─
-import { createUniformsData, INSTRUMENTS_SEED_DATA, createAccessoriesData } from './directorInventoryData';
 import { ApplicationDetailsDialog } from './ApplicationDetailsDialog';
 import { DirectorRecruitmentTab } from './DirectorRecruitmentTab';
 import { DirectorTrainingTab } from './DirectorTrainingTab';
@@ -566,14 +564,9 @@ export function DirectorDashboardEnhanced({
   const isDanceClub = directorTalentGroup === 'dance-club';
 
   // Sample inventory data - Uniform Sets (All UNC-owned) - CONVERTED TO STATE FOR PERSISTENCE
-  const [uniformsData, setUniformsData] = useState(() => createUniformsData(directorTalentGroup));
-  // Old inline data has been moved to directorInventoryData.ts
-  // The block below is intentionally unreachable (kept for reference only)
-
-  const [instrumentsData, setInstrumentsData] = useState(INSTRUMENTS_SEED_DATA);
-
-  const [accessoriesData, setAccessoriesData] = useState(() => createAccessoriesData(directorTalentGroup));
-
+  const uniformsData = inventoryItems.filter(item => item.type === 'uniform');
+  const instrumentsData = inventoryItems.filter(item => item.type === 'instrument');
+  const accessoriesData = inventoryItems.filter(item => item.type === 'accessory');
 
   // Apply filters to inventory data
   const filteredUniforms = uniformsData.filter(item => {
@@ -1759,13 +1752,19 @@ University of Nueva Caceres`;
     // Add to accessories data (not assigned to individual scholars)
     const newAccessory = {
       id: `acc-${Date.now()}`,
-      accessoryName: accessoryForm.accessoryName,
+      userId: '',
+      itemName: accessoryForm.accessoryName,
+      type: 'accessory' as const,
+      condition: 'good' as const,
       accessoryType: accessoryForm.accessoryType,
       description: accessoryForm.description,
-      quantity: accessoryForm.quantity
+      quantity: accessoryForm.quantity,
+      status: 'borrowed' as const,
     };
     
-    setAccessoriesData([...accessoriesData, newAccessory as any]);
+    if (onAddInventoryItem) {
+      onAddInventoryItem(newAccessory);
+    }
     
     toast.success(`Accessory "${accessoryForm.accessoryName}" created successfully!`);
     setShowAssignAccessoryDialog(false);
@@ -1791,17 +1790,13 @@ University of Nueva Caceres`;
     }
 
     let itemToUpdate: any = null;
-    let itemData: any[] = [];
 
     if (itemType === 'uniform') {
       itemToUpdate = selectedUniform;
-      itemData = uniformsData;
     } else if (itemType === 'instrument') {
       itemToUpdate = selectedInstrument;
-      itemData = instrumentsData;
     } else if (itemType === 'accessory') {
       itemToUpdate = selectedAccessory;
-      itemData = accessoriesData;
     }
 
     if (!itemToUpdate) {
@@ -1809,55 +1804,24 @@ University of Nueva Caceres`;
       return;
     }
 
-    // Update the item status and assignedTo in the inventory state
-    const index = itemData.findIndex(item => item.id === itemToUpdate.id);
-    if (index !== -1) {
-      const updatedItem = {
-        ...itemData[index],
-        status: 'assigned',
-        assignedTo: scholar.name
-      };
+    const updatedItem = {
+      ...itemToUpdate,
+      status: 'assigned' as const,
+      userId: assignScholarId,
+      assignedDate: new Date(),
+      assignedTo: scholar.name,
+    };
 
-      // Update the appropriate state array
-      if (itemType === 'uniform') {
-        const newUniformsData = [...uniformsData];
-        newUniformsData[index] = updatedItem;
-        setUniformsData(newUniformsData);
-        setSelectedUniform(updatedItem);
-      } else if (itemType === 'instrument') {
-        const newInstrumentsData = [...instrumentsData];
-        newInstrumentsData[index] = updatedItem;
-        setInstrumentsData(newInstrumentsData);
-        setSelectedInstrument(updatedItem);
-      } else if (itemType === 'accessory') {
-        const newAccessoriesData = [...accessoriesData];
-        newAccessoriesData[index] = updatedItem;
-        setAccessoriesData(newAccessoriesData);
-        setSelectedAccessory(updatedItem);
-      }
+    if (onUpdateInventoryItem) {
+      onUpdateInventoryItem(updatedItem.id, updatedItem);
     }
 
-    // Create inventory item for the scholar's profile
-    if (onAddInventoryItem) {
-      const newInventoryItem = {
-        id: `inv_${itemType}_${Date.now()}`,
-        userId: assignScholarId,
-        itemName: itemType === 'uniform' ? itemToUpdate.uniformSet : 
-                  itemType === 'instrument' ? itemToUpdate.instrumentType : 
-                  itemToUpdate.accessoryType,
-        name: itemType === 'uniform' ? itemToUpdate.uniformSet : 
-              itemType === 'instrument' ? itemToUpdate.instrumentType : 
-              itemToUpdate.accessoryType,
-        type: itemType,
-        condition: 'excellent' as const,
-        serialNumber: itemToUpdate.serialNumber,
-        assignedDate: new Date(),
-        status: 'assigned' as const,
-        ...(itemType === 'instrument' && { instrumentType: itemToUpdate.instrumentType, brand: itemToUpdate.brand, model: itemToUpdate.model }),
-        ...(itemType === 'uniform' && { uniformSet: itemToUpdate.uniformSet, size: itemToUpdate.size, pieces: itemToUpdate.pieces }),
-        ...(itemType === 'accessory' && { accessoryType: itemToUpdate.accessoryType, description: itemToUpdate.description })
-      };
-      onAddInventoryItem(newInventoryItem);
+    if (itemType === 'uniform') {
+      setSelectedUniform(updatedItem);
+    } else if (itemType === 'instrument') {
+      setSelectedInstrument(updatedItem);
+    } else if (itemType === 'accessory') {
+      setSelectedAccessory(updatedItem);
     }
 
     toast.success(`${itemType.charAt(0).toUpperCase() + itemType.slice(1)} assigned to ${scholar.name} successfully!`);
@@ -4414,12 +4378,8 @@ University of Nueva Caceres`;
                     onValueChange={(value) => {
                       const updated = { ...selectedUniform, condition: value };
                       setSelectedUniform(updated);
-                      // Update in uniformsData
-                      const index = uniformsData.findIndex(u => u.id === selectedUniform.id);
-                      if (index !== -1) {
-                        const newData = [...uniformsData];
-                        newData[index] = updated;
-                        setUniformsData(newData);
+                      if (onUpdateInventoryItem) {
+                        onUpdateInventoryItem(selectedUniform.id, { condition: value });
                       }
                     }}
                   >
@@ -4510,12 +4470,8 @@ University of Nueva Caceres`;
                     onValueChange={(value) => {
                       const updated = { ...selectedInstrument, condition: value };
                       setSelectedInstrument(updated);
-                      // Update in instrumentsData
-                      const index = instrumentsData.findIndex(i => i.id === selectedInstrument.id);
-                      if (index !== -1) {
-                        const newData = [...instrumentsData];
-                        newData[index] = updated;
-                        setInstrumentsData(newData);
+                      if (onUpdateInventoryItem) {
+                        onUpdateInventoryItem(selectedInstrument.id, { condition: value });
                       }
                     }}
                   >
