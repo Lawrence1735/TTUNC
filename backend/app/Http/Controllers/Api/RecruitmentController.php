@@ -94,87 +94,33 @@ final class RecruitmentController extends Controller
  
         return response()->json(['message' => 'Interview scheduled.', 'interview' => $interview]);
     }
-<<<<<<< Updated upstream
- 
+
     public function handleApproveInterview(Request $request, Application $application): JsonResponse
     {
         $request->validate(['approval_notes' => ['nullable', 'string']]);
- 
+
         $application->update([
             'status'         => 'approved',
             'approval_notes' => $request->approval_notes,
-=======
-
-    /**
-     * POST /api/v1/recruitment/applications/{application}/approve
-     */
-    public function handleApproveInterview(
-        ApproveApplicationRequest $request,
-        Application $application
-    ): JsonResponse {
-        try {
-            $result = $this->applicationService->approve(
-                application:   $application,
-                approvalNotes: $request->validated('approval_notes') ?? null,
-            );
-            
-            // Refresh application to get updated data and load interview relation
-            $application->refresh();
-            $application->load('interview');
-        } catch (\DomainException $e) {
-            return response()->json(['message' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        return response()->json([
-            'message'       => 'Application approved. User account and trainee profile provisioned.',
-            'user_id'       => $result['user']->id,
-            'trainee_id'    => $result['trainee']->id,
-            'application'   => new ApplicationResource($application),
->>>>>>> Stashed changes
         ]);
- 
+
         return response()->json(['message' => 'Application approved.']);
     }
-<<<<<<< Updated upstream
- 
+
     public function handleRejectInterview(Request $request, Application $application): JsonResponse
     {
         $data = $request->validate([
             'denial_reason'   => ['required', 'string'],
             'denial_feedback' => ['nullable', 'string'],
         ]);
- 
+
         $application->update([
             'status'          => 'rejected',
             'denial_reason'   => $data['denial_reason'],
             'denial_feedback' => $data['denial_feedback'] ?? null,
         ]);
- 
+
         return response()->json(['message' => 'Application rejected.']);
-=======
-
-    /**
-     * POST /api/v1/recruitment/applications/{application}/reject
-     */
-    public function handleRejectInterview(
-        RejectApplicationRequest $request,
-        Application $application
-    ): JsonResponse {
-        try {
-            $this->applicationService->reject($application, $request->validated());
-            
-            // Refresh application to get updated data and load interview relation
-            $application->refresh();
-            $application->load('interview');
-        } catch (\DomainException $e) {
-            return response()->json(['message' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        return response()->json([
-            'message'       => 'Application rejected.',
-            'application'   => new ApplicationResource($application),
-        ]);
->>>>>>> Stashed changes
     }
 }
 

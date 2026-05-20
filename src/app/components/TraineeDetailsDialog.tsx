@@ -7,7 +7,7 @@ import { getTalentGroupName } from './ui/unc-colors';
 
 interface AttendanceRecord {
   date: string;
-  attendees: { [userId: string]: boolean | { status: boolean; timestamp?: string } };
+  attendees: { [userId: string]: boolean | 'present' | 'excused' | 'absent' | { status: boolean; timestamp?: string } };
   noPractice?: boolean;
 }
 

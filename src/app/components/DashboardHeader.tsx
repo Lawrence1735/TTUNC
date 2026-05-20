@@ -76,7 +76,7 @@ function DashboardHeaderComponent({
                 width="48"
                 height="48"
                 loading="eager"
-                fetchpriority="high"
+                fetchPriority="high"
               />
               <div className="min-w-0">
                 <h1 className="unc-burgundy-text text-base sm:text-lg truncate">TalentTrackUNC</h1>

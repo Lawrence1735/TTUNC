@@ -115,7 +115,7 @@ interface InterviewSchedule {
 
 interface AttendanceRecord {
   date: string;
-  attendees: { [userId: string]: boolean | { status: boolean, timestamp?: string } };
+  attendees: { [userId: string]: boolean | 'present' | 'excused' | 'absent' | { status: boolean; timestamp?: string } };
   noPractice?: boolean;
 }
 
@@ -721,7 +721,7 @@ export function DirectorDashboardEnhanced({
         talentGroup: directorTalentGroup,
         assignedInstrument: trainee.instrument,
         assignedVoice: trainee.voice,
-        dateJoined: trainee.date_joined,
+        dateJoined: trainee.date_joined || trainee.dateJoined,
         // Backend trainee properties (extending UserType)
         completionRate: trainee.completion_rate || 0,
         currentStatus: trainee.current_status || 'inactive',
@@ -729,8 +729,6 @@ export function DirectorDashboardEnhanced({
         voice: trainee.voice || '',
         chapter: trainee.chapter || '',
         totalExpectedSessions: trainee.total_expected_sessions || 0,
-        // Ensure date_joined is available (backend returns snake_case, frontend uses camelCase)
-        dateJoined: trainee.date_joined || trainee.dateJoined,
         // Store full trainee object for reference
         _rawTrainee: trainee,
       } as any))
@@ -929,7 +927,7 @@ export function DirectorDashboardEnhanced({
   };
 
   // Get interview invitation email template
-  const getInterviewInvitationTemplate = (applicantName: string, talentGroup: string, interviewDate: string, interviewTime: string, venue: string, notes: string): EmailTemplate => {
+  const getInterviewInvitationTemplate = (applicantName: string, talentGroup: string, interviewDate: string, interviewTime: string, venue: string, notes: string) => {
     const groupName = getTalentGroupName(talentGroup);
     
     return {
@@ -957,7 +955,7 @@ University of Nueva Caceres`
   };
 
   // Get approval email template (after interview)
-  const getApprovalEmailTemplate = (applicantName: string, talentGroup: string): EmailTemplate => {
+  const getApprovalEmailTemplate = (applicantName: string, talentGroup: string) => {
     const groupName = getTalentGroupName(talentGroup);
     
     return {
@@ -983,7 +981,7 @@ University of Nueva Caceres`
   };
 
   // Get rejection email template
-  const getRejectionEmailTemplate = (applicantName: string, talentGroup: string): EmailTemplate => {
+  const getRejectionEmailTemplate = (applicantName: string, talentGroup: string) => {
     const groupName = getTalentGroupName(talentGroup);
     
     return {
@@ -1527,12 +1525,13 @@ University of Nueva Caceres`;
   };
 
   // Handle chapter evaluation from ChapterEvaluationDialog component
-  const handleChapterEvaluationComplete = async (chapterNum: number, scores: number[], notes: string) => {
+  const handleChapterEvaluationComplete = async (chapterNum: number, scores: Record<string, number>, notes: string) => {
     if (!selectedChapterForEval) return;
     
     try {
       const { traineeId } = selectedChapterForEval;
-      const average = scores.reduce((a, b) => a + b, 0) / scores.length;
+      const scoreValues = Object.values(scores);
+      const average = scoreValues.length > 0 ? scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length : 0;
       const passed = average >= 3.0; // Pass threshold
       
       // Prepare chapter evaluation data for backend
@@ -1903,9 +1902,6 @@ University of Nueva Caceres`;
         userId: uniformForm.assignedTo || '',
         itemName: uniformForm.uniformName,
         type: 'uniform' as const,
-        condition: 'excellent' as const,
-        serialNumber: uniformForm.serialNumber,
-        propertyType: uniformForm.propertyType,
         assignedDate: uniformForm.assignedTo ? new Date() : undefined,
         status: uniformForm.assignedTo ? 'assigned' as const : 'borrowed' as const,
         // Sizes
@@ -1930,7 +1926,8 @@ University of Nueva Caceres`;
       headdressSize: '',
       topSize: '',
       pantsSize: '',
-      bandShoesSize: ''
+      bandShoesSize: '',
+      barongType: ''
     });
   };
 
@@ -2176,15 +2173,15 @@ University of Nueva Caceres`;
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onViewChange('settings', 'account')}>
+                <DropdownMenuItem onClick={() => onViewChange?.('settings', 'account')}>
                   <User className="w-4 h-4 mr-2" aria-hidden="true" />
                   Account Settings
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onViewChange('settings', 'security')}>
+                <DropdownMenuItem onClick={() => onViewChange?.('settings', 'security')}>
                   <Lock className="w-4 h-4 mr-2" aria-hidden="true" />
                   Security
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onViewChange('settings', 'administration')}>
+                <DropdownMenuItem onClick={() => onViewChange?.('settings', 'administration')}>
                   <Shield className="w-4 h-4 mr-2" aria-hidden="true" />
                   Administration
                 </DropdownMenuItem>
@@ -2292,11 +2289,11 @@ University of Nueva Caceres`;
             setSelectedScholarForPerformance={setSelectedScholarForPerformance}
             setShowPerformanceDialog={setShowPerformanceDialog}
             statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
+            setStatusFilter={(v: string) => setStatusFilter(v as 'active' | 'inactive' | 'all')}
             scholarSearchTerm={scholarSearchTerm}
             setScholarSearchTerm={setScholarSearchTerm}
             inventoryTab={inventoryTab}
-            setInventoryTab={setInventoryTab}
+            setInventoryTab={(v: string) => setInventoryTab(v as 'uniforms' | 'instruments' | 'accessories')}
             uniformFilters={uniformFilters}
             setUniformFilters={setUniformFilters}
             uniformSets={uniformSets}
@@ -2500,9 +2497,9 @@ University of Nueva Caceres`;
       <EvaluationFormDialog
         open={showEvaluationDialog}
         onOpenChange={setShowEvaluationDialog}
-        selectedTrainee={selectedTrainee}
-        evaluationForm={evaluationForm}
-        setEvaluationForm={setEvaluationForm}
+        selectedTrainee={selectedTrainee!}
+        evaluationForm={evaluationForm as any}
+        setEvaluationForm={setEvaluationForm as any}
         onSubmit={handleSubmitEvaluation}
         calculateSectionATotal={calculateSectionATotal}
         calculateSectionAAverage={calculateSectionAAverage}
@@ -2891,7 +2888,7 @@ University of Nueva Caceres`;
             const attendanceRate = calculateTraineeAttendanceRate(traineeId);
             const totalSessions = trainingAttendance.length;
             const presentCount = trainingAttendance.filter(date => 
-              date.attendance && date.attendance[traineeId]
+              date.attendees && date.attendees[traineeId]
             ).length;
             const absentCount = totalSessions - presentCount;
 
@@ -3291,9 +3288,9 @@ University of Nueva Caceres`;
       <EvaluationFormDialog
         open={showEvaluationDialog}
         onOpenChange={setShowEvaluationDialog}
-        selectedTrainee={selectedTrainee}
-        evaluationForm={evaluationForm}
-        setEvaluationForm={setEvaluationForm}
+        selectedTrainee={selectedTrainee!}
+        evaluationForm={evaluationForm as any}
+        setEvaluationForm={setEvaluationForm as any}
         onSubmit={handleSubmitEvaluation}
         calculateSectionATotal={calculateSectionATotal}
         calculateSectionAAverage={calculateSectionAAverage}
@@ -3525,7 +3522,7 @@ University of Nueva Caceres`;
                       {scholars.length > 0 ? (
                         scholars.map((scholar) => {
                           const attendeeData = selectedEngagement?.attendanceRecords?.[0]?.attendees[scholar.id!];
-                          const isPresent = typeof attendeeData === 'object' ? attendeeData.status : (attendeeData || false);
+                          const isPresent = typeof attendeeData === 'object' ? attendeeData.status : (typeof attendeeData === 'string' ? attendeeData === 'present' : (attendeeData || false));
                           const timestamp = typeof attendeeData === 'object' ? attendeeData.timestamp : undefined;
                           return (
                             <TableRow key={scholar.id} className="border-b border-[#f0f0f0]">

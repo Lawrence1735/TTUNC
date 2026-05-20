@@ -1,20 +1,4 @@
-<<<<<<< Updated upstream
-import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
-import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Separator } from './ui/separator';
-import { GraduationCap } from './ui/icons';
-import { EvaluationConfirmationDialog } from './EvaluationConfirmationDialog';
-import type { User } from '../App';
-import type { Evaluation } from './types';
-=======
-import React, { useState } from "react";
+ï»¿import React, { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
@@ -26,7 +10,6 @@ import { Separator } from "./ui/separator";
 import { GraduationCap, AlertCircle } from "./ui/icons";
 import type { User } from "../App";
 import type { Evaluation } from "./types";
->>>>>>> Stashed changes
 
 interface EvaluationFormDialogProps {
   open: boolean;
@@ -44,44 +27,16 @@ interface EvaluationFormDialogProps {
   calculateOverallRating: () => string;
   getAdjectivalRating: () => string;
   currentUser: User;
+  isDisabled?: boolean;
+  disabledReason?: string;
 }
 
-<<<<<<< Updated upstream
-export function EvaluationFormDialog({
-  open,
-  onOpenChange,
-  selectedTrainee,
-  evaluationForm,
-  setEvaluationForm,
-  onSubmit,
-  calculateSectionATotal,
-  calculateSectionAAverage,
-  calculateSectionBTotal,
-  calculateSectionBAverage,
-  calculateSectionCTotal,
-  calculateSectionCAverage,
-  calculateOverallRating,
-  getAdjectivalRating,
-  currentUser
-}: EvaluationFormDialogProps) {
-  const [showConfirmation, setShowConfirmation] = useState(false);
-
-        const updateSectionA = (field: string, value: number) => {
-    setEvaluationForm({
-      ...evaluationForm,
-      sectionA: { ...(evaluationForm.sectionA || {}), [field]: value }
-    });
-=======
 function getCurrentRatingPeriod(): string {
   const now = new Date();
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
-  if (month >= 8 && month <= 12) {
-    return `1st Semester, SY ${year}-${year + 1}`;
-  }
-  if (month >= 1 && month <= 5) {
-    return `2nd Semester, SY ${year - 1}-${year}`;
-  }
+  if (month >= 8 && month <= 12) return `1st Semester, SY ${year}-${year + 1}`;
+  if (month >= 1 && month <= 5) return `2nd Semester, SY ${year - 1}-${year}`;
   return `Summer, SY ${year - 1}-${year}`;
 }
 
@@ -114,93 +69,22 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
   const [showConfirm, setShowConfirm] = useState(false);
 
   const updateSectionA = (field: string, value: number) => {
-    const updated: Evaluation = { 
-      ...evaluationForm, 
-      sectionA: { ...evaluationForm.sectionA!, [field]: value } 
-    };
+    const updated: Evaluation = { ...evaluationForm, sectionA: { ...evaluationForm.sectionA!, [field]: value } };
     setEvaluationForm(updated);
->>>>>>> Stashed changes
-  };
-
-  const getRatingPeriodFromTimeline = (date: Date) => {
-    // NOTE: timeline profile is not currently centralized in a separate file.
-    // Default fallback matches the prior hardcoded behavior.
-    // Future: replace with real timeline profile lookup.
-    const month = date.getMonth() + 1; // 1-12
-    const year = date.getFullYear();
-    if (month >= 1 && month <= 5) return `1st Semester, SY ${year}-${year + 1}`;
-    return `2nd Semester, SY ${year}-${year + 1}`;
-  };
-
-  const getTalentUnitAuto = () => {
-    // Removed manual Talent Unit selection. Use logged-in trainee context.
-    return selectedTrainee?.talentGroup || '';
-  };
-
-  const computeScholarshipTierFromOverall = (overall: number) => {
-    // Auto-assign reward tier based on final computed score.
-    // Mapping (0-5 scale): >=4.5 => 100, >=3.75 => 75, >=3.0 => 50, else 25
-    if (overall >= 4.5) return 100;
-    if (overall >= 3.75) return 75;
-    if (overall >= 3.0) return 50;
-    return 25;
-  };
-
-  const handleSubmitClick = () => {
-    // Show confirmation dialog before final submission
-    setShowConfirmation(true);
-  };
-
-  const handleConfirmSubmit = () => {
-    // Finalize and submit the evaluation
-    onSubmit();
-    onOpenChange(false);
   };
 
   const updateSectionB = (field: string, value: number) => {
-<<<<<<< Updated upstream
-    setEvaluationForm({
-      ...evaluationForm,
-      sectionB: { ...(evaluationForm.sectionB || {}), [field]: value }
-    });
-  };
-
-  const updateSectionC = (field: string, value: number) => {
-    setEvaluationForm({
-      ...evaluationForm,
-      sectionC: { ...(evaluationForm.sectionC || {}), [field]: value }
-    });
-=======
-    const updated: Evaluation = { 
-      ...evaluationForm, 
-      sectionB: { ...evaluationForm.sectionB!, [field]: value } 
-    };
+    const updated: Evaluation = { ...evaluationForm, sectionB: { ...evaluationForm.sectionB!, [field]: value } };
     setEvaluationForm(updated);
   };
 
   const updateSectionC = (field: string, value: number) => {
-    const updated: Evaluation = { 
-      ...evaluationForm, 
-      sectionC: { ...evaluationForm.sectionC!, [field]: value } 
-    };
+    const updated: Evaluation = { ...evaluationForm, sectionC: { ...evaluationForm.sectionC!, [field]: value } };
     setEvaluationForm(updated);
->>>>>>> Stashed changes
   };
 
   React.useEffect(() => {
     if (selectedTrainee && open) {
-<<<<<<< Updated upstream
-      const todayObj = new Date();
-      const today = todayObj.toISOString().split('T')[0];
-      setEvaluationForm({
-        ...evaluationForm,
-        scholarName: selectedTrainee.name || '',
-        ratingPeriod: getRatingPeriodFromTimeline(todayObj),
-        talentUnit: getTalentUnitAuto(),
-        ratedBy: currentUser?.name || '',
-        ratedDate: today
-      });
-=======
       const today = new Date().toISOString().split("T")[0];
       const updated: Evaluation = {
         ...evaluationForm,
@@ -211,7 +95,6 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
         ratedDate: today
       };
       setEvaluationForm(updated);
->>>>>>> Stashed changes
     }
   }, [selectedTrainee, open, currentUser?.name, currentUser?.talentGroup]);
 
@@ -245,338 +128,13 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
     ));
 
   return (
-<<<<<<< Updated upstream
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-[90vw] max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-4 sm:px-8 pt-4 sm:pt-6 pb-4 shrink-0 border-b">
-          <DialogTitle className="text-2xl">Performance Appraisal of Talent Scholars</DialogTitle>
-          <DialogDescription className="text-sm">
-            University of Nueva Caceres â€“ Office of the Dean of Student and Alumni Affairs
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6">
-          <div className="space-y-6 pb-6">
-            {/* Basic Information */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Basic Information</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-sm text-[#6c757d]">Talent Scholar Name</Label>
-                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.scholarName}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-[#6c757d]">Talent Unit</Label>
-                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">{getTalentUnitAuto()}</p>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm text-[#6c757d]">Rating Period</Label>
-                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.ratingPeriod}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Section A - Attendance and Punctuality */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Section A â€“ Attendance and Punctuality</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50">
-                        <TableHead className="w-[60%]">Criteria</TableHead>
-                        <TableHead className="text-center w-[8%]">1</TableHead>
-                        <TableHead className="text-center w-[8%]">2</TableHead>
-                        <TableHead className="text-center w-[8%]">3</TableHead>
-                        <TableHead className="text-center w-[8%]">4</TableHead>
-                        <TableHead className="text-center w-[8%]">5</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>Reports to engagements (internal & external) on time</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.reportsOnTime} onClick={() => updateSectionA('reportsOnTime', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
-                        <TableCell>Reports to engagements regularly</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.reportsRegularly} onClick={() => updateSectionA('reportsRegularly', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Spends no time away from duties unnecessarily</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA?.noUnnecessaryAbsence ?? 0} onClick={() => updateSectionA('noUnnecessaryAbsence', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
-                        <TableCell>Exhibits mastery of assigned tasks/routines</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.mastersyTasks} onClick={() => updateSectionA('mastersyTasks', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Helps maintain cleanliness and orderliness of venue/office</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.maintainsCleanliness} onClick={() => updateSectionA('maintainsCleanliness', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-100 font-medium">
-                        <TableCell>Total for Part A</TableCell>
-                        <TableCell colSpan={5} className="text-center">{calculateSectionATotal()}</TableCell>
-                      </TableRow>
-                      <TableRow className="bg-gray-100 font-medium">
-                        <TableCell>Average</TableCell>
-                        <TableCell colSpan={5} className="text-center">{calculateSectionAAverage()}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Section B - Commitment & Dedication */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Section B â€“ Commitment & Dedication</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50">
-                        <TableHead className="w-[60%]">Criteria</TableHead>
-                        <TableHead className="text-center w-[8%]">1</TableHead>
-                        <TableHead className="text-center w-[8%]">2</TableHead>
-                        <TableHead className="text-center w-[8%]">3</TableHead>
-                        <TableHead className="text-center w-[8%]">4</TableHead>
-                        <TableHead className="text-center w-[8%]">5</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>Shows interest in improving skills and talents</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.improvementInterest ?? 0} onClick={() => updateSectionB('improvementInterest', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
-                        <TableCell>Shows interest in doing a good performance</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.performanceInterest ?? 0} onClick={() => updateSectionB('performanceInterest', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Exhibits initiative and resourcefulness</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.initiative ?? 0} onClick={() => updateSectionB('initiative', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
-                        <TableCell>Uses time and resources efficiently</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.efficiency ?? 0} onClick={() => updateSectionB('efficiency', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-100 font-medium">
-                        <TableCell>Total for Part B</TableCell>
-                        <TableCell colSpan={5} className="text-center">{calculateSectionBTotal()}</TableCell>
-                      </TableRow>
-                      <TableRow className="bg-gray-100 font-medium">
-                        <TableCell>Average</TableCell>
-                        <TableCell colSpan={5} className="text-center">{calculateSectionBAverage()}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Section C - Interpersonal Skills */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Section C â€“ Interpersonal Skills</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50">
-                        <TableHead className="w-[60%]">Criteria</TableHead>
-                        <TableHead className="text-center w-[8%]">1</TableHead>
-                        <TableHead className="text-center w-[8%]">2</TableHead>
-                        <TableHead className="text-center w-[8%]">3</TableHead>
-                        <TableHead className="text-center w-[8%]">4</TableHead>
-                        <TableHead className="text-center w-[8%]">5</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>Works effectively as a member of the talent group</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionC.teamwork} onClick={() => updateSectionC('teamwork', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
-                        <TableCell>Demonstrates tact in dealing with others</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionC.tact} onClick={() => updateSectionC('tact', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Exhibits a pleasant disposition</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionC.disposition} onClick={() => updateSectionC('disposition', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-100 font-medium">
-                        <TableCell>Total for Part C</TableCell>
-                        <TableCell colSpan={5} className="text-center">{calculateSectionCTotal()}</TableCell>
-                      </TableRow>
-                      <TableRow className="bg-gray-100 font-medium">
-                        <TableCell>Average</TableCell>
-                        <TableCell colSpan={5} className="text-center">{calculateSectionCAverage()}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Overall Rating */}
-            <Card className="border-2">
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-center">
-                  <div>
-                    <Label className="text-sm text-[#6c757d]">Overall Rating</Label>
-                    <div className="text-4xl font-bold mt-2">{calculateOverallRating()}</div>
-                    <p className="text-xs text-[#6c757d] mt-1">out of 5.00</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-[#6c757d]">Adjectival Rating</Label>
-                    <div className="text-3xl font-bold mt-2">{getAdjectivalRating()}</div>
-                    <p className="text-xs text-[#6c757d] mt-1">Performance Level</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Scholarship Percentage (Auto-computed) */}
-            <Card className="border-2 border-[#7A1E1E]/20 bg-gradient-to-br from-[#7A1E1E]/5 to-transparent">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <GraduationCap className="w-5 h-5 text-[#7A1E1E]" />
-                  Scholarship Reward Tier
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <p className="text-sm text-[#6c757d]">Automatically assigned based on final computed evaluation score.</p>
-
-                  {(() => {
-                    const overallStr = calculateOverallRating();
-                    const overall = typeof overallStr === 'string' ? parseFloat(overallStr) : Number(overallStr);
-                    const tier = Number.isFinite(overall) ? computeScholarshipTierFromOverall(overall) : 25;
-                    return (
-                      <div className="mt-3 p-3 bg-white rounded-lg border border-[#7A1E1E]/20 text-center">
-                        <p className="text-sm text-[#6B7280]">Assigned Scholarship</p>
-                        <p className="text-2xl font-bold text-[#7A1E1E] mt-1">{tier}% Scholarship</p>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </CardContent>
-            </Card>
-
-
-            {/* Open Text Fields */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Performance Feedback</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="strengths" className="text-sm text-[#6c757d]">Talent Scholar's Strengths</Label>
-                  <Textarea
-                    id="strengths"
-                    value={evaluationForm.strengths}
-                    onChange={(e) => setEvaluationForm({ ...evaluationForm, strengths: e.target.value })}
-                    rows={3}
-                    className="mt-1"
-                    placeholder="Describe the scholar's key strengths and positive attributes..."
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="improvements" className="text-sm text-[#6c757d]">Areas for Improvement</Label>
-                  <Textarea
-                    id="improvements"
-                    value={evaluationForm.improvements}
-                    onChange={(e) => setEvaluationForm({ ...evaluationForm, improvements: e.target.value })}
-                    rows={3}
-                    className="mt-1"
-                    placeholder="Identify areas where the scholar can improve..."
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Recommendation and Evaluation Details */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Recommendation & Evaluation Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <Label className="text-sm text-[#6c757d] mb-3 block">Recommended for renewal?</Label>
-                  <RadioGroup
-                    value={evaluationForm.recommendForRenewal ? 'yes' : 'no'}
-                    onValueChange={(value) => setEvaluationForm({ ...evaluationForm, recommendForRenewal: value === 'yes' })}
-                    className="flex gap-6"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="yes" id="renewal-yes" />
-                      <Label htmlFor="renewal-yes" className="cursor-pointer">Yes</Label>
-=======
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-[95vw] sm:max-w-[90vw] max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="px-4 sm:px-8 pt-4 sm:pt-6 pb-4 shrink-0 border-b">
-            <DialogTitle className="text-2xl">Final Evaluation – Performance Appraisal</DialogTitle>
+            <DialogTitle className="text-2xl">Final Evaluation ï¿½ Performance Appraisal</DialogTitle>
             <DialogDescription className="text-sm">
-              University of Nueva Caceres – Office of the Dean of Student and Alumni Affairs
+              University of Nueva Caceres ï¿½ Office of the Dean of Student and Alumni Affairs
             </DialogDescription>
           </DialogHeader>
 
@@ -595,9 +153,8 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
                     <div>
                       <Label className="text-sm text-[#6c757d]">Talent Unit</Label>
                       <p className="mt-1 text-sm text-[#1a1a1a] py-2 capitalize">
-                        {evaluationForm.talentUnit?.replace(/-/g, " ") || "—"}
+                        {evaluationForm.talentUnit?.replace(/-/g, " ") || "ï¿½"}
                       </p>
->>>>>>> Stashed changes
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Rating Period</Label>
@@ -609,7 +166,7 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
 
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle>Section A – Attendance and Punctuality</CardTitle>
+                  <CardTitle>Section A ï¿½ Attendance and Punctuality</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4">
                   <div className="overflow-x-auto">
@@ -665,7 +222,7 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
 
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle>Section B – Commitment & Dedication</CardTitle>
+                  <CardTitle>Section B ï¿½ Commitment & Dedication</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4">
                   <div className="overflow-x-auto">
@@ -713,7 +270,7 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
 
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle>Section C – Interpersonal Skills</CardTitle>
+                  <CardTitle>Section C ï¿½ Interpersonal Skills</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4">
                   <div className="overflow-x-auto">
@@ -784,42 +341,12 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
                     <p className="text-sm text-[#6B7280] mb-1">Based on Overall Rating of {calculateOverallRating()}</p>
                     <p className="text-3xl font-bold text-[#7A1E1E]">{autoScholarship}% Scholarship</p>
                     <p className="text-xs text-[#6c757d] mt-2">
-                      4.5–5.0 ? 100% · 3.5–4.4 ? 75% · 2.5–3.4 ? 50% · &lt;2.5 ? 25%
+                      4.5ï¿½5.0 ? 100% ï¿½ 3.5ï¿½4.4 ? 75% ï¿½ 2.5ï¿½3.4 ? 50% ï¿½ &lt;2.5 ? 25%
                     </p>
                   </div>
                 </CardContent>
               </Card>
 
-<<<<<<< Updated upstream
-        <DialogFooter className="px-4 sm:px-8 py-4 shrink-0 border-t border-[#E5E7EB]">
-          <Button 
-            onClick={handleSubmitClick} 
-            className="bg-[#7A1E1E] hover:bg-[#6A1919]"
-          >
-            Submit Evaluation
-          </Button>
-        </DialogFooter>
-
-        {/* Evaluation Confirmation Dialog */}
-        <EvaluationConfirmationDialog
-          open={showConfirmation}
-          onOpenChange={setShowConfirmation}
-          traineeName={selectedTrainee?.name || ''}
-          overallRating={calculateOverallRating()}
-          adjectivalRating={getAdjectivalRating()}
-          scholarshipTier={
-            (() => {
-              const overallStr = calculateOverallRating();
-              const overall = typeof overallStr === 'string' ? parseFloat(overallStr) : Number(overallStr);
-              return Number.isFinite(overall) ? computeScholarshipTierFromOverall(overall) : 25;
-            })()
-          }
-          onConfirm={handleConfirmSubmit}
-          onCancel={() => setShowConfirmation(false)}
-        />
-      </DialogContent>
-    </Dialog>
-=======
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle>Performance Feedback</CardTitle>
@@ -887,7 +414,7 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
                               day: "numeric",
                               year: "numeric"
                             })
-                          : "—"}
+                          : "ï¿½"}
                       </p>
                     </div>
                   </div>
@@ -921,7 +448,7 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
             </p>
             <p>
               <span className="text-[#6c757d]">Overall Rating:</span>{" "}
-              <strong>{calculateOverallRating()} – {getAdjectivalRating()}</strong>
+              <strong>{calculateOverallRating()} ï¿½ {getAdjectivalRating()}</strong>
             </p>
             <p>
               <span className="text-[#6c757d]">Scholarship:</span> <strong>{autoScholarship}%</strong>
@@ -944,6 +471,5 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
         </DialogContent>
       </Dialog>
     </>
->>>>>>> Stashed changes
   );
 }

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Calendar } from './ui/icons';
@@ -50,8 +50,8 @@ export function AttendanceCalendarChecklist({
 
   // Group dates by week for better display
   const weeks = useMemo(() => {
-    const weeksArray = [];
-    let currentWeek = [];
+    const weeksArray: Date[][] = [];
+    let currentWeek: Date[] = [];
 
     allDates.forEach(date => {
       currentWeek.push(date);
@@ -142,7 +142,7 @@ export function AttendanceCalendarChecklist({
           {weeks.map((week, weekIdx) => (
             <div key={weekIdx} className="space-y-2">
               <div className="flex gap-1 flex-wrap">
-                {week.map((date, dayIdx) => {
+                {week.map((date: Date, dayIdx: number) => {
                   const dateStr = date.toISOString().split('T')[0];
                   const attendance = attendanceMap.get(dateStr);
                   const status = attendance?.status || 'unmarked';

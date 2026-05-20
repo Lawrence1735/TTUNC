@@ -65,12 +65,13 @@ export interface Evaluation {
   adjectivalRating?: string;
   overallRating?: string;
   talentGroup?: string;
-<<<<<<< Updated upstream
   // Chapter and evaluation type tracking
   evaluationType?: 'chapter' | 'final' | 'gateway';
   chapterNumber?: number;
   isFinalEvaluation?: boolean;
   confirmationDismissed?: boolean;
+  discussionDate?: string;
+  scholarSignatureDate?: string;
 }
 
 // Micro-target/goal for trainees
@@ -91,9 +92,4 @@ export interface AttendanceRecord {
   date: Date;
   status: 'present' | 'absent' | 'excused';
   notes?: string;
-=======
-  scholarName?: string;
-  talentUnit?: string;
-  ratingPeriod?: string;
->>>>>>> Stashed changes
 }

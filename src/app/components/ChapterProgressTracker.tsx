@@ -3,7 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Alert, AlertDescription } from './ui/alert';
-import { Lock, LockOpen, CheckCircle, AlertCircle, BookOpen } from './ui/icons';
 import type { ChapterEvaluation } from './types';
 
 interface ChapterProgressTrackerProps {
@@ -81,21 +80,6 @@ export function ChapterProgressTracker({
     };
   }, [chapterStatuses, totalChapters]);
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'passed':
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
-      case 'locked':
-        return <Lock className="w-5 h-5 text-[#6c757d]" />;
-      case 'unlocked':
-        return <LockOpen className="w-5 h-5 text-blue-600" />;
-      case 'completed':
-        return <BookOpen className="w-5 h-5 text-purple-600" />;
-      default:
-        return <AlertCircle className="w-5 h-5 text-gray-400" />;
-    }
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'passed':
@@ -135,7 +119,6 @@ export function ChapterProgressTracker({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-[#7A1E1E]" />
             {isMajorettes || isGleeClub || isDanceClub ? 'Routine' : 'Chapter'} Progress Tracker
           </CardTitle>
           <CardDescription>
@@ -166,7 +149,6 @@ export function ChapterProgressTracker({
 
       {/* System Requirements Alert */}
       <Alert>
-        <AlertCircle className="w-4 h-4" />
         <AlertDescription>
           <strong>Sequential Progression:</strong> Each {isMajorettes || isGleeClub || isDanceClub ? 'routine' : 'chapter'} must be completed and evaluation must be passed before unlocking the next one.
         </AlertDescription>
@@ -202,7 +184,6 @@ export function ChapterProgressTracker({
                   title={`${chapterStatus.chapterName} - ${getStatusLabel(chapterStatus.status)}`}
                 >
                   <div className="flex items-center gap-2">
-                    {getStatusIcon(chapterStatus.status)}
                     <span className="font-bold text-lg">{chapterNum}</span>
                   </div>
                   <span className="text-xs font-medium">
@@ -244,7 +225,6 @@ export function ChapterProgressTracker({
                   `}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    {getStatusIcon(chapterStatus.status)}
                     <div className="min-w-0">
                       <p className="font-medium text-sm">{chapterStatus.chapterName}</p>
                       {chapterStatus.evaluationScore !== undefined && (
@@ -282,7 +262,6 @@ export function ChapterProgressTracker({
       >
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            {canAccessFinalEvaluation ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Lock className="w-5 h-5 text-gray-500" />}
             Final Evaluation – Scholar Gateway
           </CardTitle>
           <CardDescription>

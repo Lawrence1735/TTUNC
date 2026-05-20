@@ -1,29 +1,13 @@
-import React, { useState, useMemo } from "react";
+﻿import React, { useState, useMemo, useEffect } from "react";
 import { TabsContent } from "./ui/tabs";
 import {
-<<<<<<< Updated upstream
-  Folder, CalendarClock, TrendingUp, Search, ChevronLeft,
-  ChevronRight, Calendar, MapPin, ChevronDown, Check, X,
-  Send, User, Phone,
+  Search, ChevronLeft, ChevronRight, ChevronDown,
+  Check, X, AlertCircle, Calendar, MapPin, Send, User, Phone,
 } from "lucide-react";
+import { toast } from "sonner";
+import { api as apiClient } from "../services/api";
 
 interface DirectorRecruitmentTabProps {
-  pendingApps: number;
-  scheduledInterviews: number;
-  applicationsThisWeek: number;
-  filteredApplications: any[];
-  interviewSchedules: any[];
-  handleViewApplication: (app: any) => void;
-  handleSetSchedule: (app: any) => void;
-  handleApproveInterview: (id: string) => void;
-  handleRejectInterview: (id: string) => void;
-=======
-  Search, ChevronLeft,
-  ChevronRight, ChevronDown, Check, X, AlertCircle, Calendar,
-} from "lucide-react";
-
-interface DirectorRecruitmentTabProps {
-  // Props deprecated - now using API calls instead
   pendingApps?: number;
   scheduledInterviews?: number;
   applicationsThisWeek?: number;
@@ -33,9 +17,7 @@ interface DirectorRecruitmentTabProps {
   handleSetSchedule?: (app: any) => void;
   handleApproveInterview?: (id: string) => void;
   handleRejectInterview?: (id: string) => void;
-  // New callback for when application is approved - triggers refresh of training tab
   onApprovalSuccess?: () => void | Promise<void>;
->>>>>>> Stashed changes
 }
 
 const TALENT_GROUP_LABELS: Record<string, string> = {
@@ -151,31 +133,31 @@ function CancelBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
-function ScheduleModal({ app, onClose, onConfirm }: { app: any; onClose: () => void; onConfirm: (data: any) => void }) {
+function ScheduleModal({ app, onClose, onConfirm, isLoading = false, isReschedule = false }: { app: any; onClose: () => void; onConfirm: (data: any) => void; isLoading?: boolean; isReschedule?: boolean }) {
   const [form, setForm] = useState({ date: "", time: "", venue: "Music Building Room 201", notes: "" });
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
   return (
     <Modal
-      title="Schedule Interview"
-      subtitle={`Set interview date and time for ${app.personalInfo?.name ?? "applicant"}`}
+      title={isReschedule ? "Reschedule Interview" : "Schedule Interview"}
+      subtitle={`Set interview date and time for ${getApplicantName(app)}`}
       onClose={onClose}
       width={500}
       footer={<>
         <CancelBtn onClick={onClose} />
         <button
-          onClick={() => { onConfirm(form); onClose(); }}
-          disabled={!form.date || !form.time}
+          onClick={() => { if (!isLoading) onConfirm(form); }}
+          disabled={!form.date || !form.time || isLoading}
           style={{
             display: "flex", alignItems: "center", gap: 8,
             padding: "9px 20px", borderRadius: 8,
-            background: (!form.date || !form.time) ? "#CBD5E1" : "#7A1E1E",
+            background: (!form.date || !form.time || isLoading) ? "#CBD5E1" : "#7A1E1E",
             border: "none", fontSize: 14, fontWeight: 600,
-            color: "#fff", cursor: (!form.date || !form.time) ? "not-allowed" : "pointer",
+            color: "#fff", cursor: (!form.date || !form.time || isLoading) ? "not-allowed" : "pointer",
             transition: "background 0.15s",
           }}
         >
           <Send style={{ width: 14, height: 14 }} />
-          Send Schedule
+          {isLoading ? "Saving..." : isReschedule ? "Reschedule" : "Send Schedule"}
         </button>
       </>}
     >
@@ -206,25 +188,26 @@ function ScheduleModal({ app, onClose, onConfirm }: { app: any; onClose: () => v
   );
 }
 
-function ApproveModal({ app, onClose, onConfirm }: { app: any; onClose: () => void; onConfirm: () => void }) {
+function ApproveModal({ app, onClose, onConfirm, isLoading = false }: { app: any; onClose: () => void; onConfirm: (notes: string) => void; isLoading?: boolean }) {
   const [notes, setNotes] = useState("");
   return (
     <Modal
       title="Approve Application"
-      subtitle={`Confirm scholarship approval for ${app.personalInfo?.name ?? "applicant"}`}
+      subtitle={`Confirm scholarship approval for ${getApplicantName(app)}`}
       onClose={onClose}
       width={480}
       footer={<>
         <CancelBtn onClick={onClose} />
         <button
-          onClick={() => { onConfirm(); onClose(); }}
+          onClick={() => { if (!isLoading) onConfirm(notes); }}
+          disabled={isLoading}
           style={{
             padding: "9px 20px", borderRadius: 8,
-            background: "#14532D", border: "none",
-            fontSize: 14, fontWeight: 600, color: "#fff", cursor: "pointer",
+            background: isLoading ? "#CBD5E1" : "#14532D", border: "none",
+            fontSize: 14, fontWeight: 600, color: "#fff", cursor: isLoading ? "not-allowed" : "pointer",
           }}
         >
-          Confirm Approval
+          {isLoading ? "Approving..." : "Confirm Approval"}
         </button>
       </>}
     >
@@ -235,7 +218,7 @@ function ApproveModal({ app, onClose, onConfirm }: { app: any; onClose: () => vo
       }}>
         <Check style={{ width: 16, height: 16, color: "#15803D", flexShrink: 0, marginTop: 1 }} />
         <p style={{ fontSize: 13, color: "#14532D", lineHeight: 1.5, margin: 0 }}>
-          Approving this application will move <strong>{app.personalInfo?.name ?? "this applicant"}</strong> to the official talent scholar roster and trigger onboarding.
+          Approving this application will move <strong>{getApplicantName(app)}</strong> to the official talent scholar roster and trigger onboarding.
         </p>
       </div>
       <div>
@@ -252,7 +235,7 @@ function ApproveModal({ app, onClose, onConfirm }: { app: any; onClose: () => vo
   );
 }
 
-function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void; onConfirm: () => void }) {
+function DenyModal({ app, onClose, onConfirm, isLoading = false }: { app: any; onClose: () => void; onConfirm: (reason: string, feedback: string) => void; isLoading?: boolean }) {
   const [reason, setReason] = useState("");
   const [feedback, setFeedback] = useState("");
   const feedbackLength = feedback.length;
@@ -260,32 +243,22 @@ function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void;
   return (
     <Modal
       title="Deny Application"
-      subtitle={`Reject application for ${app.personalInfo?.name ?? "applicant"}`}
+      subtitle={`Reject application for ${getApplicantName(app)}`}
       onClose={onClose}
       width={480}
       footer={<>
         <CancelBtn onClick={onClose} />
         <button
-<<<<<<< Updated upstream
-          onClick={() => { if (reason && feedback) { onConfirm(); onClose(); } }}
-          disabled={!reason || !feedback}
-          style={{
-            padding: "9px 20px", borderRadius: 8,
-            background: (!reason || !feedback) ? "#CBD5E1" : "#7F1D1D",
-            border: "none", fontSize: 14, fontWeight: 600,
-            color: "#fff", cursor: (!reason || !feedback) ? "not-allowed" : "pointer",
-=======
-          onClick={() => { if (reason && isValidFeedback) { onConfirm(reason, feedback); } }}
+          onClick={() => { if (reason && isValidFeedback && !isLoading) onConfirm(reason, feedback); }}
           disabled={!reason || !isValidFeedback || isLoading}
           style={{
             padding: "9px 20px", borderRadius: 8,
             background: (!reason || !isValidFeedback || isLoading) ? "#CBD5E1" : "#7F1D1D",
             border: "none", fontSize: 14, fontWeight: 600,
             color: "#fff", cursor: (!reason || !isValidFeedback || isLoading) ? "not-allowed" : "pointer",
->>>>>>> Stashed changes
           }}
         >
-          Confirm Rejection
+          {isLoading ? "Rejecting..." : "Confirm Rejection"}
         </button>
       </>}
     >
@@ -296,7 +269,7 @@ function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void;
       }}>
         <X style={{ width: 16, height: 16, color: "#B91C1C", flexShrink: 0, marginTop: 1 }} />
         <p style={{ fontSize: 13, color: "#7F1D1D", lineHeight: 1.5, margin: 0 }}>
-          This action will permanently deny <strong>{app.personalInfo?.name ?? "this applicant"}'s</strong> scholarship application. This cannot be undone.
+          This action will permanently deny <strong>{getApplicantName(app)}'s</strong> scholarship application. This cannot be undone.
         </p>
       </div>
       <div style={fieldWrap}>
@@ -314,13 +287,6 @@ function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void;
         </div>
       </div>
       <div>
-<<<<<<< Updated upstream
-        <label style={labelStyle}>Additional Feedback / Notes <span style={{ color: "#DC2626" }}>*</span></label>
-        <textarea
-          value={feedback}
-          onChange={(e) => setFeedback(e.target.value)}
-          placeholder="Provide specific feedback explaining this rejection decision..."
-=======
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
           <label style={labelStyle}>Additional Feedback <span style={{ color: "#DC2626" }}>*</span></label>
           <span style={{ fontSize: 12, color: feedbackLength < 10 ? "#DC2626" : "#64748B" }}>{feedbackLength}/10+ chars</span>
@@ -329,7 +295,6 @@ function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void;
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
           placeholder="Provide specific feedback explaining this rejection (minimum 10 characters)..."
->>>>>>> Stashed changes
           rows={4}
           style={{ ...inputStyle, height: "auto", padding: "10px 12px", resize: "vertical", lineHeight: 1.5, borderColor: feedbackLength > 0 && feedbackLength < 10 ? "#DC2626" : undefined }}
           required
@@ -422,30 +387,16 @@ function ProfileModal({ app, onClose }: { app: any; onClose: () => void }) {
   );
 }
 
-<<<<<<< Updated upstream
-export function DirectorRecruitmentTab({
-  pendingApps,
-  scheduledInterviews,
-  applicationsThisWeek,
-  filteredApplications,
-  interviewSchedules,
-  handleViewApplication,
-  handleSetSchedule,
-  handleApproveInterview,
-  handleRejectInterview,
-}: DirectorRecruitmentTabProps) {
-  const today = new Date(2026, 4, 17);
-  const [calYear,      setCalYear]      = useState(today.getFullYear());
-  const [calMonth,     setCalMonth]     = useState(today.getMonth());
-  const [selectedDay,  setSelectedDay]  = useState(today.getDate());
-  const [search,       setSearch]       = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+// ── Helper functions ─────────────────────────────────────────────────────────
+const getApplicantName = (app: any): string =>
+  app.applicant_name || app.applicantName || app.name || app.personalInfo?.name || app.user?.name || "—";
 
-  const [scheduleApp,  setScheduleApp]  = useState<any | null>(null);
-  const [approveApp,   setApproveApp]   = useState<any | null>(null);
-  const [denyApp,      setDenyApp]      = useState<any | null>(null);
-  const [profileApp,   setProfileApp]   = useState<any | null>(null);
-=======
+const getApplicantEmail = (app: any): string =>
+  app.applicant_email || app.applicantEmail || app.email || app.personalInfo?.email || app.user?.email || "—";
+
+const getApplicantStudentId = (app: any): string =>
+  app.applicant_student_id || app.applicantStudentId || app.personalInfo?.studentId || "—";
+
 function LoadingSkeleton() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -522,7 +473,7 @@ function InterviewDetailsModal({ interview, onClose }: { interview: any; onClose
   );
 }
 
-export function DirectorRecruitmentTab({ onApprovalSuccess }: DirectorRecruitmentTabProps) {
+export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules = [] }: DirectorRecruitmentTabProps) {
   const today = new Date(2026, 4, 20);  // May 20, 2026 - TODAY's date
 
   // Data state
@@ -550,23 +501,16 @@ export function DirectorRecruitmentTab({ onApprovalSuccess }: DirectorRecruitmen
       setLoading(true);
       setError(null);
 
-      // Fetch ALL applications (remove status filter to get all statuses)
-      // This ensures applicants remain visible after scheduling, approving, or rejecting
-      const [appsRes, interviewsRes] = await Promise.all([
-        apiClient.get('/recruitment/applications'),  // Removed ?status=pending to get ALL applications
-        apiClient.get('/recruitment/interviews'),
-      ]);
+      // Fetch all applications — interview data is embedded via eager loading
+      const appsRes = await apiClient.get('/recruitment/applications');
 
       // Handle nested data structure
       const applicationsData = Array.isArray(appsRes.data.data) ? appsRes.data.data : (Array.isArray(appsRes.data) ? appsRes.data : []);
-      const interviewsData = Array.isArray(interviewsRes.data.data) ? interviewsRes.data.data : (Array.isArray(interviewsRes.data) ? interviewsRes.data : []);
 
       console.log('Fetched applications:', applicationsData);
       console.log('Application statuses:', applicationsData.map((app: any) => ({ id: app.id, status: app.status, hasInterview: !!app.interview })));
-      console.log('Fetched interviews:', interviewsData);
 
       setApplications(applicationsData);
-      setInterviews(interviewsData);
     } catch (err: any) {
       // apiClient returns { status, message, data, errors }
       const msg = err.data?.message || err.message || 'Failed to load recruitment data';
@@ -719,17 +663,10 @@ export function DirectorRecruitmentTab({ onApprovalSuccess }: DirectorRecruitmen
       
       let response: any;
       
-      // FIX 422 ERROR: Check if interview exists
-      // If interview already exists, use PATCH to update it
-      // If not, use POST to create a new one
-      if (isReschedule && interviewId) {
-        // Reschedule: PATCH existing interview
-        response = await apiClient.patch(`/recruitment/interviews/${interviewId}`, payload);
-      } else {
-        // New schedule: POST to application endpoint
-        const endpoint = `/recruitment/applications/${applicationId}/schedule-interview`;
-        response = await apiClient.post(endpoint, payload);
-      }
+      // The backend scheduleInterview uses updateOrCreate, so the same endpoint
+      // handles both new schedules and reschedules without needing a separate PATCH route.
+      const endpoint = `/recruitment/applications/${applicationId}/schedule-interview`;
+      response = await apiClient.post(endpoint, payload);
       
       toast.success(isReschedule ? 'Interview rescheduled' : 'Interview scheduled');
       setScheduleApp(null);
@@ -789,7 +726,6 @@ export function DirectorRecruitmentTab({ onApprovalSuccess }: DirectorRecruitmen
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     return createdAt >= sevenDaysAgo && createdAt <= today;
   }).length;
->>>>>>> Stashed changes
 
   const prevMonth = () => { if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); } else setCalMonth(m => m - 1); setSelectedDay(1); };
   const nextMonth = () => { if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0); } else setCalMonth(m => m + 1); setSelectedDay(1); };
@@ -799,115 +735,72 @@ export function DirectorRecruitmentTab({ onApprovalSuccess }: DirectorRecruitmen
 
   const interviewDays = useMemo(() => {
     const s = new Set<number>();
-    interviewSchedules.forEach((iv) => { const d = new Date(iv.date); if (d.getFullYear() === calYear && d.getMonth() === calMonth) s.add(d.getDate()); });
+    applications.forEach((app) => {
+      if (app.interview?.scheduled_at) {
+        const d = new Date(app.interview.scheduled_at);
+        if (d.getFullYear() === calYear && d.getMonth() === calMonth) s.add(d.getDate());
+      }
+    });
     return s;
-  }, [interviewSchedules, calYear, calMonth]);
+  }, [applications, calYear, calMonth]);
 
   const selectedDayEvents = useMemo(() =>
-    interviewSchedules.filter((iv) => { const d = new Date(iv.date); return d.getFullYear() === calYear && d.getMonth() === calMonth && d.getDate() === selectedDay; }),
-    [interviewSchedules, calYear, calMonth, selectedDay]);
+    applications
+      .filter((app) => {
+        if (!app.interview?.scheduled_at) return false;
+        const d = new Date(app.interview.scheduled_at);
+        return d.getFullYear() === calYear && d.getMonth() === calMonth && d.getDate() === selectedDay;
+      })
+      .map((app) => ({
+        id: app.interview.id,
+        applicantName: getApplicantName(app),
+        date: app.interview.scheduled_at,
+        time: new Date(app.interview.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        venue: app.interview.venue || "",
+        notes: app.interview.notes || "",
+        applicationId: app.id,
+        applicationStatus: app.status,
+      })),
+    [applications, calYear, calMonth, selectedDay]);
 
-<<<<<<< Updated upstream
-  const displayedApps = useMemo(() =>
-    filteredApplications.filter((app) => {
-      const name = app.personalInfo?.name?.toLowerCase() ?? "";
-      const id   = app.personalInfo?.studentId?.toLowerCase() ?? "";
-      const q    = search.toLowerCase();
-      return (!q || name.includes(q) || id.includes(q)) && (statusFilter === "all" || (app.status ?? "pending") === statusFilter);
-    }),
-    [filteredApplications, search, statusFilter]);
-=======
   const displayedApps = useMemo(() => {
-    console.log('Filtering applications:', { totalApps: applications.length, search, statusFilter });
-    
-    // UNIFIED FILTER: Combine search and status filter logic
-    // This ensures search works regardless of casing or filtering layers
     const finalFilteredData = applications.filter((app) => {
-      // Extract name and email with multiple fallback options (MATCH getApplicantName function)
-      const name = (app.applicant_name || app.applicantName || app.name || app.candidate_name || app.personalInfo?.name || app.user?.name || "").toLowerCase();
+      const name = (app.applicant_name || app.applicantName || app.name || app.personalInfo?.name || app.user?.name || "").toLowerCase();
       const email = (app.applicant_email || app.applicantEmail || app.email || app.personalInfo?.email || app.user?.email || "").toLowerCase();
       const studentId = (app.applicant_student_id || app.applicantStudentId || "").toLowerCase();
-      
-      // Search query (case-insensitive)
       const searchQuery = search.toLowerCase().trim();
-      
-      // Check if search term matches name, email, or student ID
-      const matchesSearch = !searchQuery || 
-                           name.includes(searchQuery) || 
-                           email.includes(searchQuery) || 
-                           studentId.includes(searchQuery);
-      
-      // Get normalized status - handle all backend status variants
+      const matchesSearch = !searchQuery || name.includes(searchQuery) || email.includes(searchQuery) || studentId.includes(searchQuery);
       const appStatus = (app.status || 'pending').toLowerCase();
-      
-      // Normalize all status variants
       let normalizedStatus = appStatus;
       if (appStatus === 'not_scheduled') normalizedStatus = 'pending';
       if (appStatus === 'rejected' || appStatus === 'not_qualified') normalizedStatus = 'disapproved';
-      if (appStatus === 'qualified') normalizedStatus = 'approved';
-      if (appStatus === 'accepted') normalizedStatus = 'approved';
-      
-      // Check status filter - ALWAYS show all if "all" is selected
-      const matchesStatus = statusFilter === "all" || statusFilter === "All" || 
-                           normalizedStatus === statusFilter.toLowerCase() || 
-                           appStatus === statusFilter.toLowerCase();
-      
+      if (appStatus === 'qualified' || appStatus === 'accepted') normalizedStatus = 'approved';
+      if (appStatus === 'interview_scheduled') normalizedStatus = 'scheduled';
+      const matchesStatus = statusFilter === "all" || normalizedStatus === statusFilter.toLowerCase() || appStatus === statusFilter.toLowerCase();
       return matchesSearch && matchesStatus;
     });
 
-    console.log('After filter:', { filtered: finalFilteredData.length });
-
-
-    // Custom sorting function based on priority
-    const sorted = finalFilteredData.sort((appA, appB) => {
-      const todayDate = new Date(2026, 4, 20); // May 20, 2026
-      const todayStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate());
-      
-      // Get status for both apps
-      const statusA = (appA.status || 'pending').toLowerCase();
-      const statusB = (appB.status || 'pending').toLowerCase();
-      
-      // Normalize status strings
-      const normalizeStatus = (s: string) => {
-        if (s === 'not_scheduled' || s === 'pending') return 'not_yet_scheduled';
+    return finalFilteredData.sort((a, b) => {
+      const todayStart = new Date(2026, 4, 20);
+      const norm = (s: string) => {
+        s = s.toLowerCase();
+        if (s === 'not_scheduled' || s === 'pending') return 'pending';
         if (s === 'rejected' || s === 'disapproved') return 'rejected';
-        if (s === 'approved' || s === 'accepted') return 'accepted';
+        if (s === 'approved' || s === 'accepted') return 'approved';
         return s;
       };
-      
-      const normalizedStatusA = normalizeStatus(statusA);
-      const normalizedStatusB = normalizeStatus(statusB);
-      
-      // PRIORITY 1: Scheduled interviews TODAY (May 20, 2026)
-      const isAScheduledToday = normalizedStatusA === 'scheduled' && appA.interview?.scheduled_at 
-        ? new Date(appA.interview.scheduled_at).toDateString() === todayStart.toDateString()
-        : false;
-      const isBScheduledToday = normalizedStatusB === 'scheduled' && appB.interview?.scheduled_at 
-        ? new Date(appB.interview.scheduled_at).toDateString() === todayStart.toDateString()
-        : false;
-      
-      if (isAScheduledToday && !isBScheduledToday) return -1;
-      if (!isAScheduledToday && isBScheduledToday) return 1;
-      
-      // PRIORITY 2: Not Yet Scheduled
-      if (normalizedStatusA === 'not_yet_scheduled' && normalizedStatusB !== 'not_yet_scheduled') return -1;
-      if (normalizedStatusA !== 'not_yet_scheduled' && normalizedStatusB === 'not_yet_scheduled') return 1;
-      
-      // PRIORITY 3: Accepted
-      if (normalizedStatusA === 'accepted' && normalizedStatusB !== 'accepted') return -1;
-      if (normalizedStatusA !== 'accepted' && normalizedStatusB === 'accepted') return 1;
-      
-      // PRIORITY 4: Rejected (always at bottom)
-      if (normalizedStatusA === 'rejected' && normalizedStatusB !== 'rejected') return 1;
-      if (normalizedStatusA !== 'rejected' && normalizedStatusB === 'rejected') return -1;
-      
-      // If same priority, sort by applied date (newest first)
-      return new Date(appB.applied_at || 0).getTime() - new Date(appA.applied_at || 0).getTime();
+      const sa = norm(a.status || 'pending');
+      const sb = norm(b.status || 'pending');
+      const aToday = sa === 'scheduled' && a.interview?.scheduled_at && new Date(a.interview.scheduled_at).toDateString() === todayStart.toDateString();
+      const bToday = sb === 'scheduled' && b.interview?.scheduled_at && new Date(b.interview.scheduled_at).toDateString() === todayStart.toDateString();
+      if (aToday && !bToday) return -1;
+      if (!aToday && bToday) return 1;
+      const order = ['scheduled', 'pending', 'approved', 'rejected'];
+      const oi = order.indexOf(sa); const oj = order.indexOf(sb);
+      if (oi !== oj) return (oi === -1 ? 99 : oi) - (oj === -1 ? 99 : oj);
+      return new Date(b.applied_at || 0).getTime() - new Date(a.applied_at || 0).getTime();
     });
-
-    return sorted;
   }, [applications, search, statusFilter]);
->>>>>>> Stashed changes
 
   const calendarCells: (number | null)[] = [...Array(firstDaySlot).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
 
@@ -927,102 +820,35 @@ export function DirectorRecruitmentTab({ onApprovalSuccess }: DirectorRecruitmen
         boxSizing: "border-box" 
       }}>
 
-<<<<<<< Updated upstream
-        {/* ══ LEFT SECTION: Covers 70% Width (Quickstats + Workflow Table Container) ══ */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%", boxSizing: "border-box" }}>
-          
-          {/* Quickstat Metric Cards (Now inside the 70% layout side) */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", width: "100%", boxSizing: "border-box" }}>
-            {[
-              { icon: Folder,        label: "Pending Applications",   val: pendingApps          },
-              { icon: CalendarClock, label: "Scheduled Interviews",   val: scheduledInterviews  },
-              { icon: TrendingUp,    label: "Applications This Week", val: applicationsThisWeek },
-            ].map(({ icon: Icon, label, val }) => (
-              <div key={label} style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 14, boxSizing: "border-box" }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F9EAEA", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Icon style={{ width: 16, height: 16, color: "#7A1E1E" }} />
-=======
-        {/* Left side: Application Pipeline - flex-1 fills available space, h-full stretches to parent height */}
+        {/* Left side */}
         <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%", flex: 1, boxSizing: "border-box" }}>
 
           {loading ? (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
               {[1, 2, 3].map(i => (
-                <div key={i} style={{ height: 100, background: "#F1F5F9", borderRadius: 12, animation: "pulse 2s infinite" }} />
+                <div key={i} style={{ height: 100, background: "#F1F5F9", borderRadius: 12 }} />
               ))}
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", width: "100%", boxSizing: "border-box" }}>
               {[
                 { label: "Pending Applications", val: pendingApplications, filterValue: "pending" },
-                { label: "Scheduled Interviews", val: interviews.length, filterValue: "scheduled" },
+                { label: "Scheduled Interviews", val: applications.filter(a => a.status === 'interview_scheduled' || a.status === 'scheduled').length, filterValue: "scheduled" },
                 { label: "Applications This Week", val: applicationsThisWeek, filterValue: "all" },
               ].map(({ label, val, filterValue }) => (
-                <div 
+                <div
                   key={label}
                   onClick={() => setStatusFilter(filterValue)}
-                  style={{ 
-                    background: "#fff", 
-                    borderRadius: 12, 
-                    border: "1px solid #E5E7EB", 
-                    boxShadow: "0 1px 8px rgba(0,0,0,0.06)", 
-                    padding: "16px 20px", 
-                    display: "flex", 
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    boxSizing: "border-box",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget).style.boxShadow = "0 4px 12px rgba(0,0,0,0.12)";
-                    (e.currentTarget).style.transform = "translateY(-2px)";
-                    (e.currentTarget).style.borderColor = "#D0D0D0";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget).style.boxShadow = "0 1px 8px rgba(0,0,0,0.06)";
-                    (e.currentTarget).style.transform = "translateY(0)";
-                    (e.currentTarget).style.borderColor = "#E5E7EB";
-                  }}
+                  style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "16px 20px", display: "flex", flexDirection: "column", justifyContent: "center", boxSizing: "border-box", cursor: "pointer" }}
                 >
-                  <p style={{ fontSize: 11, color: "#64748B", marginBottom: 4, lineHeight: 1, margin: 0 }}>{label}</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: val === 0 ? "#CBD5E1" : "#0F172A", lineHeight: 1, margin: 0 }}>{val}</p>
->>>>>>> Stashed changes
-                </div>
-                <div>
-                  <p style={{ fontSize: 11, color: "#64748B", marginBottom: 4, lineHeight: 1, margin: 0 }}>{label}</p>
+                  <p style={{ fontSize: 11, color: "#64748B", lineHeight: 1, margin: "0 0 4px" }}>{label}</p>
                   <p style={{ fontSize: 24, fontWeight: 700, color: val === 0 ? "#CBD5E1" : "#0F172A", lineHeight: 1, margin: 0 }}>{val}</p>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
-<<<<<<< Updated upstream
           {/* Workflow Table Card */}
-          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "24px", boxSizing: "border-box", width: "100%" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, color: "#0F172A", margin: 0 }}>Application Workflow Pipeline</h2>
-              <div style={{ display: "flex", gap: 8 }}>
-                <div style={{ position: "relative" }}>
-                  <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#94A3B8", pointerEvents: "none" }} />
-                  <input
-                    type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search applicants..."
-                    style={{ ...inputStyle, width: 180, paddingLeft: 32 }}
-                  />
-                </div>
-                <div style={{ position: "relative" }}>
-                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-                    style={{ ...inputStyle, width: 150, paddingRight: 28, appearance: "none", cursor: "pointer" }}>
-                    <option value="all">All Statuses</option>
-                    <option value="pending">Pending</option>
-                    <option value="scheduled">Scheduled</option>
-                    <option value="approved">Approved</option>
-                    <option value="disapproved">Disapproved</option>
-                  </select>
-                  <ChevronDown style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, color: "#64748B", pointerEvents: "none" }} />
-                </div>
-=======
           {/* Table card: min-h-[620px] ensures it stretches to match calendar card height */}
           <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "24px", boxSizing: "border-box", width: "100%", minHeight: "620px", display: "flex", flexDirection: "column" }}>
             <h2 style={{ fontSize: 17, fontWeight: 700, color: "#0F172A", margin: "0 0 24px 0" }}>Application Workflow Pipeline</h2>
@@ -1065,15 +891,15 @@ export function DirectorRecruitmentTab({ onApprovalSuccess }: DirectorRecruitmen
                   placeholder="Search applicants..."
                   style={{ ...inputStyle, width: "100%", paddingLeft: 32 }}
                 />
->>>>>>> Stashed changes
               </div>
             </div>
 
+            {loading ? <LoadingSkeleton /> : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: "2px solid #F1F5F9" }}>
-                  {["Applicant Details", "Applied Date", "Status", "Actions"].map((col) => (
-                    <th key={col} style={{ paddingBottom: 10, textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: "#94A3B8", paddingRight: col === "Actions" ? 0 : 20 }}>
+                  {["Applicant", "Applied", "Status", "Actions"].map((col) => (
+                    <th key={col} style={{ paddingBottom: 10, textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: "#94A3B8", paddingRight: col === "Actions" ? 0 : 16 }}>
                       {col}
                     </th>
                   ))}
@@ -1083,8 +909,8 @@ export function DirectorRecruitmentTab({ onApprovalSuccess }: DirectorRecruitmen
                 {displayedApps.length > 0 ? displayedApps.map((app) => {
                   const status = app.status ?? "pending";
                   const badge  = STATUS_MAP[status] ?? STATUS_MAP.pending;
-                  const appliedDate = app.appliedAt
-                    ? new Date(app.appliedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                  const appliedDate = (app.applied_at || app.appliedAt)
+                    ? new Date(app.applied_at || app.appliedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                     : "—";
 
                   return (
@@ -1092,61 +918,51 @@ export function DirectorRecruitmentTab({ onApprovalSuccess }: DirectorRecruitmen
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#FAFAFA")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
-                      <td style={{ padding: "16px 20px 16px 0" }}>
-                        <button
-                          onClick={() => setProfileApp(app)}
-                          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}
-                        >
+                      <td style={{ padding: "16px 16px 16px 0" }}>
+                        <button onClick={() => setDetailApp(app)}
+                          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
                           <p style={{ fontSize: 14, fontWeight: 600, color: "#7A1E1E", margin: 0, lineHeight: 1.3, textDecoration: "underline", textDecorationColor: "rgba(122,30,30,0.3)" }}>
-                            {app.personalInfo?.name ?? "—"}
+                            {getApplicantName(app)}
                           </p>
                         </button>
                         <p style={{ fontSize: 11, color: "#94A3B8", margin: "3px 0 0", fontFamily: "monospace" }}>
-                          {app.personalInfo?.studentId ?? "—"}
+                          {getApplicantStudentId(app)}
                         </p>
                       </td>
-                      <td style={{ padding: "16px 20px 16px 0", fontSize: 13, color: "#64748B", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "16px 16px 16px 0", fontSize: 13, color: "#64748B", whiteSpace: "nowrap" }}>
                         {appliedDate}
                       </td>
-                      <td style={{ padding: "16px 20px 16px 0" }}>
-                        <span style={{
-                          fontSize: 11, fontWeight: 600,
-                          background: badge.bg, color: badge.text,
-                          border: `1px solid ${badge.border}`,
-                          borderRadius: 999, padding: "4px 10px", whiteSpace: "nowrap",
-                        }}>
+                      <td style={{ padding: "16px 16px 16px 0" }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, background: badge.bg, color: badge.text, border: `1px solid ${badge.border}`, borderRadius: 999, padding: "4px 10px", whiteSpace: "nowrap" }}>
                           {badge.label}
                         </span>
                       </td>
                       <td style={{ padding: "16px 0" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          {app.status !== 'approved' && app.status !== 'rejected' && (
                           <button
-                            title="Schedule Interview"
-                            onClick={() => setScheduleApp(app)}
-                            style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.15s" }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#EFF6FF"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#BFDBFE"; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#E2E8F0"; }}
+                            title={app.status === 'interview_scheduled' || app.status === 'scheduled' ? 'Reschedule Interview' : 'Schedule Interview'}
+                            onClick={() => { setIsRescheduling(app.status === 'interview_scheduled' || app.status === 'scheduled'); setScheduleApp(app); }}
+                            style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
                           >
                             <Calendar style={{ width: 14, height: 14, color: "#1D4ED8" }} />
                           </button>
-<<<<<<< Updated upstream
+                          )}
                           <button
-                            title="Approve Application"
+                            title="Accept applicant"
                             onClick={() => setApproveApp(app)}
-                            style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.15s" }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#F0FDF4"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#BBF7D0"; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#E2E8F0"; }}
+                            disabled={!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)}
+                            style={{ width: 32, height: 32, borderRadius: 8, border: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "1px solid #D0D0D0" : "1px solid #BBF7D0", background: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "#F0F0F0" : "#F0FDF4", display: "flex", alignItems: "center", justifyContent: "center", cursor: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "not-allowed" : "pointer", opacity: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? 0.5 : 1 }}
                           >
-                            <Check style={{ width: 14, height: 14, color: "#15803D" }} />
+                            <Check style={{ width: 14, height: 14, color: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "#999" : "#15803D" }} />
                           </button>
                           <button
-                            title="Deny Application"
+                            title="Reject applicant"
                             onClick={() => setDenyApp(app)}
-                            style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.15s" }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#FEF2F2"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#FECACA"; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#fff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#E2E8F0"; }}
+                            disabled={!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)}
+                            style={{ width: 32, height: 32, borderRadius: 8, border: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "1px solid #D0D0D0" : "1px solid #FECACA", background: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "#F0F0F0" : "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", cursor: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "not-allowed" : "pointer", opacity: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? 0.5 : 1 }}
                           >
-                            <X style={{ width: 14, height: 14, color: "#B91C1C" }} />
+                            <X style={{ width: 14, height: 14, color: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "#999" : "#B91C1C" }} />
                           </button>
                         </div>
                       </td>
@@ -1161,118 +977,6 @@ export function DirectorRecruitmentTab({ onApprovalSuccess }: DirectorRecruitmen
                 )}
               </tbody>
             </table>
-          </div>
-        </div>
-
-        {/* ══ RIGHT SECTION: Covers 30% Width (Sticky Calendar Column Beside It) ══ */}
-        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: 20, display: "flex", flexDirection: "column", gap: 16, boxSizing: "border-box", position: "sticky", top: 16, width: "100%" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Calendar style={{ width: 14, height: 14, color: "#7A1E1E" }} />
-                <span style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>Interview Schedule</span>
-=======
-                        </td>
-                        <td style={{ padding: "16px 0", fontSize: 13, color: "#64748B" }}>{getApplicantEmail(app)}</td>
-                        <td style={{ padding: "16px 0" }}>
-                          <span style={{
-                            display: "inline-block",
-                            padding: "4px 12px",
-                            borderRadius: 20,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            background: STATUS_MAP[app.status || 'pending'].bg,
-                            color: STATUS_MAP[app.status || 'pending'].text,
-                            border: `1px solid ${STATUS_MAP[app.status || 'pending'].border}`,
-                          }}>
-                            {STATUS_MAP[app.status || 'pending'].label}
-                          </span>
-                        </td>
-                        <td style={{ padding: "16px 0", textAlign: "center" }}>
-                          <div style={{ display: "flex", gap: 6, justifyContent: "center", alignItems: "center" }}>
-                            {/* SCHEDULE / RESCHEDULE ICON BUTTON */}
-                            {app.status !== 'approved' && app.status !== 'disapproved' && app.status !== 'accepted' && app.status !== 'rejected' && (
-                              <button 
-                                onClick={() => {
-                                  setIsRescheduling(app.status === 'scheduled');
-                                  setScheduleApp(app);
-                                }} 
-                                aria-label={app.status === 'scheduled' ? 'Reschedule interview' : 'Schedule interview'}
-                                title={app.status === 'scheduled' ? 'Reschedule interview' : 'Schedule interview'}
-                                style={{ 
-                                  padding: "8px", 
-                                  background: "#EFF6FF", 
-                                  border: "1px solid #BFDBFE", 
-                                  borderRadius: 6, 
-                                  cursor: "pointer", 
-                                  display: "flex", 
-                                  alignItems: "center", 
-                                  justifyContent: "center",
-                                  transition: "all 0.2s ease"
-                                }}
-                                onMouseEnter={(e) => { (e.currentTarget).style.background = "#DBEAFE"; }}
-                                onMouseLeave={(e) => { (e.currentTarget).style.background = "#EFF6FF"; }}
-                              >
-                                <Calendar style={{ width: 16, height: 16, color: "#1E40AF" }} />
-                              </button>
-                            )}
-                            
-                            {/* APPROVE ICON BUTTON - GATED BY INTERVIEW AND STATUS */}
-                            <button 
-                              onClick={() => setApproveApp(app)} 
-                              disabled={!app.interview?.id || !['pending', 'scheduled'].includes(app.status)}
-                              aria-label="Accept applicant"
-                              title={!app.interview?.id ? 'Schedule an interview first' : (app.status === 'approved' || app.status === 'rejected') ? 'Application already decided' : 'Accept applicant'}
-                              style={{ 
-                                padding: "8px", 
-                                background: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "#F0F0F0" : "#F0FDF4", 
-                                border: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "1px solid #D0D0D0" : "1px solid #BBF7D0", 
-                                borderRadius: 6, 
-                                cursor: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "not-allowed" : "pointer", 
-                                display: "flex", 
-                                alignItems: "center", 
-                                justifyContent: "center",
-                                opacity: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? 0.5 : 1,
-                                transition: "all 0.2s ease"
-                              }}
-                              onMouseEnter={(e) => { if (app.interview?.id && ['pending', 'scheduled'].includes(app.status)) (e.currentTarget).style.background = "#DCFCE7"; }}
-                              onMouseLeave={(e) => { if (app.interview?.id && ['pending', 'scheduled'].includes(app.status)) (e.currentTarget).style.background = "#F0FDF4"; }}
-                            >
-                              <Check style={{ width: 16, height: 16, color: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "#999" : "#14532D" }} />
-                            </button>
-                            
-                            {/* REJECT ICON BUTTON - GATED BY INTERVIEW AND STATUS */}
-                            <button 
-                              onClick={() => setDenyApp(app)} 
-                              disabled={!app.interview?.id || !['pending', 'scheduled'].includes(app.status)}
-                              aria-label="Reject applicant"
-                              title={!app.interview?.id ? 'Schedule an interview first' : (app.status === 'approved' || app.status === 'rejected') ? 'Application already decided' : 'Reject applicant'}
-                              style={{ 
-                                padding: "8px", 
-                                background: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "#F0F0F0" : "#FEF2F2", 
-                                border: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "1px solid #D0D0D0" : "1px solid #FECACA", 
-                                borderRadius: 6, 
-                                cursor: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "not-allowed" : "pointer", 
-                                display: "flex", 
-                                alignItems: "center", 
-                                justifyContent: "center",
-                                opacity: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? 0.5 : 1,
-                                transition: "all 0.2s ease"
-                              }}
-                              onMouseEnter={(e) => { if (app.interview?.id && ['pending', 'scheduled'].includes(app.status)) (e.currentTarget).style.background = "#FEE5E5"; }}
-                              onMouseLeave={(e) => { if (app.interview?.id && ['pending', 'scheduled'].includes(app.status)) (e.currentTarget).style.background = "#FEF2F2"; }}
-                            >
-                              <X style={{ width: 16, height: 16, color: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "#999" : "#7F1D1D" }} />
-                            </button>
-                            
-
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             )}
           </div>
         </div>
@@ -1321,174 +1025,48 @@ export function DirectorRecruitmentTab({ onApprovalSuccess }: DirectorRecruitmen
                     );
                   })}
                 </div>
->>>>>>> Stashed changes
               </div>
-              <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 3, lineHeight: 1, margin: 0 }}>Upcoming evaluations</p>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <button onClick={prevMonth} style={{ width: 26, height: 26, borderRadius: 6, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <ChevronLeft style={{ width: 12, height: 12, color: "#94A3B8" }} />
-              </button>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#0F172A", width: 90, textAlign: "center" }}>
-                {MONTH_NAMES[calMonth]} {calYear}
-              </span>
-              <button onClick={nextMonth} style={{ width: 26, height: 26, borderRadius: 6, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <ChevronRight style={{ width: 12, height: 12, color: "#94A3B8" }} />
-              </button>
-            </div>
-          </div>
-
-<<<<<<< Updated upstream
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
-            {DAY_ABBRS.map((d, i) => (
-              <div key={i} style={{ textAlign: "center", fontSize: 10, fontWeight: 600, color: "#CBD5E1", padding: "2px 0" }}>{d}</div>
-            ))}
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginTop: -8 }}>
-            {calendarCells.map((day, i) => {
-              if (!day) return <div key={i} style={{ padding: "4px 0" }} />;
-              const isSelected = day === selectedDay;
-              const hasEvent   = interviewDays.has(day);
-              return (
-                <div
-                  key={i}
-                  onClick={() => setSelectedDay(day)}
-                  style={{
-                    textAlign: "center", fontSize: 12, fontWeight: 600,
-                    padding: "6px 0", cursor: "pointer", borderRadius: 6,
-                    position: "relative", margin: "2px",
-                    background: isSelected ? "#7A1E1E" : "transparent",
-                    color: isSelected ? "#fff" : "#334155",
-                  }}
-                >
-                  {day}
-                  {hasEvent && !isSelected && (
-                    <div style={{ position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)", width: 4, height: 4, borderRadius: "50%", background: "#7A1E1E" }} />
-                    )}
-                </div>
-              );
-            })}
-          </div>
-
+            </>
+          )}
           <div style={{ borderTop: "1px solid #F1F5F9", paddingTop: 12, marginTop: 4 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, marginTop: 0 }}>
               Schedule for {MONTH_NAMES[calMonth]} {selectedDay}
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 180, overflowY: "auto" }}>
-              {selectedDayEvents.length > 0 ? selectedDayEvents.map((ev: any, idx: number) => (
-                <div key={idx} style={{ background: "#F8FAFC", borderRadius: 8, padding: "10px 12px", borderLeft: "3px solid #7A1E1E" }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: 0 }}>{ev.applicantName}</p>
-                  <p style={{ fontSize: 11, color: "#64748B", margin: "2px 0 0" }}>{ev.time} • {TALENT_GROUP_LABELS[ev.talentGroup] || ev.talentGroup}</p>
-                  {ev.venue && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
-                      <MapPin style={{ width: 10, height: 10, color: "#94A3B8", flexShrink: 0 }} />
-                      <p style={{ fontSize: 11, color: "#64748B", margin: 0 }}>{ev.venue}</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflowY: "auto" }}>
+              {selectedDayEvents.length > 0 ? selectedDayEvents.map((ev: any) => {
+                const isDone = ['approved', 'rejected', 'disapproved'].includes(ev.applicationStatus);
+                return (
+                  <div key={ev.id}
+                    onClick={() => setInterviewDetailsModal(ev)}
+                    style={{ background: isDone ? "#F1F5F9" : "#F8FAFC", borderRadius: 8, padding: "10px 12px", borderLeft: `3px solid ${isDone ? "#CBD5E1" : "#7A1E1E"}`, cursor: "pointer", opacity: isDone ? 0.7 : 1 }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: isDone ? "#94A3B8" : "#0F172A", margin: 0 }}>{ev.applicantName}</p>
+                      {isDone && <span style={{ fontSize: 10, color: "#94A3B8" }}>Done</span>}
                     </div>
-                  )}
-                </div>
-              )) : (
+                    <p style={{ fontSize: 11, color: "#64748B", margin: "2px 0 0" }}>{ev.time}</p>
+                    {ev.venue && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                        <MapPin style={{ width: 10, height: 10, color: "#94A3B8", flexShrink: 0 }} />
+                        <p style={{ fontSize: 11, color: "#64748B", margin: 0 }}>{ev.venue}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              }) : (
                 <p style={{ fontSize: 12, color: "#CBD5E1", margin: 0, padding: "6px 0" }}>No interviews scheduled for this day.</p>
               )}
             </div>
           </div>
-=======
-              <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 16 }}>
-                <h4 style={{ fontSize: 12, fontWeight: 700, color: "#475569", textTransform: "uppercase", margin: "0 0 12px 0" }}>Events on {MONTH_NAMES[calMonth]} {selectedDay}</h4>
-                {selectedDayEvents.length === 0 ? (
-                  <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>No interviews scheduled</p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {selectedDayEvents.map((event) => {
-                      // MARK AS DONE: Get the application status for this event
-                      const eventStatus = getApplicationStatusForInterview(event.id);
-                      const isDone = eventStatus === 'approved' || eventStatus === 'disapproved' || eventStatus === 'accepted' || eventStatus === 'rejected';
-                      
-                      // Style changes: muted colors for completed events
-                      const backgroundColor = isDone ? "#F1F5F9" : "#F8FAFC";
-                      const borderColor = isDone ? "#CBD5E1" : "#7A1E1E";
-                      const textColor = isDone ? "#94A3B8" : "#0F172A";
-                      
-                      return (
-                        <div 
-                          key={event.id} 
-                          onClick={() => setInterviewDetailsModal(event)}
-                          style={{ 
-                            background: backgroundColor, 
-                            padding: 10, 
-                            borderRadius: 8, 
-                            borderLeft: `3px solid ${borderColor}`, 
-                            borderRight: "1px solid #E5E7EB",
-                            borderTop: "1px solid #E5E7EB",
-                            borderBottom: "1px solid #E5E7EB",
-                            opacity: isDone ? 0.7 : 1,
-                            cursor: "pointer",
-                            transition: "all 0.2s ease"
-                          }}
-                          onMouseEnter={(e) => { 
-                            (e.currentTarget).style.background = isDone ? "#E8EFF5" : "#FFFFFF";
-                            (e.currentTarget).style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
-                          }}
-                          onMouseLeave={(e) => { 
-                            (e.currentTarget).style.background = backgroundColor;
-                            (e.currentTarget).style.boxShadow = "none";
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                            <p style={{ fontSize: 12, fontWeight: 600, color: textColor, margin: 0 }}>{event.applicantName}</p>
-                            {isDone && <span style={{ fontSize: 10, fontWeight: 600, color: borderColor, background: "#E0E7FF", padding: "2px 8px", borderRadius: 4 }}>[Done]</span>}
-                          </div>
-                          <p style={{ fontSize: 11, color: textColor, margin: "0 0 2px 0", opacity: 0.8 }}>{event.time}</p>
-                          <p style={{ fontSize: 11, color: textColor, margin: 0, opacity: 0.8 }}>{event.venue}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
->>>>>>> Stashed changes
         </div>
 
       </div>
 
-<<<<<<< Updated upstream
-      {/* Action Modals */}
-      {scheduleApp && (
-        <ScheduleModal
-          app={scheduleApp}
-          onClose={() => setScheduleApp(null)}
-          onConfirm={(data) => handleSetSchedule({ ...scheduleApp, scheduleData: data })}
-        />
-      )}
-      {approveApp && (
-        <ApproveModal
-          app={approveApp}
-          onClose={() => setApproveApp(null)}
-          onConfirm={() => handleApproveInterview(approveApp.id)}
-        />
-      )}
-      {denyApp && (
-        <DenyModal
-          app={denyApp}
-          onClose={() => setDenyApp(null)}
-          onConfirm={() => handleRejectInterview(denyApp.id)}
-        />
-      )}
-      {profileApp && (
-        <ProfileModal
-          app={profileApp}
-          onClose={() => setProfileApp(null)}
-        />
-      )}
-=======
       {scheduleApp && <ScheduleModal app={scheduleApp} onClose={() => { setScheduleApp(null); setIsRescheduling(false); }} onConfirm={(data) => handleScheduleInterview(scheduleApp.id, data, isRescheduling)} isLoading={actionLoading} isReschedule={isRescheduling} />}
       {approveApp && <ApproveModal app={approveApp} onClose={() => setApproveApp(null)} onConfirm={(notes) => handleApprove(approveApp.id, notes)} isLoading={actionLoading} />}
       {denyApp && <DenyModal app={denyApp} onClose={() => setDenyApp(null)} onConfirm={(reason, feedback) => handleReject(denyApp.id, reason, feedback)} isLoading={actionLoading} />}
-      {detailApp && <DetailModal app={detailApp} onClose={() => setDetailApp(null)} />}
+      {detailApp && <ProfileModal app={detailApp} onClose={() => setDetailApp(null)} />}
       {interviewDetailsModal && <InterviewDetailsModal interview={interviewDetailsModal} onClose={() => setInterviewDetailsModal(null)} />}
->>>>>>> Stashed changes
     </TabsContent>
   );
 }

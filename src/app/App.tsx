@@ -87,6 +87,19 @@ export interface User {
   assignedInstrument?: string;
   assignedVoice?: string;
   scholarshipPercentage?: number;
+  gender?: string;
+  dateOfBirth?: string;
+  birthdate?: string;
+  age?: string;
+  socialMedia?: string;
+  department?: string;
+  emergencyContactName?: string;
+  emergencyContactRelationship?: string;
+  emergencyContactPhone?: string;
+  guardianName?: string;
+  guardianContact?: string;
+  allergies?: string;
+  medicalConditions?: string;
 }
 
 export interface Application {
@@ -371,7 +384,7 @@ export default function App() {
           id: String(authUser.id),
           name: authUser.name,
           email: authUser.email,
-          role: authUser.role === 'admin' ? 'admin' : authUser.role === 'director' ? 'admin' : 'student',
+          role: authUser.role === 'admin' ? 'admin' : authUser.role === 'director' ? 'director' : 'student',
           talentGroup: authUser.talent_group ?? undefined,
           studentId: authUser.student_id ?? undefined,
           phone: authUser.phone ?? undefined,
