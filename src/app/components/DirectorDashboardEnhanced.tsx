@@ -74,11 +74,8 @@ import { DirectorTrainingTab } from './DirectorTrainingTab';
 import { DirectorMemberProfileTab } from './DirectorMemberProfileTab';
 import { TraineeDetailsDialog } from './TraineeDetailsDialog';
 import type { Evaluation } from './types';
-<<<<<<< HEAD
-=======
 import trainingClient from '../../api/trainingClient';
 import { applicationClient, ApplicationResponse } from '../../api/applicationClient';
->>>>>>> 2b86443 (feat: add Progress, Table, Tabs, Textarea components and ApplicationClient API)
 
 interface DirectorDashboardProps {
   user: UserType;
@@ -567,8 +564,6 @@ export function DirectorDashboardEnhanced({
     accessoryType: 'all'
   });
 
-<<<<<<< HEAD
-=======
   // Trainee API state
   const [traineesList, setTraineesList] = useState<any[]>([]);
   const [traineesLoading, setTraineesLoading] = useState(true);
@@ -642,7 +637,6 @@ export function DirectorDashboardEnhanced({
     console.log('[DirectorDashboardEnhanced] Fetching trainees and applications on mount...');
   }, []);
 
->>>>>>> 2b86443 (feat: add Progress, Table, Tabs, Textarea components and ApplicationClient API)
   // Talent group flags for conditional rendering (must be defined before inventory data)
   const directorTalentGroup = user.talentGroup || '';
   const isMarchingBand = directorTalentGroup === 'marching-band';
@@ -2126,10 +2120,7 @@ University of Nueva Caceres`;
             handleSetSchedule={handleSetSchedule}
             handleApproveInterview={handleApproveInterview}
             handleRejectInterview={handleRejectInterview}
-<<<<<<< HEAD
-=======
             onApprovalSuccess={refetchApplications}
->>>>>>> 2b86443 (feat: add Progress, Table, Tabs, Textarea components and ApplicationClient API)
           />
 
           {/* TRAINING TAB */}

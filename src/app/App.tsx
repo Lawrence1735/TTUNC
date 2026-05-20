@@ -22,11 +22,7 @@ const DirectorDashboard = lazy(() => import("./components/DirectorDashboardEnhan
 const Settings = lazy(() => import("./components/Settings").then(module => ({ default: module.Settings })));
 import { NotificationPanel } from "./components/NotificationPanel";
 import { Toaster } from "./components/ui/sonner";
-<<<<<<< HEAD
-=======
-import { toast } from "sonner";
 import { applicationClient } from "../api/applicationClient";
->>>>>>> 2b86443 (feat: add Progress, Table, Tabs, Textarea components and ApplicationClient API)
 import { initKeyboardNavigation } from "./utils/keyboardNavigation";
 import { SkipToContent } from "./components/accessibility/SkipToContent";
 
@@ -427,52 +423,6 @@ function AppContent() {
     return { success: true };
   };
 
-<<<<<<< HEAD
-  const handlePublicApplicationSubmit = (formData: ApplicationFormData) => {
-    const newApplication: Application = {
-      id: `app_${Date.now()}`,
-      userId: `user_${Date.now()}`,
-      talentGroup: formData.talentGroup,
-      personalInfo: {
-        name: formData.fullName,
-        email: formData.email,
-        studentId: formData.studentId || "",
-        phone: formData.mobileNo,
-        birthdate: formData.birthdate,
-        age: formData.age,
-        address: formData.address,
-        gender: formData.gender,
-        socialMedia: '',
-        yearLevel: formData.yearLevel,
-        course: formData.course,
-        department: formData.department,
-        guardianName: formData.guardianName,
-        guardianContactNo: formData.guardianContactNo,
-        guardianRelationship: formData.guardianRelationship,
-        // Marching Band specific
-        hasBandExperience: formData.hasBandExperience ?? false,
-        // Glee Club specific
-        vocalRange: formData.vocalRange,
-        previousSingingExperience: formData.previousSingingExperience,
-        musicalBackground: formData.musicalBackground,
-        // Dance Club specific
-        primaryDanceGenre: formData.primaryDanceGenre,
-        yearsOfExperience: formData.yearsOfExperience,
-        performedOnStage: formData.performedOnStage,
-        willingToAttendRehearsals: formData.willingToAttendRehearsals,
-        // Majorettes specific
-        previousMajoretteTeam: formData.previousMajoretteTeam,
-        previousOrganization: formData.previousOrganization,
-        canPerformBasicRoutines: formData.canPerformBasicRoutines,
-        willingToAttendRehearsalsMajorettes: formData.willingToAttendRehearsalsMajorettes,
-      },
-      experience: "",
-      motivation: "",
-      documents: [],
-      status: "pending",
-      appliedAt: new Date(),
-    };
-=======
   const handlePublicApplicationSubmit = async (formData: ApplicationFormData) => {
     try {
       // Prepare API request payload with snake_case field names
@@ -502,7 +452,6 @@ function AppContent() {
         experience: formData.experience || null,
         motivation: formData.motivation || null,
       };
->>>>>>> 2b86443 (feat: add Progress, Table, Tabs, Textarea components and ApplicationClient API)
 
       // Call API to submit the application
       const response = await applicationClient.submitApplication(apiPayload);

@@ -1,4 +1,4 @@
-import { api as apiClient } from '../app/services/api';
+import apiClient from './client';
 
 export interface ApplicationResponse {
   id: string;
