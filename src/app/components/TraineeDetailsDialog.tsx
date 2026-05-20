@@ -7,7 +7,7 @@ import { getTalentGroupName } from './ui/unc-colors';
 
 interface AttendanceRecord {
   date: string;
-  attendees: { [userId: string]: boolean | { status: boolean; timestamp?: string } };
+  attendees: { [userId: string]: boolean | 'present' | 'excused' | 'absent' | { status: boolean; timestamp?: string } };
   noPractice?: boolean;
 }
 
@@ -45,7 +45,7 @@ export function TraineeDetailsDialog({
         <DialogHeader className="sr-only">
           <DialogTitle>Trainee Details - {trainee?.name}</DialogTitle>
           <DialogDescription>
-            Complete information and attendance records for {trainee?.name}
+            Complete profile information and academic records for {trainee?.name}
           </DialogDescription>
         </DialogHeader>
 
@@ -95,13 +95,6 @@ export function TraineeDetailsDialog({
                   app.talentGroup === trainee.talentGroup,
               );
 
-              const attendedCount = trainingAttendance.filter(
-                record => record.attendees[trainee.id!],
-              ).length;
-              const totalSessions = trainingAttendance.length;
-              const attendanceRate =
-                totalSessions > 0 ? Math.round((attendedCount / totalSessions) * 100) : 0;
-              const absentCount = totalSessions - attendedCount;
               const traineeMarchingBand = trainee.talentGroup === 'marching-band';
 
               return (
@@ -244,25 +237,6 @@ export function TraineeDetailsDialog({
                               </p>
                             </div>
                           )}
-                        </div>
-                      </div>
-
-                      {/* Attendance Summary */}
-                      <div>
-                        <h4 className="text-[#7A1E1E] text-[16px] font-bold mb-3">Attendance Summary</h4>
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Sessions Attended</p>
-                            <p className="text-[#1A1A1A] text-[14px]">{attendedCount} / {totalSessions}</p>
-                          </div>
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Attendance Rate</p>
-                            <p className="text-[#1A1A1A] text-[14px]">{attendanceRate}%</p>
-                          </div>
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Absences</p>
-                            <p className="text-[#1A1A1A] text-[14px]">{absentCount}</p>
-                          </div>
                         </div>
                       </div>
                     </div>

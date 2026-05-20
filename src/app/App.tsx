@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense, useTransition } from "react";
+import { useAuth } from './context/AuthContext';
 import { TalentTrackLanding } from "./components/TalentTrackLanding";
 import { TalentTrackLogin } from "./components/TalentTrackLogin";
 import { AccountRecovery } from "./components/AccountRecovery";
@@ -86,6 +87,19 @@ export interface User {
   assignedInstrument?: string;
   assignedVoice?: string;
   scholarshipPercentage?: number;
+  gender?: string;
+  dateOfBirth?: string;
+  birthdate?: string;
+  age?: string;
+  socialMedia?: string;
+  department?: string;
+  emergencyContactName?: string;
+  emergencyContactRelationship?: string;
+  emergencyContactPhone?: string;
+  guardianName?: string;
+  guardianContact?: string;
+  allergies?: string;
+  medicalConditions?: string;
 }
 
 export interface Application {
@@ -359,47 +373,43 @@ export default function App() {
 
   const unreadNotificationsCount = userNotifications.filter(n => !n.read).length;
 
-  const handleLogin = (email: string, password: string, selectedRole: string) => {
-    const user = users.find((u) => u.email === email);
-    
-    if (user) {
-      // Check if the selected role matches the user's actual role
-      // Map "trainee" to "student" for role matching since trainees are students in training
-      const normalizedSelectedRole = selectedRole === 'trainee' ? 'student' : selectedRole;
-      
-      if (user.role !== normalizedSelectedRole) {
-        toast.error('Invalid credentials');
-        return { success: false, error: 'Invalid credentials' };
-      }
-      
-      // If trainee is selected, verify user is actually in training
-      if (selectedRole === 'trainee' && user.trainingStatus !== 'in_progress') {
-        toast.error('Invalid credentials');
-        return { success: false, error: 'Invalid credentials' };
-      }
-      
-      setCurrentUser(user);
-      startTransition(() => {
-        setCurrentPage("dashboard");
-        if (user.role === "student") {
-          if (user.trainingStatus === "in_progress") {
-            setCurrentView("training");
+  const { login, logout } = useAuth();
+
+  const handleLogin = async (email: string, password: string, _selectedRole: string) => {
+    const result = await login(email, password);
+    if (result.success) {
+      const { user: authUser } = await import('./services/authService').then(m => ({ user: m.authService.getStoredUser() }));
+      if (authUser) {
+        setCurrentUser({
+          id: String(authUser.id),
+          name: authUser.name,
+          email: authUser.email,
+          role: authUser.role === 'admin' ? 'admin' : authUser.role === 'director' ? 'director' : 'student',
+          talentGroup: authUser.talent_group ?? undefined,
+          studentId: authUser.student_id ?? undefined,
+          phone: authUser.phone ?? undefined,
+          trainingStatus: 'in_progress',
+        });
+        startTransition(() => {
+          setCurrentPage("dashboard");
+          if (authUser.role === 'admin') {
+            setCurrentView('admin');
+          } else if (authUser.role === 'director') {
+            setCurrentView('director');
           } else {
-            setCurrentView("student");
+            setCurrentView('training');
           }
-        } else if (user.role === "scholar") {
-          setCurrentView("member-profile");
-        }
-      });
-      toast.success(`Welcome back, ${user.name}!`);
-      return { success: true };
+        });
+        toast.success(`Welcome back, ${authUser.name}!`);
+      }
+    } else {
+      toast.error(result.error ?? 'Invalid email or password');
     }
-    
-    toast.error("Invalid email or password");
-    return { success: false, error: "Invalid email or password" };
+    return result;
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout();
     setCurrentUser(null);
     startTransition(() => {
       setCurrentPage("landing");

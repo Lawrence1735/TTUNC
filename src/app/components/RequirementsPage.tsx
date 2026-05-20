@@ -35,7 +35,7 @@ const TALENT_GROUPS: TalentGroup[] = [
     id: 'glee-club',
     name: 'Glee Club',
     description:
-      'Vocal ensemble performing choral music, pop arrangements, and university anthems at concerts, competitions, and institutional events across the region.',
+      'Where diverse voices blend into perfect harmony. We are a premier vocal ensemble dedicated to uplifting spirits, inspiring massive crowds, and performing everything from classical choral masterpieces to modern pop arrangements across the region. Step into the spotlight and claim your place in our musical legacy!',
     image: gleeClubImage,
     requirements: [
       'Good vocal range and tone quality',
@@ -54,7 +54,7 @@ const TALENT_GROUPS: TalentGroup[] = [
     id: 'dance-club',
     name: 'Dance Club',
     description:
-      'Contemporary and cultural dance performances for university events, competitions, and showcases. Members train in multiple styles including folk, modern, and hip-hop.',
+      "Where movement meets passion. Dance is so much more than just hitting the right steps—it's about showing up, standing out, and speaking loud without saying a single word. It's your raw story, told through rhythm, power, and movement. If you've got the hunger to perform, the drive to push your physical limits, and the bravery to command a crowd, this stage is yours.",
     image: danceClubImage,
     requirements: [
       'Dance experience in any style',
@@ -73,7 +73,7 @@ const TALENT_GROUPS: TalentGroup[] = [
     id: 'marching-band',
     name: 'Marching Band',
     description:
-      'Perform at university events, parades, and competitions with brass, woodwind, and percussion instruments. The pride of UNC on every parade ground.',
+      "The heartbeat of the university is looking for its next generation of sound! We don't just play music—we command the field, fuel the campus spirit, and march to the rhythm of absolute excellence. This is your chance to step into the world of brass and woodwind performance, dominate the halftime show, and create a legacy that resonates through the campus halls.",
     image: marchingBandImage,
     requirements: [
       'Basic music reading ability',
@@ -92,7 +92,7 @@ const TALENT_GROUPS: TalentGroup[] = [
     id: 'majorettes',
     name: 'Majorettes',
     description:
-      'Precision dance and baton performers who combine choreography and showmanship to complement band performances at parades and competitions.',
+      "This is the home of the most elite visual performers on campus, showcasing power, precision, and excellence. We don't look for robotic perfection; we demand raw passion, glowing self-confidence, and the undeniable joy of elite performance. We own the room, leave doubts behind, and let pure talent speak loud!",
     image: majorettesImage,
     requirements: [
       'Dance or movement experience',
@@ -151,7 +151,6 @@ export function RequirementsPage({ onBack, onApplyNow }: RequirementsPageProps) 
       {/* ── Header ── */}
       <header className="h-20 bg-white border-b border-[#E2E8F0] sticky top-0 z-50 flex items-center">
         <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px] flex items-center justify-between">
-          {/* Left: crest + branding */}
           <div className="flex items-center gap-3">
             <img
               src={uncLogo}
@@ -171,7 +170,6 @@ export function RequirementsPage({ onBack, onApplyNow }: RequirementsPageProps) 
             </div>
           </div>
 
-          {/* Right: back button */}
           <button
             onClick={onBack}
             className="flex items-center gap-2 border border-[#94A3B8] rounded-lg px-4 py-2 text-sm font-medium text-[#475569] hover:text-[#7A1E1E] hover:border-[#7A1E1E] transition-colors duration-200"
@@ -220,18 +218,13 @@ export function RequirementsPage({ onBack, onApplyNow }: RequirementsPageProps) 
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8 md:gap-0">
             {JOURNEY_STEPS.map((step, i) => (
               <React.Fragment key={i}>
-                {/* Step bubble */}
                 <div className="flex-1 flex flex-col items-center text-center">
                   <div className="relative mb-4">
-                    {/* Glow */}
                     <div
                       className={`absolute inset-0 rounded-full blur-md opacity-25 ${
-                        step.gold
-                          ? 'bg-[#D97706]'
-                          : 'bg-[#7A1E1E]'
+                        step.gold ? 'bg-[#D97706]' : 'bg-[#7A1E1E]'
                       }`}
                     />
-                    {/* Circle */}
                     <div
                       className={`relative w-16 h-16 rounded-full flex items-center justify-center text-white shadow-md ${
                         step.gold
@@ -241,7 +234,6 @@ export function RequirementsPage({ onBack, onApplyNow }: RequirementsPageProps) 
                     >
                       {step.icon}
                     </div>
-                    {/* Counter badge */}
                     <div
                       className={`absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-sm border-2 ${
                         step.gold ? 'border-[#D97706]' : 'border-[#7A1E1E]'
@@ -260,7 +252,6 @@ export function RequirementsPage({ onBack, onApplyNow }: RequirementsPageProps) 
                   <p className="text-xs text-[#64748B]">{step.sub}</p>
                 </div>
 
-                {/* Connector */}
                 {i < JOURNEY_STEPS.length - 1 && (
                   <div className="hidden md:flex flex-1 max-w-[80px] items-center justify-center -mt-8 self-center">
                     <div className="w-full h-[2px] bg-gradient-to-r from-[#7A1E1E]/40 to-[#7A1E1E]/20 rounded-full" />
@@ -278,16 +269,17 @@ export function RequirementsPage({ onBack, onApplyNow }: RequirementsPageProps) 
             return (
               <div
                 key={group.id}
-                className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden flex flex-col md:flex-row shadow-[0_4px_16px_-4px_rgba(0,0,0,0.07)]"
+                /* UPDATED: Added md:min-h-[480px] to make the cards significantly taller by default */
+                className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden shadow-[0_4px_16px_-4px_rgba(0,0,0,0.07)] relative flex flex-col md:grid md:grid-cols-2 md:min-h-[480px]"
               >
-                {/* Left: info panel */}
-                <div className="flex-1 p-10 flex flex-col justify-between">
+                {/* Info Column (Left) */}
+                <div className="p-10 flex flex-col justify-between h-full z-10 bg-white">
                   <div>
                     <h3 className="text-2xl font-semibold text-[#7A1E1E] mb-3">{group.name}</h3>
                     <p className="text-[15px] text-[#475569] leading-[1.6] mb-6">{group.description}</p>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-3 mt-auto">
                     {/* View Requirements toggle */}
                     <button
                       onClick={() => toggleGroup(group.id)}
@@ -342,42 +334,23 @@ export function RequirementsPage({ onBack, onApplyNow }: RequirementsPageProps) 
                   </div>
                 </div>
 
-                {/* Right: photo panel — flush to edges */}
-                <div className="w-full md:w-[50%] min-h-[220px] md:min-h-0 flex-shrink-0 relative overflow-hidden">
-                  <ImageWithFallback
-                    src={group.image}
-                    alt={group.name}
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-[rgba(122,30,30,0.15)] to-transparent" />
+                {/* Image Column (Right) */}
+                <div className="min-h-[260px] md:min-h-0 md:absolute md:top-0 md:bottom-0 md:right-0 md:w-1/2 overflow-hidden bg-gray-100">
+                  <div className="w-full h-full [&_img]:!h-full [&_img]:!w-full [&_img]:!object-cover relative">
+                    <ImageWithFallback
+                      src={group.image}
+                      alt={group.name}
+                      className="w-full h-full object-cover min-h-full"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-[rgba(122,30,30,0.12)] to-transparent pointer-events-none" />
+                  </div>
                 </div>
+
               </div>
             );
           })}
         </div>
       </main>
-
-      {/* ── Micro-footer ── */}
-      <footer className="border-t border-[#E2E8F0] bg-white mt-8">
-        <div className="max-w-[1440px] mx-auto px-4 md:px-[70px] py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <span className="text-xs text-[#475569]">
-            TalentTrackUNC &copy; 2026 University of Nueva Caceres
-          </span>
-          <div className="flex items-center gap-4">
-            <a href="#status" className="text-xs text-[#0052CC] hover:text-[#7A1E1E] hover:underline transition-colors duration-200">
-              System Status
-            </a>
-            <span className="text-[#CBD5E1] hidden md:inline">|</span>
-            <a href="#privacy" className="text-xs text-[#0052CC] hover:text-[#7A1E1E] hover:underline transition-colors duration-200">
-              Privacy Policy
-            </a>
-            <span className="text-[#CBD5E1] hidden md:inline">|</span>
-            <a href="#support" className="text-xs text-[#0052CC] hover:text-[#7A1E1E] hover:underline transition-colors duration-200">
-              Contact Support
-            </a>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

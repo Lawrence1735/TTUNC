@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -19,7 +19,6 @@ import {
   User,
   Plus,
   Clock,
-  Award,
   MapPin,
   CheckCircle,
   XCircle,
@@ -27,18 +26,14 @@ import {
   Eye,
   Download,
   Trash2,
-  BarChart3,
   Package,
   Settings,
-  Lock,
-  Shield,
-  UserCog
+  Lock
 } from './ui/icons';
-import type { User as UserType, Application, Event, TrainingRecord, ScholarshipRenewal, Announcement } from '../App';
+import type { User as UserType, Application, Event, TrainingRecord, Announcement } from '../App';
 import uncLogo from 'figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png';
 import { getTalentGroupColor, getTalentGroupName } from './ui/unc-colors';
 import { DocumentsDashboard } from './DocumentsDashboardTabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Evaluation } from './DirectorDashboardEnhanced';
 import { 
   DropdownMenu,
@@ -69,13 +64,9 @@ interface AdminDashboardProps {
 export function AdminDashboard({ 
   user, 
   onLogout, 
-  applications, 
   users, 
-  events,
-  announcements,
   trainingRecords,
   evaluations = [],
-  onUpdateApplicationStatus,
   unreadNotifications = 0,
   onNotificationsClick,
   onViewChange
@@ -96,13 +87,6 @@ export function AdminDashboard({
   const [selectedRenewal, setSelectedRenewal] = useState<any | null>(null);
   const [showRenewalDetails, setShowRenewalDetails] = useState(false);
   const [scholarshipGroupFilter, setScholarshipGroupFilter] = useState<string>('all');
-  
-  // Documents state
-  const [docSearchTerm, setDocSearchTerm] = useState('');
-  const [docCategoryFilter, setDocCategoryFilter] = useState<string>('all');
-  const [docGroupFilter, setDocGroupFilter] = useState<string>('all');
-  const [showDocPreviewDialog, setShowDocPreviewDialog] = useState(false);
-  const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
   
   // Form submission loading state
   const [isCreatingEngagement, setIsCreatingEngagement] = useState(false);
@@ -296,23 +280,7 @@ export function AdminDashboard({
     return acc;
   }, {} as Record<string, UserType[]>);
 
-  const getScholarAttendanceData = (scholarId: string) => {
-    const training = trainingRecords.find(t => t.userId === scholarId);
-    if (!training) return { attended: 0, total: 0, percentage: 0 };
-    
-    const attended = training.practices.filter(p => p.attended).length;
-    const total = training.practices.length;
-    const percentage = total > 0 ? Math.round((attended / total) * 100) : 0;
-    
-    return { attended, total, percentage };
-  };
 
-  const stats = {
-    totalScholars: scholars.length,
-    pendingRenewals: 3,
-    activePrograms: 4,
-    avgGPA: 3.4
-  };
 
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
@@ -1588,7 +1556,7 @@ export function AdminDashboard({
                         </div>
                         <div>
                           <dt className="text-[#6C757D] text-[12px] font-medium">Relationship</dt>
-                          <dd className="text-[#1A1A1A] text-[14px]">{selectedScholar.emergencyRelationship || 'Not provided'}</dd>
+                          <dd className="text-[#1A1A1A] text-[14px]">{selectedScholar.emergencyContactRelationship || 'Not provided'}</dd>
                         </div>
                       </dl>
                     </section>

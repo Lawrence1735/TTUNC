@@ -1,17 +1,15 @@
-import React from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
-import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Separator } from './ui/separator';
-import { GraduationCap } from './ui/icons';
-import type { User } from '../App';
-import type { Evaluation } from './types';
+﻿import React, { useState } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Button } from "./ui/button";
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
+import { Separator } from "./ui/separator";
+import { GraduationCap, AlertCircle } from "./ui/icons";
+import type { User } from "../App";
+import type { Evaluation } from "./types";
 
 interface EvaluationFormDialogProps {
   open: boolean;
@@ -29,495 +27,449 @@ interface EvaluationFormDialogProps {
   calculateOverallRating: () => string;
   getAdjectivalRating: () => string;
   currentUser: User;
+  isDisabled?: boolean;
+  disabledReason?: string;
 }
 
-export function EvaluationFormDialog({
-  open,
-  onOpenChange,
-  selectedTrainee,
-  evaluationForm,
-  setEvaluationForm,
-  onSubmit,
-  calculateSectionATotal,
-  calculateSectionAAverage,
-  calculateSectionBTotal,
-  calculateSectionBAverage,
-  calculateSectionCTotal,
-  calculateSectionCAverage,
-  calculateOverallRating,
-  getAdjectivalRating,
-  currentUser
-}: EvaluationFormDialogProps) {
+function getCurrentRatingPeriod(): string {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  if (month >= 8 && month <= 12) return `1st Semester, SY ${year}-${year + 1}`;
+  if (month >= 1 && month <= 5) return `2nd Semester, SY ${year - 1}-${year}`;
+  return `Summer, SY ${year - 1}-${year}`;
+}
+
+function calcAutoScholarship(overallRating: number): number {
+  if (overallRating >= 4.5) return 100;
+  if (overallRating >= 3.5) return 75;
+  if (overallRating >= 2.5) return 50;
+  return 25;
+}
+
+export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
+  const {
+    open,
+    onOpenChange,
+    selectedTrainee,
+    evaluationForm,
+    setEvaluationForm,
+    onSubmit,
+    calculateSectionATotal,
+    calculateSectionAAverage,
+    calculateSectionBTotal,
+    calculateSectionBAverage,
+    calculateSectionCTotal,
+    calculateSectionCAverage,
+    calculateOverallRating,
+    getAdjectivalRating,
+    currentUser
+  } = props;
+
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const updateSectionA = (field: string, value: number) => {
-    setEvaluationForm({
-      ...evaluationForm,
-      sectionA: { ...evaluationForm.sectionA, [field]: value }
-    });
+    const updated: Evaluation = { ...evaluationForm, sectionA: { ...evaluationForm.sectionA!, [field]: value } };
+    setEvaluationForm(updated);
   };
 
   const updateSectionB = (field: string, value: number) => {
-    setEvaluationForm({
-      ...evaluationForm,
-      sectionB: { ...evaluationForm.sectionB, [field]: value }
-    });
+    const updated: Evaluation = { ...evaluationForm, sectionB: { ...evaluationForm.sectionB!, [field]: value } };
+    setEvaluationForm(updated);
   };
 
   const updateSectionC = (field: string, value: number) => {
-    setEvaluationForm({
-      ...evaluationForm,
-      sectionC: { ...evaluationForm.sectionC, [field]: value }
-    });
+    const updated: Evaluation = { ...evaluationForm, sectionC: { ...evaluationForm.sectionC!, [field]: value } };
+    setEvaluationForm(updated);
   };
 
   React.useEffect(() => {
     if (selectedTrainee && open) {
-      const today = new Date().toISOString().split('T')[0];
-      setEvaluationForm(prev => ({
-        ...prev,
-        scholarName: selectedTrainee.name || '',
-        talentUnit: selectedTrainee.talentGroup || '',
-        ratingPeriod: prev.ratingPeriod || '2nd Semester, SY 2024-2025',
-        ratedBy: currentUser?.name || '',
+      const today = new Date().toISOString().split("T")[0];
+      const updated: Evaluation = {
+        ...evaluationForm,
+        scholarName: selectedTrainee.name || "",
+        talentUnit: selectedTrainee.talentGroup || currentUser?.talentGroup || "",
+        ratingPeriod: getCurrentRatingPeriod(),
+        ratedBy: currentUser?.name || "",
         ratedDate: today
-      }));
+      };
+      setEvaluationForm(updated);
     }
-  }, [selectedTrainee, open, currentUser?.name]);
+  }, [selectedTrainee, open, currentUser?.name, currentUser?.talentGroup]);
+
+  const autoScholarship = calcAutoScholarship(parseFloat(calculateOverallRating()));
+  const RATING_VALUES = [1, 2, 4, 5];
+
 
   const RatingButton = ({ value, currentValue, onClick }: { value: number; currentValue: number; onClick: () => void }) => (
     <button
       type="button"
       onClick={onClick}
       className={`w-8 h-8 rounded border-2 transition-all ${
-        currentValue === value 
-          ? 'bg-blue-500 border-blue-500 text-white' 
-          : 'border-gray-300 hover:border-gray-400'
+        currentValue === value
+          ? "bg-blue-500 border-blue-500 text-white"
+          : "border-gray-300 hover:border-gray-400"
       }`}
     >
       {value}
     </button>
   );
 
+  const ratingHeaders = RATING_VALUES.map(v => (
+    <TableHead key={v} className="text-center w-[10%]">{v}</TableHead>
+  ));
+
+  const ratingCells = (currentValue: number, onUpdate: (v: number) => void) =>
+    RATING_VALUES.map(val => (
+      <TableCell key={val} className="text-center">
+        <RatingButton value={val} currentValue={currentValue} onClick={() => onUpdate(val)} />
+      </TableCell>
+    ));
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-[90vw] max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-4 sm:px-8 pt-4 sm:pt-6 pb-4 shrink-0 border-b">
-          <DialogTitle className="text-2xl">Performance Appraisal of Talent Scholars</DialogTitle>
-          <DialogDescription className="text-sm">
-            University of Nueva Caceres – Office of the Dean of Student and Alumni Affairs
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6">
-          <div className="space-y-6 pb-6">
-            {/* Basic Information */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Basic Information</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-sm text-[#6c757d]">Talent Scholar Name</Label>
-                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.scholarName}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-[#6c757d]">Talent Unit</Label>
-                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.talentUnit}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-[#6c757d]">Rating Period</Label>
-                    <Input
-                      value={evaluationForm.ratingPeriod}
-                      onChange={(e) => setEvaluationForm({ ...evaluationForm, ratingPeriod: e.target.value })}
-                      className="mt-1"
-                      placeholder="e.g., 2nd Semester, SY 2023-2024"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-[95vw] sm:max-w-[90vw] max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-4 sm:px-8 pt-4 sm:pt-6 pb-4 shrink-0 border-b">
+            <DialogTitle className="text-2xl">Final Evaluation � Performance Appraisal</DialogTitle>
+            <DialogDescription className="text-sm">
+              University of Nueva Caceres � Office of the Dean of Student and Alumni Affairs
+            </DialogDescription>
+          </DialogHeader>
 
-            {/* Section A - Attendance and Punctuality */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Section A – Attendance and Punctuality</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50">
-                        <TableHead className="w-[60%]">Criteria</TableHead>
-                        <TableHead className="text-center w-[8%]">1</TableHead>
-                        <TableHead className="text-center w-[8%]">2</TableHead>
-                        <TableHead className="text-center w-[8%]">3</TableHead>
-                        <TableHead className="text-center w-[8%]">4</TableHead>
-                        <TableHead className="text-center w-[8%]">5</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>Reports to engagements (internal & external) on time</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.reportsOnTime} onClick={() => updateSectionA('reportsOnTime', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
-                        <TableCell>Reports to engagements regularly</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.reportsRegularly} onClick={() => updateSectionA('reportsRegularly', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Reports to practices/rehearsals on time</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.practicesOnTime} onClick={() => updateSectionA('practicesOnTime', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
-                        <TableCell>Reports to practices/rehearsals regularly</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.practicesRegularly} onClick={() => updateSectionA('practicesRegularly', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Spends no time away from duties unnecessarily</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.noUnnecessaryAbsence} onClick={() => updateSectionA('noUnnecessaryAbsence', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
-                        <TableCell>Exhibits mastery of assigned tasks/routines</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.mastersyTasks} onClick={() => updateSectionA('mastersyTasks', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Helps maintain cleanliness and orderliness of venue/office</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionA.maintainsCleanliness} onClick={() => updateSectionA('maintainsCleanliness', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-100 font-medium">
-                        <TableCell>Total for Part A</TableCell>
-                        <TableCell colSpan={5} className="text-center">{calculateSectionATotal()}</TableCell>
-                      </TableRow>
-                      <TableRow className="bg-gray-100 font-medium">
-                        <TableCell>Average</TableCell>
-                        <TableCell colSpan={5} className="text-center">{calculateSectionAAverage()}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Section B - Commitment & Dedication */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Section B – Commitment & Dedication</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50">
-                        <TableHead className="w-[60%]">Criteria</TableHead>
-                        <TableHead className="text-center w-[8%]">1</TableHead>
-                        <TableHead className="text-center w-[8%]">2</TableHead>
-                        <TableHead className="text-center w-[8%]">3</TableHead>
-                        <TableHead className="text-center w-[8%]">4</TableHead>
-                        <TableHead className="text-center w-[8%]">5</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>Shows interest in improving skills and talents</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.improvementInterest} onClick={() => updateSectionB('improvementInterest', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
-                        <TableCell>Shows interest in doing a good performance</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.performanceInterest} onClick={() => updateSectionB('performanceInterest', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Demonstrates strong work ethic</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.workEthic} onClick={() => updateSectionB('workEthic', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
-                        <TableCell>Exhibits initiative and resourcefulness</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.initiative} onClick={() => updateSectionB('initiative', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Uses time and resources efficiently</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionB.efficiency} onClick={() => updateSectionB('efficiency', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-100 font-medium">
-                        <TableCell>Total for Part B</TableCell>
-                        <TableCell colSpan={5} className="text-center">{calculateSectionBTotal()}</TableCell>
-                      </TableRow>
-                      <TableRow className="bg-gray-100 font-medium">
-                        <TableCell>Average</TableCell>
-                        <TableCell colSpan={5} className="text-center">{calculateSectionBAverage()}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Section C - Interpersonal Skills */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Section C – Interpersonal Skills</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50">
-                        <TableHead className="w-[60%]">Criteria</TableHead>
-                        <TableHead className="text-center w-[8%]">1</TableHead>
-                        <TableHead className="text-center w-[8%]">2</TableHead>
-                        <TableHead className="text-center w-[8%]">3</TableHead>
-                        <TableHead className="text-center w-[8%]">4</TableHead>
-                        <TableHead className="text-center w-[8%]">5</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>Works effectively as a member of the talent group</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionC.teamwork} onClick={() => updateSectionC('teamwork', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
-                        <TableCell>Demonstrates tact in dealing with others</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionC.tact} onClick={() => updateSectionC('tact', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Treats everyone with courtesy and respect</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionC.courtesy} onClick={() => updateSectionC('courtesy', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-50/50">
-                        <TableCell>Exhibits a pleasant disposition</TableCell>
-                        {[1, 2, 3, 4, 5].map(val => (
-                          <TableCell key={val} className="text-center">
-                            <RatingButton value={val} currentValue={evaluationForm.sectionC.disposition} onClick={() => updateSectionC('disposition', val)} />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      <TableRow className="bg-gray-100 font-medium">
-                        <TableCell>Total for Part C</TableCell>
-                        <TableCell colSpan={5} className="text-center">{calculateSectionCTotal()}</TableCell>
-                      </TableRow>
-                      <TableRow className="bg-gray-100 font-medium">
-                        <TableCell>Average</TableCell>
-                        <TableCell colSpan={5} className="text-center">{calculateSectionCAverage()}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Overall Rating */}
-            <Card className="border-2">
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-center">
-                  <div>
-                    <Label className="text-sm text-[#6c757d]">Overall Rating</Label>
-                    <div className="text-4xl font-bold mt-2">{calculateOverallRating()}</div>
-                    <p className="text-xs text-[#6c757d] mt-1">out of 5.00</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-[#6c757d]">Adjectival Rating</Label>
-                    <div className="text-3xl font-bold mt-2">{getAdjectivalRating()}</div>
-                    <p className="text-xs text-[#6c757d] mt-1">Performance Level</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Scholarship Percentage */}
-            <Card className="border-2 border-[#7A1E1E]/20 bg-gradient-to-br from-[#7A1E1E]/5 to-transparent">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <GraduationCap className="w-5 h-5 text-[#7A1E1E]" />
-                  Scholarship Percentage
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Label className="text-sm text-[#6c757d]">Select the scholarship grant percentage</Label>
-                  <Select
-                    value={evaluationForm.scholarshipPercentage?.toString() || ''}
-                    onValueChange={(value) => setEvaluationForm({ ...evaluationForm, scholarshipPercentage: parseInt(value) })}
-                  >
-                    <SelectTrigger className="h-12 text-lg border-2 hover:border-[#7A1E1E]/50 transition-colors">
-                      <SelectValue placeholder="Select scholarship percentage" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="25" className="text-lg py-3">
-                        <div className="flex items-center justify-between w-full">
-                          <span>25%</span>
-                          <span className="text-sm text-[#6c757d] ml-4">Quarter Scholarship</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="50" className="text-lg py-3">
-                        <div className="flex items-center justify-between w-full">
-                          <span>50%</span>
-                          <span className="text-sm text-[#6c757d] ml-4">Half Scholarship</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="75" className="text-lg py-3">
-                        <div className="flex items-center justify-between w-full">
-                          <span>75%</span>
-                          <span className="text-sm text-[#6c757d] ml-4">Three-Quarter Scholarship</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="100" className="text-lg py-3">
-                        <div className="flex items-center justify-between w-full">
-                          <span>100%</span>
-                          <span className="text-sm text-[#6c757d] ml-4">Full Scholarship</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {evaluationForm.scholarshipPercentage && (
-                    <div className="mt-3 p-3 bg-white rounded-lg border border-[#7A1E1E]/20 text-center">
-                      <p className="text-sm text-[#6B7280]">Recommended Scholarship</p>
-                      <p className="text-2xl font-bold text-[#7A1E1E] mt-1">{evaluationForm.scholarshipPercentage}% Scholarship</p>
+          <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6">
+            <div className="space-y-6 pb-6">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Basic Information</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <Label className="text-sm text-[#6c757d]">Talent Scholar Name</Label>
+                      <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.scholarName || ""}</p>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Open Text Fields */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Performance Feedback</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="strengths" className="text-sm text-[#6c757d]">Talent Scholar's Strengths</Label>
-                  <Textarea
-                    id="strengths"
-                    value={evaluationForm.strengths}
-                    onChange={(e) => setEvaluationForm({ ...evaluationForm, strengths: e.target.value })}
-                    rows={3}
-                    className="mt-1"
-                    placeholder="Describe the scholar's key strengths and positive attributes..."
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="improvements" className="text-sm text-[#6c757d]">Areas for Improvement</Label>
-                  <Textarea
-                    id="improvements"
-                    value={evaluationForm.improvements}
-                    onChange={(e) => setEvaluationForm({ ...evaluationForm, improvements: e.target.value })}
-                    rows={3}
-                    className="mt-1"
-                    placeholder="Identify areas where the scholar can improve..."
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Recommendation and Evaluation Details */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Recommendation & Evaluation Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <Label className="text-sm text-[#6c757d] mb-3 block">Recommended for renewal?</Label>
-                  <RadioGroup
-                    value={evaluationForm.recommendForRenewal ? 'yes' : 'no'}
-                    onValueChange={(value) => setEvaluationForm({ ...evaluationForm, recommendForRenewal: value === 'yes' })}
-                    className="flex gap-6"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="yes" id="renewal-yes" />
-                      <Label htmlFor="renewal-yes" className="cursor-pointer">Yes</Label>
+                    <div>
+                      <Label className="text-sm text-[#6c757d]">Talent Unit</Label>
+                      <p className="mt-1 text-sm text-[#1a1a1a] py-2 capitalize">
+                        {evaluationForm.talentUnit?.replace(/-/g, " ") || "�"}
+                      </p>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="no" id="renewal-no" />
-                      <Label htmlFor="renewal-no" className="cursor-pointer">No</Label>
+                    <div>
+                      <Label className="text-sm text-[#6c757d]">Rating Period</Label>
+                      <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.ratingPeriod || ""}</p>
                     </div>
-                  </RadioGroup>
-                </div>
-                
-                <Separator />
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm text-[#6c757d]">Rated By</Label>
-                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.ratedBy}</p>
                   </div>
-                  <div>
-                    <Label className="text-sm text-[#6c757d]">Date Rated</Label>
-                    <p className="mt-1 text-sm text-[#1a1a1a] py-2">
-                      {evaluationForm.ratedDate ? new Date(evaluationForm.ratedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle>Section A � Attendance and Punctuality</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50">
+                          <TableHead className="w-[60%]">Criteria</TableHead>
+                          {ratingHeaders}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>Reports to engagements (internal & external) on time</TableCell>
+                          {ratingCells(evaluationForm.sectionA?.reportsOnTime || 0, v => updateSectionA("reportsOnTime", v))}
+                        </TableRow>
+                        <TableRow className="bg-gray-50/50">
+                          <TableCell>Reports to engagements regularly</TableCell>
+                          {ratingCells(evaluationForm.sectionA?.reportsRegularly || 0, v => updateSectionA("reportsRegularly", v))}
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Reports to practices/rehearsals on time</TableCell>
+                          {ratingCells(evaluationForm.sectionA?.practicesOnTime || 0, v => updateSectionA("practicesOnTime", v))}
+                        </TableRow>
+                        <TableRow className="bg-gray-50/50">
+                          <TableCell>Reports to practices/rehearsals regularly</TableCell>
+                          {ratingCells(evaluationForm.sectionA?.practicesRegularly || 0, v => updateSectionA("practicesRegularly", v))}
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Spends no time away from duties unnecessarily</TableCell>
+                          {ratingCells(evaluationForm.sectionA?.noUnnecessaryAbsence || 0, v => updateSectionA("noUnnecessaryAbsence", v))}
+                        </TableRow>
+                        <TableRow className="bg-gray-50/50">
+                          <TableCell>Exhibits mastery of assigned tasks/routines</TableCell>
+                          {ratingCells(evaluationForm.sectionA?.mastersyTasks || 0, v => updateSectionA("mastersyTasks", v))}
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Helps maintain cleanliness and orderliness of venue/office</TableCell>
+                          {ratingCells(evaluationForm.sectionA?.maintainsCleanliness || 0, v => updateSectionA("maintainsCleanliness", v))}
+                        </TableRow>
+                        <TableRow className="bg-gray-100 font-medium">
+                          <TableCell>Total for Part A</TableCell>
+                          <TableCell colSpan={4} className="text-center">{calculateSectionATotal()}</TableCell>
+                        </TableRow>
+                        <TableRow className="bg-gray-100 font-medium">
+                          <TableCell>Average</TableCell>
+                          <TableCell colSpan={4} className="text-center">{calculateSectionAAverage()}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle>Section B � Commitment & Dedication</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50">
+                          <TableHead className="w-[60%]">Criteria</TableHead>
+                          {ratingHeaders}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>Shows interest in improving skills and talents</TableCell>
+                          {ratingCells(evaluationForm.sectionB?.improvementInterest || 0, v => updateSectionB("improvementInterest", v))}
+                        </TableRow>
+                        <TableRow className="bg-gray-50/50">
+                          <TableCell>Shows interest in doing a good performance</TableCell>
+                          {ratingCells(evaluationForm.sectionB?.performanceInterest || 0, v => updateSectionB("performanceInterest", v))}
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Demonstrates strong work ethic</TableCell>
+                          {ratingCells(evaluationForm.sectionB?.workEthic || 0, v => updateSectionB("workEthic", v))}
+                        </TableRow>
+                        <TableRow className="bg-gray-50/50">
+                          <TableCell>Exhibits initiative and resourcefulness</TableCell>
+                          {ratingCells(evaluationForm.sectionB?.initiative || 0, v => updateSectionB("initiative", v))}
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Uses time and resources efficiently</TableCell>
+                          {ratingCells(evaluationForm.sectionB?.efficiency || 0, v => updateSectionB("efficiency", v))}
+                        </TableRow>
+                        <TableRow className="bg-gray-100 font-medium">
+                          <TableCell>Total for Part B</TableCell>
+                          <TableCell colSpan={4} className="text-center">{calculateSectionBTotal()}</TableCell>
+                        </TableRow>
+                        <TableRow className="bg-gray-100 font-medium">
+                          <TableCell>Average</TableCell>
+                          <TableCell colSpan={4} className="text-center">{calculateSectionBAverage()}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle>Section C � Interpersonal Skills</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50">
+                          <TableHead className="w-[60%]">Criteria</TableHead>
+                          {ratingHeaders}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>Works effectively as a member of the talent group</TableCell>
+                          {ratingCells(evaluationForm.sectionC?.teamwork || 0, v => updateSectionC("teamwork", v))}
+                        </TableRow>
+                        <TableRow className="bg-gray-50/50">
+                          <TableCell>Demonstrates tact in dealing with others</TableCell>
+                          {ratingCells(evaluationForm.sectionC?.tact || 0, v => updateSectionC("tact", v))}
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Treats everyone with courtesy and respect</TableCell>
+                          {ratingCells(evaluationForm.sectionC?.courtesy || 0, v => updateSectionC("courtesy", v))}
+                        </TableRow>
+                        <TableRow className="bg-gray-50/50">
+                          <TableCell>Exhibits a pleasant disposition</TableCell>
+                          {ratingCells(evaluationForm.sectionC?.disposition || 0, v => updateSectionC("disposition", v))}
+                        </TableRow>
+                        <TableRow className="bg-gray-100 font-medium">
+                          <TableCell>Total for Part C</TableCell>
+                          <TableCell colSpan={4} className="text-center">{calculateSectionCTotal()}</TableCell>
+                        </TableRow>
+                        <TableRow className="bg-gray-100 font-medium">
+                          <TableCell>Average</TableCell>
+                          <TableCell colSpan={4} className="text-center">{calculateSectionCAverage()}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-2">
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-center">
+                    <div>
+                      <Label className="text-sm text-[#6c757d]">Overall Rating</Label>
+                      <div className="text-4xl font-bold mt-2">{calculateOverallRating()}</div>
+                      <p className="text-xs text-[#6c757d] mt-1">out of 5.00</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm text-[#6c757d]">Adjectival Rating</Label>
+                      <div className="text-3xl font-bold mt-2">{getAdjectivalRating()}</div>
+                      <p className="text-xs text-[#6c757d] mt-1">Performance Level</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-2 border-[#7A1E1E]/20 bg-gradient-to-br from-[#7A1E1E]/5 to-transparent">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="w-5 h-5 text-[#7A1E1E]" />
+                    <span className="font-semibold">Scholarship Grant (Auto-Calculated)</span>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="p-4 bg-white rounded-lg border border-[#7A1E1E]/20 text-center">
+                    <p className="text-sm text-[#6B7280] mb-1">Based on Overall Rating of {calculateOverallRating()}</p>
+                    <p className="text-3xl font-bold text-[#7A1E1E]">{autoScholarship}% Scholarship</p>
+                    <p className="text-xs text-[#6c757d] mt-2">
+                      4.5�5.0 ? 100% � 3.5�4.4 ? 75% � 2.5�3.4 ? 50% � &lt;2.5 ? 25%
                     </p>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+                </CardContent>
+              </Card>
 
-        <DialogFooter className="px-4 sm:px-8 py-4 shrink-0 border-t border-[#E5E7EB]">
-          <Button onClick={onSubmit} className="bg-[#7A1E1E] hover:bg-[#6A1919]">
-            Submit Evaluation
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle>Performance Feedback</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="strengths" className="text-sm text-[#6c757d]">Talent Scholar's Strengths</Label>
+                    <Textarea
+                      id="strengths"
+                      value={evaluationForm.strengths || ""}
+                      onChange={e => setEvaluationForm({ ...evaluationForm, strengths: e.target.value })}
+                      rows={3}
+                      className="mt-1"
+                      placeholder="Describe the scholar's key strengths and positive attributes..."
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="improvements" className="text-sm text-[#6c757d]">Areas for Improvement</Label>
+                    <Textarea
+                      id="improvements"
+                      value={evaluationForm.improvements || ""}
+                      onChange={e => setEvaluationForm({ ...evaluationForm, improvements: e.target.value })}
+                      rows={3}
+                      className="mt-1"
+                      placeholder="Identify areas where the scholar can improve..."
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle>Recommendation & Evaluation Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div>
+                    <Label className="text-sm text-[#6c757d] mb-3 block">Recommended for renewal?</Label>
+                    <RadioGroup
+                      value={evaluationForm.recommendForRenewal ? "yes" : "no"}
+                      onValueChange={value => setEvaluationForm({ ...evaluationForm, recommendForRenewal: value === "yes" })}
+                      className="flex gap-6"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="yes" id="renewal-yes" />
+                        <Label htmlFor="renewal-yes" className="cursor-pointer">Yes</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="no" id="renewal-no" />
+                        <Label htmlFor="renewal-no" className="cursor-pointer">No</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                  <Separator />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm text-[#6c757d]">Rated By</Label>
+                      <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.ratedBy || ""}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm text-[#6c757d]">Date Rated</Label>
+                      <p className="mt-1 text-sm text-[#1a1a1a] py-2">
+                        {evaluationForm.ratedDate
+                          ? new Date(evaluationForm.ratedDate).toLocaleDateString("en-US", {
+                              month: "long",
+                              day: "numeric",
+                              year: "numeric"
+                            })
+                          : "�"}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          <DialogFooter className="px-4 sm:px-8 py-4 shrink-0 border-t border-[#E5E7EB]">
+            <Button onClick={() => setShowConfirm(true)} className="bg-[#7A1E1E] hover:bg-[#6A1919]">
+              Submit Final Evaluation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[#7A1E1E]">
+              <AlertCircle className="w-5 h-5" />
+              Confirm Submission
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to submit this evaluation? <strong>This action cannot be undone.</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-[#7A1E1E]/5 border border-[#7A1E1E]/20 rounded-lg p-3 text-sm space-y-1">
+            <p>
+              <span className="text-[#6c757d]">Scholar:</span> <strong>{evaluationForm.scholarName || ""}</strong>
+            </p>
+            <p>
+              <span className="text-[#6c757d]">Overall Rating:</span>{" "}
+              <strong>{calculateOverallRating()} � {getAdjectivalRating()}</strong>
+            </p>
+            <p>
+              <span className="text-[#6c757d]">Scholarship:</span> <strong>{autoScholarship}%</strong>
+            </p>
+          </div>
+          <DialogFooter className="gap-2 flex-row justify-end">
+            <Button variant="outline" onClick={() => setShowConfirm(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-[#7A1E1E] hover:bg-[#6A1919]"
+              onClick={() => {
+                setShowConfirm(false);
+                onSubmit();
+              }}
+            >
+              Yes, Submit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
