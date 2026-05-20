@@ -65,6 +65,7 @@ export interface Evaluation {
   adjectivalRating?: string;
   overallRating?: string;
   talentGroup?: string;
+<<<<<<< Updated upstream
   // Chapter and evaluation type tracking
   evaluationType?: 'chapter' | 'final' | 'gateway';
   chapterNumber?: number;
@@ -90,4 +91,9 @@ export interface AttendanceRecord {
   date: Date;
   status: 'present' | 'absent' | 'excused';
   notes?: string;
+=======
+  scholarName?: string;
+  talentUnit?: string;
+  ratingPeriod?: string;
+>>>>>>> Stashed changes
 }

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { TabsContent } from "./ui/tabs";
 import {
+<<<<<<< Updated upstream
   Folder, CalendarClock, TrendingUp, Search, ChevronLeft,
   ChevronRight, Calendar, MapPin, ChevronDown, Check, X,
   Send, User, Phone,
@@ -16,6 +17,25 @@ interface DirectorRecruitmentTabProps {
   handleSetSchedule: (app: any) => void;
   handleApproveInterview: (id: string) => void;
   handleRejectInterview: (id: string) => void;
+=======
+  Search, ChevronLeft,
+  ChevronRight, ChevronDown, Check, X, AlertCircle, Calendar,
+} from "lucide-react";
+
+interface DirectorRecruitmentTabProps {
+  // Props deprecated - now using API calls instead
+  pendingApps?: number;
+  scheduledInterviews?: number;
+  applicationsThisWeek?: number;
+  filteredApplications?: any[];
+  interviewSchedules?: any[];
+  handleViewApplication?: (app: any) => void;
+  handleSetSchedule?: (app: any) => void;
+  handleApproveInterview?: (id: string) => void;
+  handleRejectInterview?: (id: string) => void;
+  // New callback for when application is approved - triggers refresh of training tab
+  onApprovalSuccess?: () => void | Promise<void>;
+>>>>>>> Stashed changes
 }
 
 const TALENT_GROUP_LABELS: Record<string, string> = {
@@ -235,6 +255,8 @@ function ApproveModal({ app, onClose, onConfirm }: { app: any; onClose: () => vo
 function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void; onConfirm: () => void }) {
   const [reason, setReason] = useState("");
   const [feedback, setFeedback] = useState("");
+  const feedbackLength = feedback.length;
+  const isValidFeedback = feedbackLength >= 10;
   return (
     <Modal
       title="Deny Application"
@@ -244,6 +266,7 @@ function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void;
       footer={<>
         <CancelBtn onClick={onClose} />
         <button
+<<<<<<< Updated upstream
           onClick={() => { if (reason && feedback) { onConfirm(); onClose(); } }}
           disabled={!reason || !feedback}
           style={{
@@ -251,6 +274,15 @@ function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void;
             background: (!reason || !feedback) ? "#CBD5E1" : "#7F1D1D",
             border: "none", fontSize: 14, fontWeight: 600,
             color: "#fff", cursor: (!reason || !feedback) ? "not-allowed" : "pointer",
+=======
+          onClick={() => { if (reason && isValidFeedback) { onConfirm(reason, feedback); } }}
+          disabled={!reason || !isValidFeedback || isLoading}
+          style={{
+            padding: "9px 20px", borderRadius: 8,
+            background: (!reason || !isValidFeedback || isLoading) ? "#CBD5E1" : "#7F1D1D",
+            border: "none", fontSize: 14, fontWeight: 600,
+            color: "#fff", cursor: (!reason || !isValidFeedback || isLoading) ? "not-allowed" : "pointer",
+>>>>>>> Stashed changes
           }}
         >
           Confirm Rejection
@@ -282,15 +314,27 @@ function DenyModal({ app, onClose, onConfirm }: { app: any; onClose: () => void;
         </div>
       </div>
       <div>
+<<<<<<< Updated upstream
         <label style={labelStyle}>Additional Feedback / Notes <span style={{ color: "#DC2626" }}>*</span></label>
         <textarea
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
           placeholder="Provide specific feedback explaining this rejection decision..."
+=======
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+          <label style={labelStyle}>Additional Feedback <span style={{ color: "#DC2626" }}>*</span></label>
+          <span style={{ fontSize: 12, color: feedbackLength < 10 ? "#DC2626" : "#64748B" }}>{feedbackLength}/10+ chars</span>
+        </div>
+        <textarea
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          placeholder="Provide specific feedback explaining this rejection (minimum 10 characters)..."
+>>>>>>> Stashed changes
           rows={4}
-          style={{ ...inputStyle, height: "auto", padding: "10px 12px", resize: "vertical", lineHeight: 1.5 }}
+          style={{ ...inputStyle, height: "auto", padding: "10px 12px", resize: "vertical", lineHeight: 1.5, borderColor: feedbackLength > 0 && feedbackLength < 10 ? "#DC2626" : undefined }}
           required
         />
+        {feedbackLength > 0 && feedbackLength < 10 && <p style={{ fontSize: 12, color: "#DC2626", margin: "4px 0 0 0" }}>Feedback must be at least 10 characters</p>}
       </div>
     </Modal>
   );
@@ -378,6 +422,7 @@ function ProfileModal({ app, onClose }: { app: any; onClose: () => void }) {
   );
 }
 
+<<<<<<< Updated upstream
 export function DirectorRecruitmentTab({
   pendingApps,
   scheduledInterviews,
@@ -400,6 +445,351 @@ export function DirectorRecruitmentTab({
   const [approveApp,   setApproveApp]   = useState<any | null>(null);
   const [denyApp,      setDenyApp]      = useState<any | null>(null);
   const [profileApp,   setProfileApp]   = useState<any | null>(null);
+=======
+function LoadingSkeleton() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {[1, 2, 3].map(i => (
+        <div key={i} style={{
+          height: 60,
+          background: "#F1F5F9",
+          borderRadius: 8,
+          animation: "pulse 2s infinite",
+        }} />
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div style={{
+      textAlign: "center",
+      padding: "40px 20px",
+      background: "#F8FAFC",
+      borderRadius: 12,
+      border: "1px dashed #E2E8F0",
+    }}>
+      <AlertCircle style={{ width: 40, height: 40, color: "#94A3B8", margin: "0 auto 16px" }} />
+      <p style={{ fontSize: 14, color: "#64748B", margin: 0 }}>{message}</p>
+    </div>
+  );
+}
+
+// Interview Details Modal - displays interview information when calendar event is clicked
+function InterviewDetailsModal({ interview, onClose }: { interview: any; onClose: () => void }) {
+  if (!interview) return null;
+  
+  return (
+    <Modal
+      title="Interview Details"
+      subtitle={interview.applicantName || "Applicant"}
+      onClose={onClose}
+      width={500}
+      footer={<>
+        <CancelBtn onClick={onClose} />
+      </>}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div>
+          <label style={labelStyle}>Applicant Name</label>
+          <div style={{ fontSize: 14, color: "#0F172A", padding: "10px 0", fontWeight: 500 }}>{interview.applicantName || "N/A"}</div>
+        </div>
+        <div>
+          <label style={labelStyle}>Scheduled Date</label>
+          <div style={{ fontSize: 14, color: "#0F172A", padding: "10px 0", fontWeight: 500 }}>
+            {interview.date ? new Date(interview.date).toLocaleDateString() : "N/A"}
+          </div>
+        </div>
+        <div>
+          <label style={labelStyle}>Scheduled Time</label>
+          <div style={{ fontSize: 14, color: "#0F172A", padding: "10px 0", fontWeight: 500 }}>{interview.time || "N/A"}</div>
+        </div>
+        {interview.venue && (
+          <div>
+            <label style={labelStyle}>Location / Venue</label>
+            <div style={{ fontSize: 14, color: "#0F172A", padding: "10px 0", fontWeight: 500 }}>{interview.venue}</div>
+          </div>
+        )}
+        {interview.notes && (
+          <div>
+            <label style={labelStyle}>Notes</label>
+            <div style={{ fontSize: 14, color: "#0F172A", padding: "10px 0", fontWeight: 500, whiteSpace: "pre-wrap" }}>{interview.notes}</div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+export function DirectorRecruitmentTab({ onApprovalSuccess }: DirectorRecruitmentTabProps) {
+  const today = new Date(2026, 4, 20);  // May 20, 2026 - TODAY's date
+
+  // Data state
+  const [applications, setApplications] = useState<any[]>([]);
+  const [interviews, setInterviews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Modal state
+  const [calYear, setCalYear] = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth());
+  const [selectedDay, setSelectedDay] = useState(today.getDate());  // Defaults to today (20)
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [scheduleApp, setScheduleApp] = useState<any | null>(null);
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [approveApp, setApproveApp] = useState<any | null>(null);
+  const [denyApp, setDenyApp] = useState<any | null>(null);
+  const [detailApp, setDetailApp] = useState<any | null>(null);
+  const [interviewDetailsModal, setInterviewDetailsModal] = useState<any | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch ALL applications (remove status filter to get all statuses)
+      // This ensures applicants remain visible after scheduling, approving, or rejecting
+      const [appsRes, interviewsRes] = await Promise.all([
+        apiClient.get('/recruitment/applications'),  // Removed ?status=pending to get ALL applications
+        apiClient.get('/recruitment/interviews'),
+      ]);
+
+      // Handle nested data structure
+      const applicationsData = Array.isArray(appsRes.data.data) ? appsRes.data.data : (Array.isArray(appsRes.data) ? appsRes.data : []);
+      const interviewsData = Array.isArray(interviewsRes.data.data) ? interviewsRes.data.data : (Array.isArray(interviewsRes.data) ? interviewsRes.data : []);
+
+      console.log('Fetched applications:', applicationsData);
+      console.log('Application statuses:', applicationsData.map((app: any) => ({ id: app.id, status: app.status, hasInterview: !!app.interview })));
+      console.log('Fetched interviews:', interviewsData);
+
+      setApplications(applicationsData);
+      setInterviews(interviewsData);
+    } catch (err: any) {
+      // apiClient returns { status, message, data, errors }
+      const msg = err.data?.message || err.message || 'Failed to load recruitment data';
+      console.error('Fetch error:', err);
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleApprove = async (applicationId: number, notes: string) => {
+    try {
+      setActionLoading(true);
+      const response = await apiClient.post(`/recruitment/applications/${applicationId}/approve`, { approval_notes: notes });
+      toast.success('Application approved');
+      setApproveApp(null);
+      
+      // PRESERVE DATA: Update local state using .map() to preserve ALL properties
+      setApplications(prev => prev.map(app => {
+        if (app.id === applicationId) {
+          return {
+            ...app,  // Spread ALL existing properties (applicant_name, email, etc.)
+            status: 'approved',
+            approval_notes: notes,
+            // Preserve interview data if it exists
+            interview: app.interview || response.data?.interview,
+          };
+        }
+        return app;
+      }));
+      
+      // Trigger callback to refresh training tab when new trainee is created
+      if (onApprovalSuccess) {
+        await onApprovalSuccess();
+      }
+    } catch (err: any) {
+      // Handle validation errors (422)
+      // Note: apiClient error interceptor returns { status, message, data, errors }
+      console.error('Approve request failed. Full error object:', err);
+      if (err.status === 422) {
+        console.error('422 Response data:', err.data);
+        const errors = err.errors;
+        const message = err.data?.message;
+        
+        if (errors && typeof errors === 'object' && Object.keys(errors).length > 0) {
+          // Laravel validation errors
+          const errorMessages = Object.entries(errors)
+            .map(([field, msgs]: any) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+            .join('\n');
+          console.error('Validation errors found:', errorMessages);
+          toast.error(`Validation failed:\n${errorMessages}`);
+        } else if (message) {
+          // DomainException message (e.g., workflow violations)
+          console.error('Approval failed with message:', message);
+          toast.error(message);
+        } else {
+          console.error('422 Error response:', err.data);
+          toast.error('Validation failed: ' + JSON.stringify(err.data));
+        }
+      } else {
+        // Handle other errors
+        console.error('Approve error:', err);
+        toast.error(err.message || 'Failed to approve application');
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReject = async (applicationId: number, reason: string, feedback: string) => {
+    try {
+      setActionLoading(true);
+      const response = await apiClient.post(`/recruitment/applications/${applicationId}/reject`, {
+        denial_reason: reason,
+        denial_feedback: feedback
+      });
+      toast.success('Application rejected');
+      setDenyApp(null);
+      
+      // PRESERVE DATA: Update local state using .map() to preserve ALL properties
+      setApplications(prev => prev.map(app => {
+        if (app.id === applicationId) {
+          return {
+            ...app,  // Spread ALL existing properties (applicant_name, email, etc.)
+            status: 'rejected',
+            denial_reason: reason,
+            denial_feedback: feedback,
+            // Preserve interview data if it exists
+            interview: app.interview || response.data?.interview,
+          };
+        }
+        return app;
+      }));
+    } catch (err: any) {
+      // Handle validation errors (422)
+      // Note: apiClient error interceptor returns { status, message, data, errors }
+      console.error('Reject request failed. Full error object:', err);
+      if (err.status === 422) {
+        console.error('422 Response data:', err.data);
+        const errors = err.errors;
+        const message = err.data?.message;
+        
+        if (errors && typeof errors === 'object' && Object.keys(errors).length > 0) {
+          // Laravel validation errors
+          const errorMessages = Object.entries(errors)
+            .map(([field, msgs]: any) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+            .join('\n');
+          console.error('Validation errors found:', errorMessages);
+          toast.error(`Validation failed:\n${errorMessages}`);
+        } else if (message) {
+          // DomainException message (e.g., workflow violations)
+          console.error('Rejection failed with message:', message);
+          toast.error(message);
+        } else {
+          console.error('422 Error response:', err.data);
+          toast.error('Validation failed: ' + JSON.stringify(err.data));
+        }
+      } else {
+        // Handle other errors
+        console.error('Reject error:', err);
+        toast.error(err.message || 'Failed to reject application');
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleScheduleInterview = async (applicationId: number, data: any, isReschedule: boolean = false) => {
+    try {
+      setActionLoading(true);
+      
+      // Combine date and time into ISO datetime format (required by backend)
+      const scheduledDateTime = new Date(`${data.date}T${data.time}:00`);
+      const isoDateTime = scheduledDateTime.toISOString();
+      
+      const payload = {
+        scheduled_at: isoDateTime,
+        venue: data.venue || '',
+        notes: data.notes || '',
+      };
+      
+      // Find the application to check if it has an existing interview
+      const appWithInterview = applications.find(app => app.id === applicationId);
+      const interviewId = appWithInterview?.interview?.id;
+      
+      let response: any;
+      
+      // FIX 422 ERROR: Check if interview exists
+      // If interview already exists, use PATCH to update it
+      // If not, use POST to create a new one
+      if (isReschedule && interviewId) {
+        // Reschedule: PATCH existing interview
+        response = await apiClient.patch(`/recruitment/interviews/${interviewId}`, payload);
+      } else {
+        // New schedule: POST to application endpoint
+        const endpoint = `/recruitment/applications/${applicationId}/schedule-interview`;
+        response = await apiClient.post(endpoint, payload);
+      }
+      
+      toast.success(isReschedule ? 'Interview rescheduled' : 'Interview scheduled');
+      setScheduleApp(null);
+      setIsRescheduling(false);
+      
+      // PRESERVE DATA: Update local state using .map() to preserve all properties
+      setApplications(prev => prev.map(app => {
+        if (app.id === applicationId) {
+          return {
+            ...app,  // Spread ALL existing properties (name, email, etc.)
+            status: 'scheduled',
+            // Merge new interview data from response
+            interview: response.data?.interview || {
+              id: interviewId,  // Preserve existing interview ID if updating
+              scheduled_at: isoDateTime,
+              venue: payload.venue,
+              notes: payload.notes,
+              ...app.interview,
+            },
+          };
+        }
+        return app;
+      }));
+    } catch (err: any) {
+      // Extract error message from server response
+      // apiClient returns { status, message, data, errors }
+      const errorMessage = err.data?.message 
+        || err.data?.error 
+        || err.message 
+        || `Failed to ${isReschedule ? 'reschedule' : 'schedule'} interview`;
+      
+      // Log full error for debugging
+      console.error('Interview scheduling error:', {
+        status: err.status,
+        data: err.data,
+        message: err.message,
+      });
+      
+      toast.error(errorMessage);
+      
+      // Preserve state on error - do NOT update application status
+      // Modal remains open so user can retry
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Calculate stats
+  const pendingApplications = applications.filter(app => 
+    ['pending', 'not_scheduled'].includes((app.status || 'pending').toLowerCase())
+  ).length;
+  
+  const applicationsThisWeek = applications.filter(app => {
+    const createdAt = new Date(app.createdAt);
+    // Use hardcoded today (May 20, 2026) instead of system date
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    return createdAt >= sevenDaysAgo && createdAt <= today;
+  }).length;
+>>>>>>> Stashed changes
 
   const prevMonth = () => { if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); } else setCalMonth(m => m - 1); setSelectedDay(1); };
   const nextMonth = () => { if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0); } else setCalMonth(m => m + 1); setSelectedDay(1); };
@@ -417,6 +807,7 @@ export function DirectorRecruitmentTab({
     interviewSchedules.filter((iv) => { const d = new Date(iv.date); return d.getFullYear() === calYear && d.getMonth() === calMonth && d.getDate() === selectedDay; }),
     [interviewSchedules, calYear, calMonth, selectedDay]);
 
+<<<<<<< Updated upstream
   const displayedApps = useMemo(() =>
     filteredApplications.filter((app) => {
       const name = app.personalInfo?.name?.toLowerCase() ?? "";
@@ -425,6 +816,98 @@ export function DirectorRecruitmentTab({
       return (!q || name.includes(q) || id.includes(q)) && (statusFilter === "all" || (app.status ?? "pending") === statusFilter);
     }),
     [filteredApplications, search, statusFilter]);
+=======
+  const displayedApps = useMemo(() => {
+    console.log('Filtering applications:', { totalApps: applications.length, search, statusFilter });
+    
+    // UNIFIED FILTER: Combine search and status filter logic
+    // This ensures search works regardless of casing or filtering layers
+    const finalFilteredData = applications.filter((app) => {
+      // Extract name and email with multiple fallback options (MATCH getApplicantName function)
+      const name = (app.applicant_name || app.applicantName || app.name || app.candidate_name || app.personalInfo?.name || app.user?.name || "").toLowerCase();
+      const email = (app.applicant_email || app.applicantEmail || app.email || app.personalInfo?.email || app.user?.email || "").toLowerCase();
+      const studentId = (app.applicant_student_id || app.applicantStudentId || "").toLowerCase();
+      
+      // Search query (case-insensitive)
+      const searchQuery = search.toLowerCase().trim();
+      
+      // Check if search term matches name, email, or student ID
+      const matchesSearch = !searchQuery || 
+                           name.includes(searchQuery) || 
+                           email.includes(searchQuery) || 
+                           studentId.includes(searchQuery);
+      
+      // Get normalized status - handle all backend status variants
+      const appStatus = (app.status || 'pending').toLowerCase();
+      
+      // Normalize all status variants
+      let normalizedStatus = appStatus;
+      if (appStatus === 'not_scheduled') normalizedStatus = 'pending';
+      if (appStatus === 'rejected' || appStatus === 'not_qualified') normalizedStatus = 'disapproved';
+      if (appStatus === 'qualified') normalizedStatus = 'approved';
+      if (appStatus === 'accepted') normalizedStatus = 'approved';
+      
+      // Check status filter - ALWAYS show all if "all" is selected
+      const matchesStatus = statusFilter === "all" || statusFilter === "All" || 
+                           normalizedStatus === statusFilter.toLowerCase() || 
+                           appStatus === statusFilter.toLowerCase();
+      
+      return matchesSearch && matchesStatus;
+    });
+
+    console.log('After filter:', { filtered: finalFilteredData.length });
+
+
+    // Custom sorting function based on priority
+    const sorted = finalFilteredData.sort((appA, appB) => {
+      const todayDate = new Date(2026, 4, 20); // May 20, 2026
+      const todayStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate());
+      
+      // Get status for both apps
+      const statusA = (appA.status || 'pending').toLowerCase();
+      const statusB = (appB.status || 'pending').toLowerCase();
+      
+      // Normalize status strings
+      const normalizeStatus = (s: string) => {
+        if (s === 'not_scheduled' || s === 'pending') return 'not_yet_scheduled';
+        if (s === 'rejected' || s === 'disapproved') return 'rejected';
+        if (s === 'approved' || s === 'accepted') return 'accepted';
+        return s;
+      };
+      
+      const normalizedStatusA = normalizeStatus(statusA);
+      const normalizedStatusB = normalizeStatus(statusB);
+      
+      // PRIORITY 1: Scheduled interviews TODAY (May 20, 2026)
+      const isAScheduledToday = normalizedStatusA === 'scheduled' && appA.interview?.scheduled_at 
+        ? new Date(appA.interview.scheduled_at).toDateString() === todayStart.toDateString()
+        : false;
+      const isBScheduledToday = normalizedStatusB === 'scheduled' && appB.interview?.scheduled_at 
+        ? new Date(appB.interview.scheduled_at).toDateString() === todayStart.toDateString()
+        : false;
+      
+      if (isAScheduledToday && !isBScheduledToday) return -1;
+      if (!isAScheduledToday && isBScheduledToday) return 1;
+      
+      // PRIORITY 2: Not Yet Scheduled
+      if (normalizedStatusA === 'not_yet_scheduled' && normalizedStatusB !== 'not_yet_scheduled') return -1;
+      if (normalizedStatusA !== 'not_yet_scheduled' && normalizedStatusB === 'not_yet_scheduled') return 1;
+      
+      // PRIORITY 3: Accepted
+      if (normalizedStatusA === 'accepted' && normalizedStatusB !== 'accepted') return -1;
+      if (normalizedStatusA !== 'accepted' && normalizedStatusB === 'accepted') return 1;
+      
+      // PRIORITY 4: Rejected (always at bottom)
+      if (normalizedStatusA === 'rejected' && normalizedStatusB !== 'rejected') return 1;
+      if (normalizedStatusA !== 'rejected' && normalizedStatusB === 'rejected') return -1;
+      
+      // If same priority, sort by applied date (newest first)
+      return new Date(appB.applied_at || 0).getTime() - new Date(appA.applied_at || 0).getTime();
+    });
+
+    return sorted;
+  }, [applications, search, statusFilter]);
+>>>>>>> Stashed changes
 
   const calendarCells: (number | null)[] = [...Array(firstDaySlot).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
 
@@ -444,6 +927,7 @@ export function DirectorRecruitmentTab({
         boxSizing: "border-box" 
       }}>
 
+<<<<<<< Updated upstream
         {/* ══ LEFT SECTION: Covers 70% Width (Quickstats + Workflow Table Container) ══ */}
         <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%", boxSizing: "border-box" }}>
           
@@ -457,6 +941,53 @@ export function DirectorRecruitmentTab({
               <div key={label} style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 14, boxSizing: "border-box" }}>
                 <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F9EAEA", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Icon style={{ width: 16, height: 16, color: "#7A1E1E" }} />
+=======
+        {/* Left side: Application Pipeline - flex-1 fills available space, h-full stretches to parent height */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px", width: "100%", flex: 1, boxSizing: "border-box" }}>
+
+          {loading ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
+              {[1, 2, 3].map(i => (
+                <div key={i} style={{ height: 100, background: "#F1F5F9", borderRadius: 12, animation: "pulse 2s infinite" }} />
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", width: "100%", boxSizing: "border-box" }}>
+              {[
+                { label: "Pending Applications", val: pendingApplications, filterValue: "pending" },
+                { label: "Scheduled Interviews", val: interviews.length, filterValue: "scheduled" },
+                { label: "Applications This Week", val: applicationsThisWeek, filterValue: "all" },
+              ].map(({ label, val, filterValue }) => (
+                <div 
+                  key={label}
+                  onClick={() => setStatusFilter(filterValue)}
+                  style={{ 
+                    background: "#fff", 
+                    borderRadius: 12, 
+                    border: "1px solid #E5E7EB", 
+                    boxShadow: "0 1px 8px rgba(0,0,0,0.06)", 
+                    padding: "16px 20px", 
+                    display: "flex", 
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    boxSizing: "border-box",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget).style.boxShadow = "0 4px 12px rgba(0,0,0,0.12)";
+                    (e.currentTarget).style.transform = "translateY(-2px)";
+                    (e.currentTarget).style.borderColor = "#D0D0D0";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget).style.boxShadow = "0 1px 8px rgba(0,0,0,0.06)";
+                    (e.currentTarget).style.transform = "translateY(0)";
+                    (e.currentTarget).style.borderColor = "#E5E7EB";
+                  }}
+                >
+                  <p style={{ fontSize: 11, color: "#64748B", marginBottom: 4, lineHeight: 1, margin: 0 }}>{label}</p>
+                  <p style={{ fontSize: 24, fontWeight: 700, color: val === 0 ? "#CBD5E1" : "#0F172A", lineHeight: 1, margin: 0 }}>{val}</p>
+>>>>>>> Stashed changes
                 </div>
                 <div>
                   <p style={{ fontSize: 11, color: "#64748B", marginBottom: 4, lineHeight: 1, margin: 0 }}>{label}</p>
@@ -466,6 +997,7 @@ export function DirectorRecruitmentTab({
             ))}
           </div>
 
+<<<<<<< Updated upstream
           {/* Workflow Table Card */}
           <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "24px", boxSizing: "border-box", width: "100%" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
@@ -490,6 +1022,50 @@ export function DirectorRecruitmentTab({
                   </select>
                   <ChevronDown style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, color: "#64748B", pointerEvents: "none" }} />
                 </div>
+=======
+          {/* Table card: min-h-[620px] ensures it stretches to match calendar card height */}
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "24px", boxSizing: "border-box", width: "100%", minHeight: "620px", display: "flex", flexDirection: "column" }}>
+            <h2 style={{ fontSize: 17, fontWeight: 700, color: "#0F172A", margin: "0 0 24px 0" }}>Application Workflow Pipeline</h2>
+
+            {/* Status Filter and Search Bar */}
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24, flexWrap: "wrap", flexShrink: 0 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", whiteSpace: "nowrap" }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>Filter by Status:</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #E2E8F0",
+                    background: "#F8FAFC",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: "#0F172A",
+                    cursor: "pointer",
+                    appearance: "none",
+                    paddingRight: 24,
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394A3B8' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 8px center",
+                  }}
+                >
+                  <option value="all">All</option>
+                  <option value="pending">Not Yet Scheduled</option>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="approved">Accepted</option>
+                  <option value="disapproved">Rejected</option>
+                </select>
+              </div>
+
+              <div style={{ position: "relative", marginLeft: "auto", width: "420px" }}>
+                <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#94A3B8", pointerEvents: "none" }} />
+                <input
+                  type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search applicants..."
+                  style={{ ...inputStyle, width: "100%", paddingLeft: 32 }}
+                />
+>>>>>>> Stashed changes
               </div>
             </div>
 
@@ -553,6 +1129,7 @@ export function DirectorRecruitmentTab({
                           >
                             <Calendar style={{ width: 14, height: 14, color: "#1D4ED8" }} />
                           </button>
+<<<<<<< Updated upstream
                           <button
                             title="Approve Application"
                             onClick={() => setApproveApp(app)}
@@ -594,6 +1171,157 @@ export function DirectorRecruitmentTab({
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Calendar style={{ width: 14, height: 14, color: "#7A1E1E" }} />
                 <span style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>Interview Schedule</span>
+=======
+                        </td>
+                        <td style={{ padding: "16px 0", fontSize: 13, color: "#64748B" }}>{getApplicantEmail(app)}</td>
+                        <td style={{ padding: "16px 0" }}>
+                          <span style={{
+                            display: "inline-block",
+                            padding: "4px 12px",
+                            borderRadius: 20,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: STATUS_MAP[app.status || 'pending'].bg,
+                            color: STATUS_MAP[app.status || 'pending'].text,
+                            border: `1px solid ${STATUS_MAP[app.status || 'pending'].border}`,
+                          }}>
+                            {STATUS_MAP[app.status || 'pending'].label}
+                          </span>
+                        </td>
+                        <td style={{ padding: "16px 0", textAlign: "center" }}>
+                          <div style={{ display: "flex", gap: 6, justifyContent: "center", alignItems: "center" }}>
+                            {/* SCHEDULE / RESCHEDULE ICON BUTTON */}
+                            {app.status !== 'approved' && app.status !== 'disapproved' && app.status !== 'accepted' && app.status !== 'rejected' && (
+                              <button 
+                                onClick={() => {
+                                  setIsRescheduling(app.status === 'scheduled');
+                                  setScheduleApp(app);
+                                }} 
+                                aria-label={app.status === 'scheduled' ? 'Reschedule interview' : 'Schedule interview'}
+                                title={app.status === 'scheduled' ? 'Reschedule interview' : 'Schedule interview'}
+                                style={{ 
+                                  padding: "8px", 
+                                  background: "#EFF6FF", 
+                                  border: "1px solid #BFDBFE", 
+                                  borderRadius: 6, 
+                                  cursor: "pointer", 
+                                  display: "flex", 
+                                  alignItems: "center", 
+                                  justifyContent: "center",
+                                  transition: "all 0.2s ease"
+                                }}
+                                onMouseEnter={(e) => { (e.currentTarget).style.background = "#DBEAFE"; }}
+                                onMouseLeave={(e) => { (e.currentTarget).style.background = "#EFF6FF"; }}
+                              >
+                                <Calendar style={{ width: 16, height: 16, color: "#1E40AF" }} />
+                              </button>
+                            )}
+                            
+                            {/* APPROVE ICON BUTTON - GATED BY INTERVIEW AND STATUS */}
+                            <button 
+                              onClick={() => setApproveApp(app)} 
+                              disabled={!app.interview?.id || !['pending', 'scheduled'].includes(app.status)}
+                              aria-label="Accept applicant"
+                              title={!app.interview?.id ? 'Schedule an interview first' : (app.status === 'approved' || app.status === 'rejected') ? 'Application already decided' : 'Accept applicant'}
+                              style={{ 
+                                padding: "8px", 
+                                background: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "#F0F0F0" : "#F0FDF4", 
+                                border: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "1px solid #D0D0D0" : "1px solid #BBF7D0", 
+                                borderRadius: 6, 
+                                cursor: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "not-allowed" : "pointer", 
+                                display: "flex", 
+                                alignItems: "center", 
+                                justifyContent: "center",
+                                opacity: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? 0.5 : 1,
+                                transition: "all 0.2s ease"
+                              }}
+                              onMouseEnter={(e) => { if (app.interview?.id && ['pending', 'scheduled'].includes(app.status)) (e.currentTarget).style.background = "#DCFCE7"; }}
+                              onMouseLeave={(e) => { if (app.interview?.id && ['pending', 'scheduled'].includes(app.status)) (e.currentTarget).style.background = "#F0FDF4"; }}
+                            >
+                              <Check style={{ width: 16, height: 16, color: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "#999" : "#14532D" }} />
+                            </button>
+                            
+                            {/* REJECT ICON BUTTON - GATED BY INTERVIEW AND STATUS */}
+                            <button 
+                              onClick={() => setDenyApp(app)} 
+                              disabled={!app.interview?.id || !['pending', 'scheduled'].includes(app.status)}
+                              aria-label="Reject applicant"
+                              title={!app.interview?.id ? 'Schedule an interview first' : (app.status === 'approved' || app.status === 'rejected') ? 'Application already decided' : 'Reject applicant'}
+                              style={{ 
+                                padding: "8px", 
+                                background: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "#F0F0F0" : "#FEF2F2", 
+                                border: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "1px solid #D0D0D0" : "1px solid #FECACA", 
+                                borderRadius: 6, 
+                                cursor: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "not-allowed" : "pointer", 
+                                display: "flex", 
+                                alignItems: "center", 
+                                justifyContent: "center",
+                                opacity: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? 0.5 : 1,
+                                transition: "all 0.2s ease"
+                              }}
+                              onMouseEnter={(e) => { if (app.interview?.id && ['pending', 'scheduled'].includes(app.status)) (e.currentTarget).style.background = "#FEE5E5"; }}
+                              onMouseLeave={(e) => { if (app.interview?.id && ['pending', 'scheduled'].includes(app.status)) (e.currentTarget).style.background = "#FEF2F2"; }}
+                            >
+                              <X style={{ width: 16, height: 16, color: (!app.interview?.id || !['pending', 'scheduled'].includes(app.status)) ? "#999" : "#7F1D1D" }} />
+                            </button>
+                            
+
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right side: Calendar/Events - flex-1 stretches to parent height, min-h-[620px] matches table card */}
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "24px", boxSizing: "border-box", minWidth: "320px", minHeight: "620px" }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: "0 0 16px 0" }}>Interview Schedule</h3>
+
+          {loading ? (
+            <LoadingSkeleton />
+          ) : (
+            <>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <button onClick={prevMonth} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><ChevronLeft style={{ width: 16, height: 16 }} /></button>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, margin: 0 }}>{MONTH_NAMES[calMonth]} {calYear}</h4>
+                  <button onClick={nextMonth} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><ChevronRight style={{ width: 16, height: 16 }} /></button>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+                  {DAY_ABBRS.map((d, i) => <div key={`day-abbr-${i}`} style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: "#94A3B8", padding: 8 }}>{d}</div>)}
+                  {calendarCells.map((day, i) => {
+                    const isToday = day === today.getDate() && calYear === today.getFullYear() && calMonth === today.getMonth();
+                    const isSelected = day === selectedDay;
+                    
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => day && setSelectedDay(day)}
+                        style={{
+                          padding: 8,
+                          border: isSelected ? "2px solid #7A1E1E" : isToday ? "2px solid #0EA5E9" : "1px solid #E5E7EB",
+                          borderRadius: 6,
+                          background: isSelected ? "#FEF2F2" : isToday ? "#E0F2FE" : day === null ? "transparent" : "#fff",
+                          cursor: day ? "pointer" : "default",
+                          fontSize: 12,
+                          fontWeight: (isSelected || isToday) ? 700 : 500,
+                          color: day === null ? "transparent" : "#0F172A",
+                          position: "relative",
+                          boxShadow: isToday ? "inset 0 0 0 1px #0EA5E9" : "none",
+                        }}
+                      >
+                        {day}
+                        {day && interviewDays.has(day) && <div style={{ position: "absolute", bottom: 2, left: "50%", transform: "translateX(-50%)", width: 4, height: 4, borderRadius: "50%", background: isSelected ? "#7A1E1E" : isToday ? "#0EA5E9" : "#7A1E1E" }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+>>>>>>> Stashed changes
               </div>
               <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 3, lineHeight: 1, margin: 0 }}>Upcoming evaluations</p>
             </div>
@@ -610,6 +1338,7 @@ export function DirectorRecruitmentTab({
             </div>
           </div>
 
+<<<<<<< Updated upstream
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
             {DAY_ABBRS.map((d, i) => (
               <div key={i} style={{ textAlign: "center", fontSize: 10, fontWeight: 600, color: "#CBD5E1", padding: "2px 0" }}>{d}</div>
@@ -663,10 +1392,68 @@ export function DirectorRecruitmentTab({
               )}
             </div>
           </div>
+=======
+              <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 16 }}>
+                <h4 style={{ fontSize: 12, fontWeight: 700, color: "#475569", textTransform: "uppercase", margin: "0 0 12px 0" }}>Events on {MONTH_NAMES[calMonth]} {selectedDay}</h4>
+                {selectedDayEvents.length === 0 ? (
+                  <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>No interviews scheduled</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {selectedDayEvents.map((event) => {
+                      // MARK AS DONE: Get the application status for this event
+                      const eventStatus = getApplicationStatusForInterview(event.id);
+                      const isDone = eventStatus === 'approved' || eventStatus === 'disapproved' || eventStatus === 'accepted' || eventStatus === 'rejected';
+                      
+                      // Style changes: muted colors for completed events
+                      const backgroundColor = isDone ? "#F1F5F9" : "#F8FAFC";
+                      const borderColor = isDone ? "#CBD5E1" : "#7A1E1E";
+                      const textColor = isDone ? "#94A3B8" : "#0F172A";
+                      
+                      return (
+                        <div 
+                          key={event.id} 
+                          onClick={() => setInterviewDetailsModal(event)}
+                          style={{ 
+                            background: backgroundColor, 
+                            padding: 10, 
+                            borderRadius: 8, 
+                            borderLeft: `3px solid ${borderColor}`, 
+                            borderRight: "1px solid #E5E7EB",
+                            borderTop: "1px solid #E5E7EB",
+                            borderBottom: "1px solid #E5E7EB",
+                            opacity: isDone ? 0.7 : 1,
+                            cursor: "pointer",
+                            transition: "all 0.2s ease"
+                          }}
+                          onMouseEnter={(e) => { 
+                            (e.currentTarget).style.background = isDone ? "#E8EFF5" : "#FFFFFF";
+                            (e.currentTarget).style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
+                          }}
+                          onMouseLeave={(e) => { 
+                            (e.currentTarget).style.background = backgroundColor;
+                            (e.currentTarget).style.boxShadow = "none";
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: textColor, margin: 0 }}>{event.applicantName}</p>
+                            {isDone && <span style={{ fontSize: 10, fontWeight: 600, color: borderColor, background: "#E0E7FF", padding: "2px 8px", borderRadius: 4 }}>[Done]</span>}
+                          </div>
+                          <p style={{ fontSize: 11, color: textColor, margin: "0 0 2px 0", opacity: 0.8 }}>{event.time}</p>
+                          <p style={{ fontSize: 11, color: textColor, margin: 0, opacity: 0.8 }}>{event.venue}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+>>>>>>> Stashed changes
         </div>
 
       </div>
 
+<<<<<<< Updated upstream
       {/* Action Modals */}
       {scheduleApp && (
         <ScheduleModal
@@ -695,6 +1482,13 @@ export function DirectorRecruitmentTab({
           onClose={() => setProfileApp(null)}
         />
       )}
+=======
+      {scheduleApp && <ScheduleModal app={scheduleApp} onClose={() => { setScheduleApp(null); setIsRescheduling(false); }} onConfirm={(data) => handleScheduleInterview(scheduleApp.id, data, isRescheduling)} isLoading={actionLoading} isReschedule={isRescheduling} />}
+      {approveApp && <ApproveModal app={approveApp} onClose={() => setApproveApp(null)} onConfirm={(notes) => handleApprove(approveApp.id, notes)} isLoading={actionLoading} />}
+      {denyApp && <DenyModal app={denyApp} onClose={() => setDenyApp(null)} onConfirm={(reason, feedback) => handleReject(denyApp.id, reason, feedback)} isLoading={actionLoading} />}
+      {detailApp && <DetailModal app={detailApp} onClose={() => setDetailApp(null)} />}
+      {interviewDetailsModal && <InterviewDetailsModal interview={interviewDetailsModal} onClose={() => setInterviewDetailsModal(null)} />}
+>>>>>>> Stashed changes
     </TabsContent>
   );
 }
