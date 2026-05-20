@@ -47,8 +47,10 @@ final class RecruitmentController extends Controller
             'applicant_address'           => ['nullable', 'string'],
             'applicant_gender'            => ['nullable', 'string'],
             'applicant_birthdate'         => ['nullable', 'date'],
+            'applicant_age'               => ['nullable', 'string'],
             'guardian_name'               => ['nullable', 'string'],
             'guardian_phone'              => ['nullable', 'string'],
+            'guardian_relationship'       => ['nullable', 'string'],
             'instruments'                 => ['nullable', 'string'],
             'voices'                      => ['nullable', 'string'],
             'vocal_range'                 => ['nullable', 'string'],
@@ -63,6 +65,17 @@ final class RecruitmentController extends Controller
             'status'     => 'pending',
             'applied_at' => now(),
         ]);
+ 
+        // Send confirmation email (wrapped in try-catch to not fail the submission)
+        try {
+            // TODO: Implement email notification service
+            // Mail::send('emails.application-received', ['application' => $application], function($message) use ($application) {
+            //     $message->to($application->applicant_email)->subject('Application Received - UNC Talent Track');
+            // });
+        } catch (\Exception $e) {
+            // Log error but don't fail the request
+            \Log::error('Failed to send application confirmation email:', ['error' => $e->getMessage()]);
+        }
  
         return response()->json(['data' => $application], Response::HTTP_CREATED);
     }

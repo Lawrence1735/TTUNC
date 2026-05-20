@@ -23,6 +23,7 @@ import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
 import { initKeyboardNavigation } from "./utils/keyboardNavigation";
 import { SkipToContent } from "./components/accessibility/SkipToContent";
+import { recruitmentService } from "./services/recruitmentService";
 import {
   users as mockUsers,
   evaluations as mockEvaluations,
@@ -444,69 +445,84 @@ export default function App() {
     return { success: true };
   };
 
-  const handlePublicApplicationSubmit = (formData: ApplicationFormData) => {
-    const newApplication: Application = {
-      id: `app_${Date.now()}`,
-      userId: `user_${Date.now()}`,
-      talentGroup: formData.talentGroup,
-      personalInfo: {
-        name: formData.fullName,
-        email: formData.email,
-        studentId: formData.studentId || "",
-        phone: formData.mobileNo,
-        birthdate: formData.birthdate,
-        age: formData.age,
-        address: formData.address,
-        gender: formData.gender,
-        socialMedia: '',
-        yearLevel: formData.yearLevel,
-        course: formData.course,
-        department: formData.department,
-        guardianName: formData.guardianName,
-        guardianContactNo: formData.guardianContactNo,
-        guardianRelationship: formData.guardianRelationship,
-        // Marching Band specific
-        hasBandExperience: formData.hasBandExperience,
-        // Glee Club specific
-        vocalRange: formData.vocalRange,
-        previousSingingExperience: formData.previousSingingExperience,
-        musicalBackground: formData.musicalBackground,
-        // Dance Club specific
-        primaryDanceGenre: formData.primaryDanceGenre,
-        yearsOfExperience: formData.yearsOfExperience,
-        performedOnStage: formData.performedOnStage,
-        willingToAttendRehearsals: formData.willingToAttendRehearsals,
-        // Majorettes specific
-        previousMajoretteTeam: formData.previousMajoretteTeam,
-        previousOrganization: formData.previousOrganization,
-        canPerformBasicRoutines: formData.canPerformBasicRoutines,
-        willingToAttendRehearsalsMajorettes: formData.willingToAttendRehearsalsMajorettes,
-      },
-      experience: "",
-      motivation: "",
-      documents: [],
-      status: "pending",
-      appliedAt: new Date(),
-    };
+  const handlePublicApplicationSubmit = async (formData: ApplicationFormData) => {
+    try {
+      // Convert frontend field names to backend snake_case format
+      const payload = {
+        talent_group: formData.talentGroup,
+        applicant_name: formData.fullName,
+        applicant_email: formData.email,
+        applicant_student_id: formData.studentId || null,
+        applicant_phone: formData.mobileNo,
+        applicant_birthdate: formData.birthdate || null,
+        applicant_age: formData.age || null,
+        applicant_address: formData.address,
+        applicant_gender: formData.gender,
+        applicant_year_level: formData.yearLevel || null,
+        applicant_course: formData.course || null,
+        applicant_department: formData.department || null,
+        guardian_name: formData.guardianName || null,
+        guardian_phone: formData.guardianContactNo || null,
+        guardian_relationship: formData.guardianRelationship || null,
+        experience: formData.experience || "",
+        motivation: formData.motivation || "",
+      };
 
-    setApplications([...applications, newApplication]);
-    
-    // Notify the director of the talent group about new application
-    const director = users.find(u => 
-      u.role === 'director' && u.talentGroup === formData.talentGroup
-    );
-    if (director && director.id) {
-      addNotification(
-        director.id,
-        'New Application Received',
-        `${formData.fullName} has applied for ${formData.talentGroup.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}. Review pending.`,
-        'application',
-        newApplication.id
+      // Call backend API to submit application
+      const response = await recruitmentService.submitApplication(payload);
+      
+      // Add to local state for demo purposes (in production, just fetch from backend)
+      const newApplication: Application = {
+        id: response.id || `app_${Date.now()}`,
+        userId: `user_${Date.now()}`,
+        talentGroup: formData.talentGroup,
+        personalInfo: {
+          name: formData.fullName,
+          email: formData.email,
+          studentId: formData.studentId || "",
+          phone: formData.mobileNo,
+          birthdate: formData.birthdate,
+          age: formData.age,
+          address: formData.address,
+          gender: formData.gender,
+          socialMedia: '',
+          yearLevel: formData.yearLevel,
+          course: formData.course,
+          department: formData.department,
+          guardianName: formData.guardianName,
+          guardianContactNo: formData.guardianContactNo,
+          guardianRelationship: formData.guardianRelationship,
+        },
+        experience: formData.experience || "",
+        motivation: formData.motivation || "",
+        documents: [],
+        status: "pending",
+        appliedAt: new Date(),
+      };
+
+      setApplications([...applications, newApplication]);
+      
+      // Notify the director of the talent group about new application
+      const director = users.find(u => 
+        u.role === 'director' && u.talentGroup === formData.talentGroup
       );
+      if (director && director.id) {
+        addNotification(
+          director.id,
+          'New Application Received',
+          `${formData.fullName} has applied for ${formData.talentGroup.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}. Review pending.`,
+          'application',
+          newApplication.id
+        );
+      }
+      
+      toast.success("Application submitted successfully! Check your email for updates on your application.", { duration: 6000 });
+      startTransition(() => setCurrentPage("landing"));
+    } catch (error: any) {
+      console.error('Application submission failed:', error);
+      const errorMessage = error.message || 'Failed to submit application. Please try again.';
+      toast.error(errorMessage);
     }
-    
-    toast.success("Application submitted successfully! You will receive a notification once reviewed.");
-    startTransition(() => setCurrentPage("landing"));
   };
 
   const handleCreateUserAccount = (application: Application, tempPassword: string) => {
