@@ -6,6 +6,13 @@ export interface Evaluation {
   rating: number;
   notes: string;
   status: 'draft' | 'submitted';
+  performanceMetrics?: {
+    skillDemonstration: number;
+    rehearsalAttendance: number;
+    eventParticipation: number;
+    teamwork: number;
+    leadership: number;
+  };
   scholarshipPercentage?: number;
   sectionA?: {
     reportsOnTime: number;

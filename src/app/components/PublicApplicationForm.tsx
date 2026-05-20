@@ -90,6 +90,9 @@ export interface ApplicationFormData {
   canPerformBasicRoutines: string;
   willingToAttendRehearsalsMajorettes: string;
 
+  experience: string;
+  motivation: string;
+
   // Consent
   dataPrivacyConsent: boolean;
   confirmedAccuracy: boolean;

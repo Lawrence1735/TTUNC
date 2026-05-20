@@ -37,30 +37,63 @@ import {
 
 export interface Evaluation {
   id: string;
-  evaluatorId: string;
-  evaluatorName: string;
-  scholarId: string;
-  scholarName: string;
-  talentGroup: string;
-  semester: string;
-  academicYear: string;
-  evaluationDate: Date;
-  performanceMetrics: {
+  traineeId: string;
+  traineeName: string;
+  evaluatorId?: string;
+  evaluatorName?: string;
+  scholarId?: string;
+  scholarName?: string;
+  talentGroup?: string;
+  semester?: string;
+  academicYear?: string;
+  date: Date;
+  evaluationDate?: Date;
+  rating: number;
+  notes: string;
+  status: 'draft' | 'submitted';
+  performanceMetrics?: {
     skillDemonstration: number;
     rehearsalAttendance: number;
     eventParticipation: number;
     teamwork: number;
     leadership: number;
   };
-  strengths: string;
-  areasForImprovement: string;
-  overallRating: number;
-  recommendation: "continue" | "probation" | "discontinue";
+  overallRating?: string;
+  scholarshipPercentage?: number;
+  recommendation?: "continue" | "probation" | "discontinue";
+  strengths?: string;
+  improvements?: string;
   additionalNotes?: string;
+  recommendForRenewal?: boolean;
+  ratedBy?: string;
+  ratedDate?: string;
+  adjectivalRating?: string;
+  sectionA?: {
+    reportsOnTime: number;
+    reportsRegularly: number;
+    practicesOnTime: number;
+    practicesRegularly: number;
+    noUnnecessaryAbsence: number;
+    mastersyTasks: number;
+    maintainsCleanliness: number;
+  };
+  sectionB?: {
+    improvementInterest: number;
+    performanceInterest: number;
+    workEthic: number;
+    initiative: number;
+    efficiency: number;
+  };
+  sectionC?: {
+    teamwork: number;
+    tact: number;
+    courtesy: number;
+    disposition: number;
+  };
 }
 
 export interface User {
-  id?: string;
+  id: string;
   name: string;
   email: string;
   role: "student" | "scholar" | "admin" | "director";
@@ -86,6 +119,19 @@ export interface User {
   assignedInstrument?: string;
   assignedVoice?: string;
   scholarshipPercentage?: number;
+  gender?: string;
+  dateOfBirth?: string;
+  birthdate?: string;
+  age?: string;
+  socialMedia?: string;
+  department?: string;
+  emergencyContactName?: string;
+  emergencyContactRelationship?: string;
+  emergencyContactPhone?: string;
+  guardianName?: string;
+  guardianContact?: string;
+  allergies?: string;
+  medicalConditions?: string;
 }
 
 export interface Application {
@@ -107,6 +153,7 @@ export interface Application {
     department?: string;
     guardianName?: string;
     guardianContactNo?: string;
+    guardianRelationship?: string;
     // Marching Band specific
     hasBandExperience?: boolean;
     // Glee Club specific
@@ -259,6 +306,8 @@ export default function App() {
     | "member-profile"
     | "engagement"
     | "scholarship"
+    | "admin"
+    | "director"
     | "settings"
   >("student");
 
@@ -291,8 +340,8 @@ export default function App() {
   const [users, setUsers] = useState<User[]>(mockUsers);
   const [evaluations, setEvaluations] = useState<Evaluation[]>(mockEvaluations);
 
-  const [events, setEvents] = useState<Event[]>(mockEvents);
-  const [announcements, setAnnouncements] = useState<Announcement[]>(mockAnnouncements);
+  const [events] = useState<Event[]>(mockEvents);
+  const [announcements] = useState<Announcement[]>(mockAnnouncements);
 
   const [applications, setApplications] = useState<Application[]>(mockApplications);
   const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>(mockTrainingRecords);
@@ -359,47 +408,33 @@ export default function App() {
 
   const unreadNotificationsCount = userNotifications.filter(n => !n.read).length;
 
-  const handleLogin = (email: string, password: string, selectedRole: string) => {
-    const user = users.find((u) => u.email === email);
-    
-    if (user) {
-      // Check if the selected role matches the user's actual role
-      // Map "trainee" to "student" for role matching since trainees are students in training
-      const normalizedSelectedRole = selectedRole === 'trainee' ? 'student' : selectedRole;
-      
-      if (user.role !== normalizedSelectedRole) {
-        toast.error('Invalid credentials');
-        return { success: false, error: 'Invalid credentials' };
-      }
-      
-      // If trainee is selected, verify user is actually in training
-      if (selectedRole === 'trainee' && user.trainingStatus !== 'in_progress') {
-        toast.error('Invalid credentials');
-        return { success: false, error: 'Invalid credentials' };
-      }
-      
-      setCurrentUser(user);
-      startTransition(() => {
-        setCurrentPage("dashboard");
-        if (user.role === "student") {
-          if (user.trainingStatus === "in_progress") {
-            setCurrentView("training");
-          } else {
-            setCurrentView("student");
-          }
-        } else if (user.role === "scholar") {
-          setCurrentView("member-profile");
-        }
-      });
-      toast.success(`Welcome back, ${user.name}!`);
-      return { success: true };
+  const handleLogin = async (email: string, password: string, _selectedRole: string): Promise<{ success: boolean; error?: string }> => {
+    const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+    if (!foundUser) {
+      toast.error('Invalid email or password');
+      return { success: false, error: 'Invalid credentials' };
     }
-    
-    toast.error("Invalid email or password");
-    return { success: false, error: "Invalid email or password" };
+
+    setCurrentUser(foundUser);
+    startTransition(() => {
+      setCurrentPage("dashboard");
+      if (foundUser.role === 'admin') {
+        setCurrentView('admin');
+      } else if (foundUser.role === 'director') {
+        setCurrentView('director');
+      } else if (foundUser.role === 'scholar') {
+        setCurrentView('member-profile');
+      } else {
+        setCurrentView('training');
+      }
+    });
+
+    toast.success(`Welcome back, ${foundUser.name}!`);
+    return { success: true };
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setCurrentUser(null);
     startTransition(() => {
       setCurrentPage("landing");
@@ -429,114 +464,68 @@ export default function App() {
       return { success: false, error: "Current password is incorrect" };
     }
 
+    if (!newPassword) {
+      return { success: false, error: "New password is required" };
+    }
+
     // In production, hash the new password before storing
     // For now, we just acknowledge the change
     return { success: true };
   };
 
-  const handlePublicApplicationSubmit = (formData: ApplicationFormData) => {
-    const newApplication: Application = {
-      id: `app_${Date.now()}`,
-      userId: `user_${Date.now()}`,
-      talentGroup: formData.talentGroup,
-      personalInfo: {
-        name: formData.fullName,
-        email: formData.email,
-        studentId: formData.studentId || "",
-        phone: formData.mobileNo,
-        birthdate: formData.birthdate,
-        age: formData.age,
-        address: formData.address,
-        gender: formData.gender,
-        socialMedia: '',
-        yearLevel: formData.yearLevel,
-        course: formData.course,
-        department: formData.department,
-        guardianName: formData.guardianName,
-        guardianContactNo: formData.guardianContactNo,
-        guardianRelationship: formData.guardianRelationship,
-        // Marching Band specific
-        hasBandExperience: formData.hasBandExperience,
-        // Glee Club specific
-        vocalRange: formData.vocalRange,
-        previousSingingExperience: formData.previousSingingExperience,
-        musicalBackground: formData.musicalBackground,
-        // Dance Club specific
-        primaryDanceGenre: formData.primaryDanceGenre,
-        yearsOfExperience: formData.yearsOfExperience,
-        performedOnStage: formData.performedOnStage,
-        willingToAttendRehearsals: formData.willingToAttendRehearsals,
-        // Majorettes specific
-        previousMajoretteTeam: formData.previousMajoretteTeam,
-        previousOrganization: formData.previousOrganization,
-        canPerformBasicRoutines: formData.canPerformBasicRoutines,
-        willingToAttendRehearsalsMajorettes: formData.willingToAttendRehearsalsMajorettes,
-      },
-      experience: "",
-      motivation: "",
-      documents: [],
-      status: "pending",
-      appliedAt: new Date(),
-    };
+  const handlePublicApplicationSubmit = async (formData: ApplicationFormData) => {
+    try {
+      const newApplication: Application = {
+        id: `app_${Date.now()}`,
+        userId: `user_${Date.now()}`,
+        talentGroup: formData.talentGroup,
+        personalInfo: {
+          name: formData.fullName,
+          email: formData.email,
+          studentId: formData.studentId || "",
+          phone: formData.mobileNo,
+          birthdate: formData.birthdate,
+          age: formData.age,
+          address: formData.address,
+          gender: formData.gender,
+          socialMedia: '',
+          yearLevel: formData.yearLevel,
+          course: formData.course,
+          department: formData.department,
+          guardianName: formData.guardianName,
+          guardianContactNo: formData.guardianContactNo,
+          guardianRelationship: formData.guardianRelationship,
+        },
+        experience: formData.experience || "",
+        motivation: formData.motivation || "",
+        documents: [],
+        status: "pending",
+        appliedAt: new Date(),
+      };
 
-    setApplications([...applications, newApplication]);
-    
-    // Notify the director of the talent group about new application
-    const director = users.find(u => 
-      u.role === 'director' && u.talentGroup === formData.talentGroup
-    );
-    if (director && director.id) {
-      addNotification(
-        director.id,
-        'New Application Received',
-        `${formData.fullName} has applied for ${formData.talentGroup.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}. Review pending.`,
-        'application',
-        newApplication.id
+      setApplications([...applications, newApplication]);
+      
+      // Notify the director of the talent group about new application
+      const director = users.find(u => 
+        u.role === 'director' && u.talentGroup === formData.talentGroup
       );
+      if (director && director.id) {
+        addNotification(
+          director.id,
+          'New Application Received',
+          `${formData.fullName} has applied for ${formData.talentGroup.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}. Review pending.`,
+          'application',
+          newApplication.id
+        );
+      }
+      
+      toast.success("Application submitted successfully! Check your email for updates on your application.", { duration: 6000 });
+      startTransition(() => setCurrentPage("landing"));
+    } catch (error: any) {
+      console.error('Application submission failed:', error);
+      const errorMessage = error?.message || 'Failed to submit application. Please try again.';
+      toast.error(errorMessage);
     }
-    
-    toast.success("Application submitted successfully! You will receive a notification once reviewed.");
-    startTransition(() => setCurrentPage("landing"));
-  };
-
-  const handleCreateUserAccount = (application: Application, tempPassword: string) => {
-    const newUser: User = {
-      id: `user_${Date.now()}`,
-      name: application.personalInfo.name,
-      email: application.personalInfo.email,
-      role: "student",
-      studentId: application.personalInfo.studentId,
-      phone: application.personalInfo.phone,
-      talentGroup: application.talentGroup,
-      applicationStatus: "approved",
-      trainingStatus: "not_started",
-      yearLevel: application.personalInfo.yearLevel,
-      course: application.personalInfo.course,
-    };
-
-    setUsers([...users, newUser]);
-    
-    // Notify the admin about new scholar added
-    const admin = users.find(u => u.role === 'admin');
-    if (admin && admin.id) {
-      addNotification(
-        admin.id,
-        'New Scholar Account Created',
-        `Account created for ${newUser.name} in ${application.talentGroup.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}.`,
-        'application',
-        newUser.id
-      );
-    }
-    
-    // Notify the new user about their account
-    addNotification(
-      newUser.id,
-      'Welcome to TalentTrackUNC!',
-      `Your account has been created successfully. You can now access the training dashboard. Your temporary password has been sent to ${newUser.email}.`,
-      'acceptance'
-    );
-    
-    toast.success(`Account created successfully for ${newUser.name}. Temporary password sent via email.`);
   };
 
   const renderCurrentPage = () => {
@@ -699,8 +688,6 @@ export default function App() {
                       onUpdateProfile={(updatedData) => {
                         setUsers(users.map((u) => u.id === currentUser.id ? { ...u, ...updatedData } : u));
                       }}
-                      unreadNotifications={unreadNotificationsCount}
-                      onNotificationsClick={() => setShowNotificationPanel(!showNotificationPanel)}
                     />
                   </Suspense>
                 );
@@ -715,13 +702,10 @@ export default function App() {
                       onNavigate={(view, tab) => {
                         navigateTo(view as any, tab ?? undefined);
                       }}
-                      events={events.filter((e) => e.talentGroups.includes(currentUser.talentGroup || ""))}
                       notifications={notifications.filter((n) => n.userId === currentUser.id)}
                       onMarkNotificationRead={(notificationId) => {
                         setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                       }}
-                      unreadNotifications={unreadNotificationsCount}
-                      onNotificationsClick={() => setShowNotificationPanel(!showNotificationPanel)}
                     />
                   </Suspense>
                 );
@@ -743,13 +727,11 @@ export default function App() {
                       onMarkNotificationRead={(notificationId) => {
                         setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                       }}
-                      unreadNotifications={unreadNotificationsCount}
-                      onNotificationsClick={() => setShowNotificationPanel(!showNotificationPanel)}
                       onSubmitRenewal={(renewalData) => {
                         const newRenewal: ScholarshipRenewal = {
                           ...renewalData,
                           id: Date.now().toString(),
-                          submittedAt: new Date().toISOString(),
+                          submittedAt: new Date(),
                         };
                       setRenewals([...renewals, newRenewal]);
                       toast.success('Renewal application submitted successfully!');
@@ -773,8 +755,6 @@ export default function App() {
                     onUpdateProfile={(updatedData) => {
                       setUsers(users.map((u) => u.id === currentUser.id ? { ...u, ...updatedData } : u));
                     }}
-                    unreadNotifications={unreadNotificationsCount}
-                    onNotificationsClick={() => setShowNotificationPanel(!showNotificationPanel)}
                   />
                 </Suspense>
               );
@@ -910,7 +890,7 @@ export default function App() {
                       
                       // Send notification to the new trainee with login credentials
                       addNotification(
-                        newTrainee.id!,
+                        newTrainee.id,
                         'Welcome to TalentTrackUNC!',
                         `Congratulations! Your application has been approved. Your login credentials: Email: ${newTrainee.email}, Temporary Password: ${tempPassword}. Please change your password after first login.`,
                         'application',

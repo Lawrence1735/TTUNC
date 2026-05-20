@@ -232,6 +232,8 @@ export const users: User[] = [
 export const evaluations: Evaluation[] = [
   {
     id: "eval1",
+    traineeId: "",
+    traineeName: "",
     evaluatorId: "",
     evaluatorName: "",
     scholarId: "",
@@ -239,7 +241,11 @@ export const evaluations: Evaluation[] = [
     talentGroup: "marching-band",
     semester: "",
     academicYear: "",
+    date: new Date("2024-11-10"),
     evaluationDate: new Date("2024-11-10"),
+    rating: 0,
+    notes: "",
+    status: 'draft',
     performanceMetrics: {
       skillDemonstration: 0,
       rehearsalAttendance: 0,
@@ -248,8 +254,9 @@ export const evaluations: Evaluation[] = [
       leadership: 0,
     },
     strengths: "",
-    areasForImprovement: "",
-    overallRating: 4.8,
+    improvements: "",
+    overallRating: "4.8",
+    scholarshipPercentage: 0,
     recommendation: "continue",
     additionalNotes: undefined,
   },
