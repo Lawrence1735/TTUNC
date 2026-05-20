@@ -74,6 +74,11 @@ import { DirectorTrainingTab } from './DirectorTrainingTab';
 import { DirectorMemberProfileTab } from './DirectorMemberProfileTab';
 import { TraineeDetailsDialog } from './TraineeDetailsDialog';
 import type { Evaluation } from './types';
+<<<<<<< HEAD
+=======
+import trainingClient from '../../api/trainingClient';
+import { applicationClient, ApplicationResponse } from '../../api/applicationClient';
+>>>>>>> 2b86443 (feat: add Progress, Table, Tabs, Textarea components and ApplicationClient API)
 
 interface DirectorDashboardProps {
   user: UserType;
@@ -169,6 +174,10 @@ export function DirectorDashboardEnhanced({
   const [showInterviewDialog, setShowInterviewDialog] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const [showLogoutConfirmation, setShowLogoutConfirmation] = useState(false);
+  
+  // Applications state for API fetching
+  const [fetchedApplications, setFetchedApplications] = useState<ApplicationResponse[]>([]);
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
   
   const [interviewSchedules, setInterviewSchedules] = useState<InterviewSchedule[]>([
     {
@@ -558,6 +567,82 @@ export function DirectorDashboardEnhanced({
     accessoryType: 'all'
   });
 
+<<<<<<< HEAD
+=======
+  // Trainee API state
+  const [traineesList, setTraineesList] = useState<any[]>([]);
+  const [traineesLoading, setTraineesLoading] = useState(true);
+
+  // Function to fetch trainees from API
+  const refetchTrainees = async () => {
+    try {
+      setTraineesLoading(true);
+      const traineeData = await trainingClient.getTrainees();
+      setTraineesList(traineeData);
+      console.log('Fetched trainees:', traineeData);
+      
+      // IMPORTANT: Populate traineeInstruments and traineeChapters with API data
+      const newInstruments: {[key: string]: string} = {};
+      const newVoices: {[key: string]: string} = {};
+      const newChapters: {[key: string]: {[chapter: number]: boolean}} = {};
+      
+      traineeData.forEach((trainee: any) => {
+        const traineeId = trainee.user_id || trainee.id;
+        
+        // Map instrument or voice based on trainee type
+        if (trainee.instrument) {
+          newInstruments[traineeId] = trainee.instrument;
+        }
+        if (trainee.voice) {
+          newVoices[traineeId] = trainee.voice;
+        }
+        
+        // Initialize chapters (0% completion by default, can be updated from attendance API)
+        newChapters[traineeId] = {
+          1: false, 2: false, 3: false, 4: false, 5: false,
+          6: false, 7: false, 8: false, 9: false, 10: false,
+          11: false, 12: false, 13: false, 14: false, 15: false,
+          16: false, 17: false, 18: false, 19: false, 20: false,
+          21: false, 22: false, 23: false, 24: false, 25: false,
+          26: false, 27: false, 28: false, 29: false, 30: false
+        };
+      });
+      
+      setTraineeInstruments(newInstruments);
+      setTraineeVoices(newVoices);
+      setTraineeChapters(newChapters);
+      
+    } catch (err: any) {
+      console.error('Failed to fetch trainees:', err);
+      toast.error(err.message || 'Failed to load trainees');
+    } finally {
+      setTraineesLoading(false);
+    }
+  };
+
+  // Fetch applications from API for this director's talent group
+  const refetchApplications = async () => {
+    setApplicationsLoading(true);
+    try {
+      const response = await applicationClient.getApplications();
+      setFetchedApplications(response.data || []);
+      console.log('[DirectorDashboardEnhanced] Fetched applications:', response.data);
+    } catch (err: any) {
+      console.error('Failed to fetch applications:', err);
+      toast.error(err.message || 'Failed to load applications');
+    } finally {
+      setApplicationsLoading(false);
+    }
+  };
+
+  // Fetch trainees from API on component mount
+  useEffect(() => {
+    refetchTrainees();
+    refetchApplications();
+    console.log('[DirectorDashboardEnhanced] Fetching trainees and applications on mount...');
+  }, []);
+
+>>>>>>> 2b86443 (feat: add Progress, Table, Tabs, Textarea components and ApplicationClient API)
   // Talent group flags for conditional rendering (must be defined before inventory data)
   const directorTalentGroup = user.talentGroup || '';
   const isMarchingBand = directorTalentGroup === 'marching-band';
@@ -602,8 +687,8 @@ export function DirectorDashboardEnhanced({
   const accessoryTypes = ['all', ...Array.from(new Set(accessoriesData.map(item => item.accessoryType)))];
 
   // Filter applications for this director's talent group
-  const filteredApplications = (applications || []).filter(app => 
-    app.talentGroup === directorTalentGroup && app.status === 'pending'
+  const filteredApplications = (fetchedApplications || []).filter(app => 
+    app.status === 'pending'
   );
 
   const pendingApps = filteredApplications.length;
@@ -924,7 +1009,7 @@ University of Nueva Caceres`
   };
 
   // Schedule interview and send invitation email
-  const handleScheduleInterview = () => {
+  const handleScheduleInterview = async () => {
     // Collect missing fields
     const missingFields = [];
     if (!selectedApplication) {
@@ -939,64 +1024,85 @@ University of Nueva Caceres`
       return;
     }
 
-    const newInterview: InterviewSchedule = {
-      id: `int${Date.now()}`,
-      applicationId: selectedApplication.id,
-      applicantName: selectedApplication.personalInfo.name,
-      applicantEmail: selectedApplication.personalInfo.email,
-      date: interviewForm.date,
-      time: interviewForm.time,
-      venue: interviewForm.venue,
-      status: 'scheduled',
-      notes: interviewForm.notes
-    };
+    try {
+      // Call API to schedule the interview
+      const scheduled_at = `${interviewForm.date} ${interviewForm.time}`;
+      await applicationClient.scheduleInterview(selectedApplication.id, {
+        scheduled_at,
+        venue: interviewForm.venue,
+        notes: interviewForm.notes
+      });
 
-    setInterviewSchedules([...interviewSchedules, newInterview]);
+      const newInterview: InterviewSchedule = {
+        id: `int${Date.now()}`,
+        applicationId: selectedApplication.id,
+        applicantName: selectedApplication.personalInfo.name,
+        applicantEmail: selectedApplication.personalInfo.email,
+        date: interviewForm.date,
+        time: interviewForm.time,
+        venue: interviewForm.venue,
+        status: 'scheduled',
+        notes: interviewForm.notes
+      };
 
-    setShowInterviewDialog(false);
-    
-    // Auto-send interview invitation email
-    toast.success(`✅ Interview scheduled! Invitation email sent to ${selectedApplication.personalInfo.name}`);
-    
-    // Reset form
-    setSelectedApplication(null);
-    setInterviewForm({ date: '', time: '', venue: 'Music Building Room 201', notes: '' });
+      setInterviewSchedules([...interviewSchedules, newInterview]);
+
+      setShowInterviewDialog(false);
+      
+      // Refetch applications to get updated data
+      await refetchApplications();
+      
+      // Auto-send interview invitation email
+      toast.success(`✅ Interview scheduled! Invitation email sent to ${selectedApplication.personalInfo.name}`);
+      
+      // Reset form
+      setSelectedApplication(null);
+      setInterviewForm({ date: '', time: '', venue: 'Music Building Room 201', notes: '' });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to schedule interview');
+    }
   };
 
   // Handle approve from interview schedule
-  const handleApproveInterview = (interviewId: string) => {
+  const handleApproveInterview = async (interviewId: string) => {
     const interview = interviewSchedules.find(i => i.id === interviewId);
     if (!interview) return;
 
-    // Find the application
-    const app = (applications || []).find(a => a.id === interview.applicationId);
-    if (!app) return;
+    try {
+      // Call API to approve the application
+      await applicationClient.approveApplication(interview.applicationId);
 
-    // Remove interview from schedule
-    setInterviewSchedules(prev => prev.filter(i => i.id !== interviewId));
-    
-    // Approve application
-    onUpdateApplicationStatus(app.id, 'approved');
-    
-    toast.success(`${interview.applicantName} has been approved and moved to Training Dashboard`);
+      // Remove interview from schedule
+      setInterviewSchedules(prev => prev.filter(i => i.id !== interviewId));
+      
+      // Refetch applications to get updated data
+      await refetchApplications();
+      
+      toast.success(`${interview.applicantName} has been approved and moved to Training Dashboard`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to approve application');
+    }
   };
 
   // Handle reject from interview schedule
-  const handleRejectInterview = (interviewId: string) => {
+  const handleRejectInterview = async (interviewId: string) => {
     const interview = interviewSchedules.find(i => i.id === interviewId);
     if (!interview) return;
 
-    // Find the application
-    const app = (applications || []).find(a => a.id === interview.applicationId);
-    if (!app) return;
+    try {
+      // Call API to reject the application
+      await applicationClient.declineApplication(interview.applicationId, 'Not meeting requirements', '');
 
-    // Remove interview from schedule
-    setInterviewSchedules(prev => prev.filter(i => i.id !== interviewId));
-    
-    // Reject application
-    onUpdateApplicationStatus(app.id, 'disapproved');
-    
-    toast.success(`${interview.applicantName} has been rejected`);
+      // Remove interview from schedule
+      setInterviewSchedules(prev => prev.filter(i => i.id !== interviewId));
+      
+      // Refetch applications to get updated data
+      await refetchApplications();
+      
+      toast.success(`${interview.applicantName} has been rejected`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reject application');
+    }
   };
 
   // Mark interview as completed
@@ -2020,6 +2126,10 @@ University of Nueva Caceres`;
             handleSetSchedule={handleSetSchedule}
             handleApproveInterview={handleApproveInterview}
             handleRejectInterview={handleRejectInterview}
+<<<<<<< HEAD
+=======
+            onApprovalSuccess={refetchApplications}
+>>>>>>> 2b86443 (feat: add Progress, Table, Tabs, Textarea components and ApplicationClient API)
           />
 
           {/* TRAINING TAB */}

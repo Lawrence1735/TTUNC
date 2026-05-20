@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -222,7 +222,7 @@ interface AddressBlockProps {
   onChange: (field: string, value: string) => void;
 }
 
-function AddressBlock({ prefix, label, region, province, city, barangay, street, errors, onChange }: AddressBlockProps) {
+function AddressBlockComponent({ prefix, label, region, province, city, barangay, street, errors, onChange }: AddressBlockProps) {
   const provinces = region ? PH_PROVINCES_BY_REGION[region] || [] : [];
   const cities = province ? PH_CITIES_BY_PROVINCE[province] || [] : [];
   const barangays = city ? PH_BARANGAYS_BY_CITY[city] || [] : [];
@@ -319,6 +319,9 @@ function AddressBlock({ prefix, label, region, province, city, barangay, street,
     </div>
   );
 }
+
+// Memoize the AddressBlock component to prevent unnecessary re-renders
+const AddressBlock = React.memo(AddressBlockComponent);
 
 // ── Phone Input ───────────────────────────────────────────────────────────────
 
@@ -428,7 +431,7 @@ export function PublicApplicationForm({ onSubmit, onBack, talentGroup: initialGr
   const clearError = (field: string) =>
     setErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
 
-  const handleAddressChange = (field: string, value: string) => {
+  const handleAddressChange = useCallback((field: string, value: string) => {
     // Convert perm_region → permRegion, resid_street → residStreet, etc.
     const parts = field.split('_');
     const key = (parts[0] + parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('')) as keyof ApplicationFormData;
@@ -440,9 +443,9 @@ export function PublicApplicationForm({ onSubmit, onBack, talentGroup: initialGr
       const residKey = ('resid' + parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('')) as keyof ApplicationFormData;
       update(residKey, value as any);
     }
-  };
+  }, [sameAsPermanent]);
 
-  const handleSameAsPermanent = (checked: boolean) => {
+  const handleSameAsPermanent = useCallback((checked: boolean) => {
     setSameAsPermanent(checked);
     if (checked) {
       setFormData(prev => ({
@@ -454,7 +457,7 @@ export function PublicApplicationForm({ onSubmit, onBack, talentGroup: initialGr
         residStreet: prev.permStreet,
       }));
     }
-  };
+  }, []);
 
   const handleBirthdate = (value: string) => {
     update('birthdate', value);

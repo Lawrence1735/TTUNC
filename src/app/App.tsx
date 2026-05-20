@@ -22,6 +22,11 @@ const DirectorDashboard = lazy(() => import("./components/DirectorDashboardEnhan
 const Settings = lazy(() => import("./components/Settings").then(module => ({ default: module.Settings })));
 import { NotificationPanel } from "./components/NotificationPanel";
 import { Toaster } from "./components/ui/sonner";
+<<<<<<< HEAD
+=======
+import { toast } from "sonner";
+import { applicationClient } from "../api/applicationClient";
+>>>>>>> 2b86443 (feat: add Progress, Table, Tabs, Textarea components and ApplicationClient API)
 import { initKeyboardNavigation } from "./utils/keyboardNavigation";
 import { SkipToContent } from "./components/accessibility/SkipToContent";
 
@@ -422,6 +427,7 @@ function AppContent() {
     return { success: true };
   };
 
+<<<<<<< HEAD
   const handlePublicApplicationSubmit = (formData: ApplicationFormData) => {
     const newApplication: Application = {
       id: `app_${Date.now()}`,
@@ -466,25 +472,108 @@ function AppContent() {
       status: "pending",
       appliedAt: new Date(),
     };
+=======
+  const handlePublicApplicationSubmit = async (formData: ApplicationFormData) => {
+    try {
+      // Prepare API request payload with snake_case field names
+      // Only include fields that exist in the applications table schema
+      const apiPayload = {
+        talent_group: formData.talentGroup,
+        applicant_name: formData.fullName,
+        applicant_email: formData.email,
+        applicant_student_id: formData.studentId || null,
+        applicant_phone: formData.mobileNo,
+        applicant_year_level: formData.yearLevel || null,
+        applicant_course: formData.course || null,
+        applicant_department: formData.department || null,
+        applicant_address: formData.address,
+        applicant_gender: formData.gender || null,
+        applicant_birthdate: formData.birthdate,
+        applicant_age: formData.age,
+        guardian_name: formData.guardianName,
+        guardian_phone: formData.guardianContactNo,
+        guardian_relationship: formData.guardianRelationship,
+        // Talent-group specific fields that exist in schema
+        instruments: formData.instruments || null,
+        voices: formData.voices || null,
+        vocal_range: formData.vocalRange || null,
+        primary_dance_genre: formData.primaryDanceGenre || null,
+        years_of_experience: formData.yearsOfExperience || null,
+        experience: formData.experience || null,
+        motivation: formData.motivation || null,
+      };
+>>>>>>> 2b86443 (feat: add Progress, Table, Tabs, Textarea components and ApplicationClient API)
 
-    setApplications([...applications, newApplication]);
-    
-    // Notify the director of the talent group about new application
-    const director = users.find(u => 
-      u.role === 'director' && u.talentGroup === formData.talentGroup
-    );
-    if (director && director.id) {
-      addNotification(
-        director.id,
-        'New Application Received',
-        `${formData.fullName} has applied for ${formData.talentGroup.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}. Review pending.`,
-        'application',
-        newApplication.id
+      // Call API to submit the application
+      const response = await applicationClient.submitApplication(apiPayload);
+      
+      // Also maintain local state for immediate UI feedback
+      const newApplication: Application = {
+        id: response.data.id || `app_${Date.now()}`,
+        userId: response.data.user_id || `user_${Date.now()}`,
+        talentGroup: formData.talentGroup,
+        personalInfo: {
+          name: formData.fullName,
+          email: formData.email,
+          studentId: formData.studentId || "",
+          phone: formData.mobileNo,
+          birthdate: formData.birthdate,
+          age: formData.age,
+          address: formData.address,
+          gender: formData.gender,
+          socialMedia: '',
+          yearLevel: formData.yearLevel,
+          course: formData.course,
+          department: formData.department,
+          guardianName: formData.guardianName,
+          guardianContactNo: formData.guardianContactNo,
+          guardianRelationship: formData.guardianRelationship,
+          // Marching Band specific
+          hasBandExperience: formData.hasBandExperience,
+          // Glee Club specific
+          vocalRange: formData.vocalRange,
+          previousSingingExperience: formData.previousSingingExperience,
+          musicalBackground: formData.musicalBackground,
+          // Dance Club specific
+          primaryDanceGenre: formData.primaryDanceGenre,
+          yearsOfExperience: formData.yearsOfExperience,
+          performedOnStage: formData.performedOnStage,
+          willingToAttendRehearsals: formData.willingToAttendRehearsals,
+          // Majorettes specific
+          previousMajoretteTeam: formData.previousMajoretteTeam,
+          previousOrganization: formData.previousOrganization,
+          canPerformBasicRoutines: formData.canPerformBasicRoutines,
+          willingToAttendRehearsalsMajorettes: formData.willingToAttendRehearsalsMajorettes,
+        },
+        experience: "",
+        motivation: "",
+        documents: [],
+        status: "pending",
+        appliedAt: new Date(),
+      };
+
+      setApplications([...applications, newApplication]);
+      
+      // Notify the director of the talent group about new application
+      const director = users.find(u => 
+        u.role === 'director' && u.talentGroup === formData.talentGroup
       );
+      if (director && director.id) {
+        addNotification(
+          director.id,
+          'New Application Received',
+          `${formData.fullName} has applied for ${formData.talentGroup.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}. Review pending.`,
+          'application',
+          newApplication.id
+        );
+      }
+      
+      toast.success("Application submitted successfully! You will receive a notification once reviewed.", { duration: 6000 });
+      startTransition(() => setCurrentPage("landing"));
+    } catch (error: any) {
+      console.error('Failed to submit application:', error);
+      toast.error(error.message || 'Failed to submit application. Please try again.');
     }
-    
-    toast.success("Application submitted successfully! You will receive a notification once reviewed.");
-    startTransition(() => setCurrentPage("landing"));
   };
 
   const handleCreateUserAccount = (application: Application) => {
