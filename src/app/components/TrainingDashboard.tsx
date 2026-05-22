@@ -89,7 +89,7 @@ export function TrainingDashboard({
   const totalChapters = latestPractice?.totalChapters || 0;
 
   // Get group-specific terminology
-  const groupTerminology = getGroupTerminology(user.talentGroup);
+  const groupTerminology = getGroupTerminology(user.talentGroup || '');
 
   return (
     <div className="min-h-screen bg-background">

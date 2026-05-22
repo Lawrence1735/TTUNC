@@ -191,6 +191,7 @@
 #34 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1235): Illuminate/Foundation/Console/Kernel->handle(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
 #35 C:/TTUNC/backend/artisan(16): Illuminate/Foundation/Application->handleCommand(Object(Symfony/Component/Console/Input/ArgvInput))
 #36 {main}
+<<<<<<< HEAD
 "} 
 [2026-05-19 07:01:32] local.ERROR: The "--fake" option does not exist. {"exception":"[object] (Symfony\\Component\\Console\\Exception\\RuntimeException(code: 0): The \"--fake\" option does not exist. at C:/TTUNC/backend/vendor/symfony/console/Input/ArgvInput.php:226)
 [stacktrace]
@@ -1028,4 +1029,207 @@ Did you mean one of these?
 [2026-05-20 16:20:38] local.ERROR: strict_types declaration must be the very first statement in the script {"exception":"[object] (Symfony\\Component\\ErrorHandler\\Error\\FatalError(code: 0): strict_types declaration must be the very first statement in the script at C:/Users/admin/TTUNC/backend/app/Http/Controllers/Api/RecruitmentController.php:3)
 [stacktrace]
 #0 {main}
+=======
+"} 
+[2026-05-19 07:01:32] local.ERROR: The "--fake" option does not exist. {"exception":"[object] (Symfony\\Component\\Console\\Exception\\RuntimeException(code: 0): The \"--fake\" option does not exist. at C:/TTUNC/backend/vendor/symfony/console/Input/ArgvInput.php:226)
+[stacktrace]
+#0 C:/TTUNC/backend/vendor/symfony/console/Input/ArgvInput.php(155): Symfony/Component/Console/Input/ArgvInput->addLongOption('fake', NULL)
+#1 C:/TTUNC/backend/vendor/symfony/console/Input/ArgvInput.php(88): Symfony/Component/Console/Input/ArgvInput->parseLongOption('--fake')
+#2 C:/TTUNC/backend/vendor/symfony/console/Input/ArgvInput.php(77): Symfony/Component/Console/Input/ArgvInput->parseToken('--fake', true)
+#3 C:/TTUNC/backend/vendor/symfony/console/Input/Input.php(53): Symfony/Component/Console/Input/ArgvInput->parse()
+#4 C:/TTUNC/backend/vendor/symfony/console/Command/Command.php(295): Symfony/Component/Console/Input/Input->bind(Object(Symfony/Component/Console/Input/InputDefinition))
+#5 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Console/Command.php(180): Symfony/Component/Console/Command/Command->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Illuminate/Console/OutputStyle))
+#6 C:/TTUNC/backend/vendor/symfony/console/Application.php(1117): Illuminate/Console/Command->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#7 C:/TTUNC/backend/vendor/symfony/console/Application.php(356): Symfony/Component/Console/Application->doRunCommand(Object(Illuminate/Database/Console/Migrations/MigrateCommand), Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#8 C:/TTUNC/backend/vendor/symfony/console/Application.php(195): Symfony/Component/Console/Application->doRun(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#9 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(198): Symfony/Component/Console/Application->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#10 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1235): Illuminate/Foundation/Console/Kernel->handle(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#11 C:/TTUNC/backend/artisan(16): Illuminate/Foundation/Application->handleCommand(Object(Symfony/Component/Console/Input/ArgvInput))
+#12 {main}
+"} 
+[2026-05-19 07:01:59] local.ERROR: Command "migrate:fake" is not defined.
+
+Did you mean one of these?
+    config:make
+    migrate
+    migrate:fresh
+    migrate:install
+    migrate:refresh
+    migrate:reset
+    migrate:rollback
+    migrate:status {"exception":"[object] (Symfony\\Component\\Console\\Exception\\CommandNotFoundException(code: 0): Command \"migrate:fake\" is not defined.
+
+Did you mean one of these?
+    config:make
+    migrate
+    migrate:fresh
+    migrate:install
+    migrate:refresh
+    migrate:reset
+    migrate:rollback
+    migrate:status at C:/TTUNC/backend/vendor/symfony/console/Application.php:759)
+[stacktrace]
+#0 C:/TTUNC/backend/vendor/symfony/console/Application.php(298): Symfony/Component/Console/Application->find('migrate:fake')
+#1 C:/TTUNC/backend/vendor/symfony/console/Application.php(195): Symfony/Component/Console/Application->doRun(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#2 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(198): Symfony/Component/Console/Application->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#3 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1235): Illuminate/Foundation/Console/Kernel->handle(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#4 C:/TTUNC/backend/artisan(16): Illuminate/Foundation/Application->handleCommand(Object(Symfony/Component/Console/Input/ArgvInput))
+#5 {main}
+"} 
+[2026-05-19 07:07:26] local.ERROR: SQLSTATE[HY000]: General error: 1005 Can't create table `talenttrack_unc`.`attendance_records` (errno: 150 "Foreign key constraint is incorrectly formed") (Connection: mysql, Host: 127.0.0.1, Port: 3306, Database: talenttrack_unc, SQL: alter table `attendance_records` add constraint `attendance_records_trainee_id_foreign` foreign key (`trainee_id`) references `trainees` (`id`) on delete cascade) {"exception":"[object] (Illuminate\\Database\\QueryException(code: HY000): SQLSTATE[HY000]: General error: 1005 Can't create table `talenttrack_unc`.`attendance_records` (errno: 150 \"Foreign key constraint is incorrectly formed\") (Connection: mysql, Host: 127.0.0.1, Port: 3306, Database: talenttrack_unc, SQL: alter table `attendance_records` add constraint `attendance_records_trainee_id_foreign` foreign key (`trainee_id`) references `trainees` (`id`) on delete cascade) at C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php:838)
+[stacktrace]
+#0 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(794): Illuminate/Database/Connection->runQueryCallback('alter table `at...', Array, Object(Closure))
+#1 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(573): Illuminate/Database/Connection->run('alter table `at...', Array, Object(Closure))
+#2 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Schema/Blueprint.php(121): Illuminate/Database/Connection->statement('alter table `at...')
+#3 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Schema/Builder.php(686): Illuminate/Database/Schema/Blueprint->build()
+#4 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Schema/Builder.php(506): Illuminate/Database/Schema/Builder->build(Object(Illuminate/Database/Schema/Blueprint))
+#5 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Support/Facades/Facade.php(363): Illuminate/Database/Schema/Builder->create('attendance_reco...', Object(Closure))
+#6 C:/TTUNC/backend/database/migrations/2026_05_19_070336_create_attendance_records_table.php(11): Illuminate/Support/Facades/Facade::__callStatic('create', Array)
+#7 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(517): Illuminate/Database/Migrations/Migration@anonymous->up()
+#8 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(442): Illuminate/Database/Migrations/Migrator->runMethod(Object(Illuminate/Database/MySqlConnection), Object(Illuminate/Database/Migrations/Migration@anonymous), 'up')
+#9 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(451): Illuminate/Database/Migrations/Migrator->Illuminate/Database/Migrations/{closure}()
+#10 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(253): Illuminate/Database/Migrations/Migrator->runMigration(Object(Illuminate/Database/Migrations/Migration@anonymous), 'up')
+#11 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Console/View/Components/Task.php(41): Illuminate/Database/Migrations/Migrator->Illuminate/Database/Migrations/{closure}()
+#12 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(814): Illuminate/Console/View/Components/Task->render('2026_05_19_0703...', Object(Closure))
+#13 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(253): Illuminate/Database/Migrations/Migrator->write('Illuminate//Cons...', '2026_05_19_0703...', Object(Closure))
+#14 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(211): Illuminate/Database/Migrations/Migrator->runUp('C://TTUNC//backen...', 2, false)
+#15 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(138): Illuminate/Database/Migrations/Migrator->runPending(Array, Array)
+#16 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Console/Migrations/MigrateCommand.php(116): Illuminate/Database/Migrations/Migrator->run(Array, Array)
+#17 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(671): Illuminate/Database/Console/Migrations/MigrateCommand->Illuminate/Database/Console/Migrations/{closure}()
+#18 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Console/Migrations/MigrateCommand.php(109): Illuminate/Database/Migrations/Migrator->usingConnection(NULL, Object(Closure))
+#19 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Console/Migrations/MigrateCommand.php(88): Illuminate/Database/Console/Migrations/MigrateCommand->runMigrations()
+#20 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(36): Illuminate/Database/Console/Migrations/MigrateCommand->handle()
+#21 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/Util.php(43): Illuminate/Container/BoundMethod::Illuminate/Container/{closure}()
+#22 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(96): Illuminate/Container/Util::unwrapIfClosure(Object(Closure))
+#23 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(35): Illuminate/Container/BoundMethod::callBoundMethod(Object(Illuminate/Foundation/Application), Array, Object(Closure))
+#24 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/Container.php(799): Illuminate/Container/BoundMethod::call(Object(Illuminate/Foundation/Application), Array, Array, NULL)
+#25 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Console/Command.php(211): Illuminate/Container/Container->call(Array)
+#26 C:/TTUNC/backend/vendor/symfony/console/Command/Command.php(341): Illuminate/Console/Command->execute(Object(Symfony/Component/Console/Input/ArgvInput), Object(Illuminate/Console/OutputStyle))
+#27 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Console/Command.php(180): Symfony/Component/Console/Command/Command->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Illuminate/Console/OutputStyle))
+#28 C:/TTUNC/backend/vendor/symfony/console/Application.php(1117): Illuminate/Console/Command->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#29 C:/TTUNC/backend/vendor/symfony/console/Application.php(356): Symfony/Component/Console/Application->doRunCommand(Object(Illuminate/Database/Console/Migrations/MigrateCommand), Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#30 C:/TTUNC/backend/vendor/symfony/console/Application.php(195): Symfony/Component/Console/Application->doRun(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#31 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(198): Symfony/Component/Console/Application->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#32 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1235): Illuminate/Foundation/Console/Kernel->handle(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#33 C:/TTUNC/backend/artisan(16): Illuminate/Foundation/Application->handleCommand(Object(Symfony/Component/Console/Input/ArgvInput))
+#34 {main}
+
+[previous exception] [object] (PDOException(code: HY000): SQLSTATE[HY000]: General error: 1005 Can't create table `talenttrack_unc`.`attendance_records` (errno: 150 \"Foreign key constraint is incorrectly formed\") at C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php:584)
+[stacktrace]
+#0 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(584): PDOStatement->execute()
+#1 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(827): Illuminate/Database/Connection->Illuminate/Database/{closure}('alter table `at...', Array)
+#2 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(794): Illuminate/Database/Connection->runQueryCallback('alter table `at...', Array, Object(Closure))
+#3 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(573): Illuminate/Database/Connection->run('alter table `at...', Array, Object(Closure))
+#4 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Schema/Blueprint.php(121): Illuminate/Database/Connection->statement('alter table `at...')
+#5 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Schema/Builder.php(686): Illuminate/Database/Schema/Blueprint->build()
+#6 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Schema/Builder.php(506): Illuminate/Database/Schema/Builder->build(Object(Illuminate/Database/Schema/Blueprint))
+#7 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Support/Facades/Facade.php(363): Illuminate/Database/Schema/Builder->create('attendance_reco...', Object(Closure))
+#8 C:/TTUNC/backend/database/migrations/2026_05_19_070336_create_attendance_records_table.php(11): Illuminate/Support/Facades/Facade::__callStatic('create', Array)
+#9 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(517): Illuminate/Database/Migrations/Migration@anonymous->up()
+#10 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(442): Illuminate/Database/Migrations/Migrator->runMethod(Object(Illuminate/Database/MySqlConnection), Object(Illuminate/Database/Migrations/Migration@anonymous), 'up')
+#11 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(451): Illuminate/Database/Migrations/Migrator->Illuminate/Database/Migrations/{closure}()
+#12 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(253): Illuminate/Database/Migrations/Migrator->runMigration(Object(Illuminate/Database/Migrations/Migration@anonymous), 'up')
+#13 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Console/View/Components/Task.php(41): Illuminate/Database/Migrations/Migrator->Illuminate/Database/Migrations/{closure}()
+#14 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(814): Illuminate/Console/View/Components/Task->render('2026_05_19_0703...', Object(Closure))
+#15 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(253): Illuminate/Database/Migrations/Migrator->write('Illuminate//Cons...', '2026_05_19_0703...', Object(Closure))
+#16 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(211): Illuminate/Database/Migrations/Migrator->runUp('C://TTUNC//backen...', 2, false)
+#17 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(138): Illuminate/Database/Migrations/Migrator->runPending(Array, Array)
+#18 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Console/Migrations/MigrateCommand.php(116): Illuminate/Database/Migrations/Migrator->run(Array, Array)
+#19 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(671): Illuminate/Database/Console/Migrations/MigrateCommand->Illuminate/Database/Console/Migrations/{closure}()
+#20 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Console/Migrations/MigrateCommand.php(109): Illuminate/Database/Migrations/Migrator->usingConnection(NULL, Object(Closure))
+#21 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Console/Migrations/MigrateCommand.php(88): Illuminate/Database/Console/Migrations/MigrateCommand->runMigrations()
+#22 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(36): Illuminate/Database/Console/Migrations/MigrateCommand->handle()
+#23 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/Util.php(43): Illuminate/Container/BoundMethod::Illuminate/Container/{closure}()
+#24 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(96): Illuminate/Container/Util::unwrapIfClosure(Object(Closure))
+#25 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(35): Illuminate/Container/BoundMethod::callBoundMethod(Object(Illuminate/Foundation/Application), Array, Object(Closure))
+#26 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/Container.php(799): Illuminate/Container/BoundMethod::call(Object(Illuminate/Foundation/Application), Array, Array, NULL)
+#27 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Console/Command.php(211): Illuminate/Container/Container->call(Array)
+#28 C:/TTUNC/backend/vendor/symfony/console/Command/Command.php(341): Illuminate/Console/Command->execute(Object(Symfony/Component/Console/Input/ArgvInput), Object(Illuminate/Console/OutputStyle))
+#29 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Console/Command.php(180): Symfony/Component/Console/Command/Command->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Illuminate/Console/OutputStyle))
+#30 C:/TTUNC/backend/vendor/symfony/console/Application.php(1117): Illuminate/Console/Command->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#31 C:/TTUNC/backend/vendor/symfony/console/Application.php(356): Symfony/Component/Console/Application->doRunCommand(Object(Illuminate/Database/Console/Migrations/MigrateCommand), Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#32 C:/TTUNC/backend/vendor/symfony/console/Application.php(195): Symfony/Component/Console/Application->doRun(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#33 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(198): Symfony/Component/Console/Application->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#34 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1235): Illuminate/Foundation/Console/Kernel->handle(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#35 C:/TTUNC/backend/artisan(16): Illuminate/Foundation/Application->handleCommand(Object(Symfony/Component/Console/Input/ArgvInput))
+#36 {main}
+"} 
+[2026-05-19 07:09:15] local.ERROR: SQLSTATE[42S01]: Base table or view already exists: 1050 Table 'attendance_records' already exists (Connection: mysql, Host: 127.0.0.1, Port: 3306, Database: talenttrack_unc, SQL: create table `attendance_records` (`id` bigint unsigned not null auto_increment primary key, `trainee_id` bigint unsigned not null, `session_date` date not null, `no_practice` tinyint(1) not null default '0', `status` enum('present', 'absent') not null default 'absent', `notes` text null, `created_at` timestamp null, `updated_at` timestamp null) default character set utf8mb4 collate 'utf8mb4_unicode_ci') {"exception":"[object] (Illuminate\\Database\\QueryException(code: 42S01): SQLSTATE[42S01]: Base table or view already exists: 1050 Table 'attendance_records' already exists (Connection: mysql, Host: 127.0.0.1, Port: 3306, Database: talenttrack_unc, SQL: create table `attendance_records` (`id` bigint unsigned not null auto_increment primary key, `trainee_id` bigint unsigned not null, `session_date` date not null, `no_practice` tinyint(1) not null default '0', `status` enum('present', 'absent') not null default 'absent', `notes` text null, `created_at` timestamp null, `updated_at` timestamp null) default character set utf8mb4 collate 'utf8mb4_unicode_ci') at C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php:838)
+[stacktrace]
+#0 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(794): Illuminate/Database/Connection->runQueryCallback('create table `a...', Array, Object(Closure))
+#1 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(573): Illuminate/Database/Connection->run('create table `a...', Array, Object(Closure))
+#2 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Schema/Blueprint.php(121): Illuminate/Database/Connection->statement('create table `a...')
+#3 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Schema/Builder.php(686): Illuminate/Database/Schema/Blueprint->build()
+#4 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Schema/Builder.php(506): Illuminate/Database/Schema/Builder->build(Object(Illuminate/Database/Schema/Blueprint))
+#5 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Support/Facades/Facade.php(363): Illuminate/Database/Schema/Builder->create('attendance_reco...', Object(Closure))
+#6 C:/TTUNC/backend/database/migrations/2026_05_19_070337_create_attendance_records_table.php(11): Illuminate/Support/Facades/Facade::__callStatic('create', Array)
+#7 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(517): Illuminate/Database/Migrations/Migration@anonymous->up()
+#8 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(442): Illuminate/Database/Migrations/Migrator->runMethod(Object(Illuminate/Database/MySqlConnection), Object(Illuminate/Database/Migrations/Migration@anonymous), 'up')
+#9 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(451): Illuminate/Database/Migrations/Migrator->Illuminate/Database/Migrations/{closure}()
+#10 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(253): Illuminate/Database/Migrations/Migrator->runMigration(Object(Illuminate/Database/Migrations/Migration@anonymous), 'up')
+#11 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Console/View/Components/Task.php(41): Illuminate/Database/Migrations/Migrator->Illuminate/Database/Migrations/{closure}()
+#12 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(814): Illuminate/Console/View/Components/Task->render('2026_05_19_0703...', Object(Closure))
+#13 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(253): Illuminate/Database/Migrations/Migrator->write('Illuminate//Cons...', '2026_05_19_0703...', Object(Closure))
+#14 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(211): Illuminate/Database/Migrations/Migrator->runUp('C://TTUNC//backen...', 2, false)
+#15 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(138): Illuminate/Database/Migrations/Migrator->runPending(Array, Array)
+#16 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Console/Migrations/MigrateCommand.php(116): Illuminate/Database/Migrations/Migrator->run(Array, Array)
+#17 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(671): Illuminate/Database/Console/Migrations/MigrateCommand->Illuminate/Database/Console/Migrations/{closure}()
+#18 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Console/Migrations/MigrateCommand.php(109): Illuminate/Database/Migrations/Migrator->usingConnection(NULL, Object(Closure))
+#19 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Console/Migrations/MigrateCommand.php(88): Illuminate/Database/Console/Migrations/MigrateCommand->runMigrations()
+#20 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(36): Illuminate/Database/Console/Migrations/MigrateCommand->handle()
+#21 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/Util.php(43): Illuminate/Container/BoundMethod::Illuminate/Container/{closure}()
+#22 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(96): Illuminate/Container/Util::unwrapIfClosure(Object(Closure))
+#23 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(35): Illuminate/Container/BoundMethod::callBoundMethod(Object(Illuminate/Foundation/Application), Array, Object(Closure))
+#24 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/Container.php(799): Illuminate/Container/BoundMethod::call(Object(Illuminate/Foundation/Application), Array, Array, NULL)
+#25 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Console/Command.php(211): Illuminate/Container/Container->call(Array)
+#26 C:/TTUNC/backend/vendor/symfony/console/Command/Command.php(341): Illuminate/Console/Command->execute(Object(Symfony/Component/Console/Input/ArgvInput), Object(Illuminate/Console/OutputStyle))
+#27 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Console/Command.php(180): Symfony/Component/Console/Command/Command->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Illuminate/Console/OutputStyle))
+#28 C:/TTUNC/backend/vendor/symfony/console/Application.php(1117): Illuminate/Console/Command->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#29 C:/TTUNC/backend/vendor/symfony/console/Application.php(356): Symfony/Component/Console/Application->doRunCommand(Object(Illuminate/Database/Console/Migrations/MigrateCommand), Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#30 C:/TTUNC/backend/vendor/symfony/console/Application.php(195): Symfony/Component/Console/Application->doRun(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#31 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(198): Symfony/Component/Console/Application->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#32 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1235): Illuminate/Foundation/Console/Kernel->handle(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#33 C:/TTUNC/backend/artisan(16): Illuminate/Foundation/Application->handleCommand(Object(Symfony/Component/Console/Input/ArgvInput))
+#34 {main}
+
+[previous exception] [object] (PDOException(code: 42S01): SQLSTATE[42S01]: Base table or view already exists: 1050 Table 'attendance_records' already exists at C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php:584)
+[stacktrace]
+#0 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(584): PDOStatement->execute()
+#1 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(827): Illuminate/Database/Connection->Illuminate/Database/{closure}('create table `a...', Array)
+#2 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(794): Illuminate/Database/Connection->runQueryCallback('create table `a...', Array, Object(Closure))
+#3 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Connection.php(573): Illuminate/Database/Connection->run('create table `a...', Array, Object(Closure))
+#4 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Schema/Blueprint.php(121): Illuminate/Database/Connection->statement('create table `a...')
+#5 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Schema/Builder.php(686): Illuminate/Database/Schema/Blueprint->build()
+#6 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Schema/Builder.php(506): Illuminate/Database/Schema/Builder->build(Object(Illuminate/Database/Schema/Blueprint))
+#7 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Support/Facades/Facade.php(363): Illuminate/Database/Schema/Builder->create('attendance_reco...', Object(Closure))
+#8 C:/TTUNC/backend/database/migrations/2026_05_19_070337_create_attendance_records_table.php(11): Illuminate/Support/Facades/Facade::__callStatic('create', Array)
+#9 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(517): Illuminate/Database/Migrations/Migration@anonymous->up()
+#10 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(442): Illuminate/Database/Migrations/Migrator->runMethod(Object(Illuminate/Database/MySqlConnection), Object(Illuminate/Database/Migrations/Migration@anonymous), 'up')
+#11 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(451): Illuminate/Database/Migrations/Migrator->Illuminate/Database/Migrations/{closure}()
+#12 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(253): Illuminate/Database/Migrations/Migrator->runMigration(Object(Illuminate/Database/Migrations/Migration@anonymous), 'up')
+#13 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Console/View/Components/Task.php(41): Illuminate/Database/Migrations/Migrator->Illuminate/Database/Migrations/{closure}()
+#14 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(814): Illuminate/Console/View/Components/Task->render('2026_05_19_0703...', Object(Closure))
+#15 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(253): Illuminate/Database/Migrations/Migrator->write('Illuminate//Cons...', '2026_05_19_0703...', Object(Closure))
+#16 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(211): Illuminate/Database/Migrations/Migrator->runUp('C://TTUNC//backen...', 2, false)
+#17 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(138): Illuminate/Database/Migrations/Migrator->runPending(Array, Array)
+#18 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Console/Migrations/MigrateCommand.php(116): Illuminate/Database/Migrations/Migrator->run(Array, Array)
+#19 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Migrations/Migrator.php(671): Illuminate/Database/Console/Migrations/MigrateCommand->Illuminate/Database/Console/Migrations/{closure}()
+#20 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Console/Migrations/MigrateCommand.php(109): Illuminate/Database/Migrations/Migrator->usingConnection(NULL, Object(Closure))
+#21 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Database/Console/Migrations/MigrateCommand.php(88): Illuminate/Database/Console/Migrations/MigrateCommand->runMigrations()
+#22 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(36): Illuminate/Database/Console/Migrations/MigrateCommand->handle()
+#23 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/Util.php(43): Illuminate/Container/BoundMethod::Illuminate/Container/{closure}()
+#24 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(96): Illuminate/Container/Util::unwrapIfClosure(Object(Closure))
+#25 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/BoundMethod.php(35): Illuminate/Container/BoundMethod::callBoundMethod(Object(Illuminate/Foundation/Application), Array, Object(Closure))
+#26 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Container/Container.php(799): Illuminate/Container/BoundMethod::call(Object(Illuminate/Foundation/Application), Array, Array, NULL)
+#27 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Console/Command.php(211): Illuminate/Container/Container->call(Array)
+#28 C:/TTUNC/backend/vendor/symfony/console/Command/Command.php(341): Illuminate/Console/Command->execute(Object(Symfony/Component/Console/Input/ArgvInput), Object(Illuminate/Console/OutputStyle))
+#29 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Console/Command.php(180): Symfony/Component/Console/Command/Command->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Illuminate/Console/OutputStyle))
+#30 C:/TTUNC/backend/vendor/symfony/console/Application.php(1117): Illuminate/Console/Command->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#31 C:/TTUNC/backend/vendor/symfony/console/Application.php(356): Symfony/Component/Console/Application->doRunCommand(Object(Illuminate/Database/Console/Migrations/MigrateCommand), Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#32 C:/TTUNC/backend/vendor/symfony/console/Application.php(195): Symfony/Component/Console/Application->doRun(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#33 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(198): Symfony/Component/Console/Application->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#34 C:/TTUNC/backend/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1235): Illuminate/Foundation/Console/Kernel->handle(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#35 C:/TTUNC/backend/artisan(16): Illuminate/Foundation/Application->handleCommand(Object(Symfony/Component/Console/Input/ArgvInput))
+#36 {main}
+>>>>>>> origin/main
 "} 

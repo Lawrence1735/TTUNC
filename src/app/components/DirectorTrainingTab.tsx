@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { TabsContent } from './ui/tabs';
@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Checkbox } from './ui/checkbox';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Calendar, CheckCircle, FileText, Search, Users, ChevronRight, TrendingUp } from './ui/icons';
+import { Calendar, CheckCircle, FileText, Search, ChevronRight, ChevronDown, TrendingUp } from './ui/icons';
 import { toast } from 'sonner';
 
 interface DirectorTrainingTabProps {
@@ -51,27 +51,50 @@ export function DirectorTrainingTab({
   evaluations,
   getScoreColor,
 }: DirectorTrainingTabProps) {
+  // State for expandable evaluation details
+  const [expandedEvaluations, setExpandedEvaluations] = useState<Set<string>>(new Set());
+  
+  // State for weekly attendance view
+  const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(() => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    return new Date(today.setDate(diff));
+  });
+
+  const toggleEvaluationExpanded = (evaluationId: string) => {
+    const newSet = new Set(expandedEvaluations);
+    if (newSet.has(evaluationId)) {
+      newSet.delete(evaluationId);
+    } else {
+      newSet.add(evaluationId);
+    }
+    setExpandedEvaluations(newSet);
+  };
+
+  // Debug logging
+  useEffect(() => {
+    console.log('DirectorTrainingTab received trainees:', {
+      count: trainees?.length,
+      data: trainees,
+      instruments: traineeInstruments,
+      chapters: traineeChapters,
+      voices: traineeVoices
+    });
+  }, [trainees, traineeInstruments, traineeChapters, traineeVoices]);
   return (
           <TabsContent value="training" id="tab-panel-training" role="tabpanel" aria-label="Training" className="space-y-6">
-            {/* Quick Stats */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-4">
-              <Card 
-                className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
-              >
-                <CardContent className="p-2 sm:p-3">
-                  <p className="text-[#6B7280] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Active Trainees</p>
-                  <p className="text-[#1A1A1A] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">{trainees.length}</p>
-                </CardContent>
-              </Card>
-              
-              <Card 
-                className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
-              >
-                <CardContent className="p-2 sm:p-3">
-                  <p className="text-[#6B7280] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Completion Rate</p>
-                  <p className="text-[#1A1A1A] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">{trainingCompletionRate}%</p>
-                </CardContent>
-              </Card>
+            {/* Quick Stats - Compact inline design matching DirectorRecruitment */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", width: "55%", maxWidth: "500px" }}>
+              {[
+                { label: "Active Trainees", val: trainees.length },
+                { label: "Completion Rate", val: `${trainingCompletionRate}%` }
+              ].map(({ label, val }) => (
+                <div key={label} style={{ background: "#fff", borderRadius: 10, border: "1px solid #E5E7EB", boxShadow: "0 1px 6px rgba(0,0,0,0.06)", padding: "12px 14px", display: "flex", flexDirection: "column", justifyContent: "center", boxSizing: "border-box" }}>
+                  <p style={{ fontSize: 10, color: "#94A3B8", marginBottom: 2, margin: 0 }}>{label}</p>
+                  <p style={{ fontSize: 16, fontWeight: 700, color: val === 0 || val === "0%" ? "#CBD5E1" : "#0F172A", lineHeight: 1, margin: 0 }}>{val}</p>
+                </div>
+              ))}
             </div>
 
             {/* Trainee Management Table */}
@@ -112,10 +135,21 @@ export function DirectorTrainingTab({
                       {/* Mobile: tappable cards */}
                       <div className="md:hidden space-y-2 overflow-y-auto max-h-[640px]">
                         {filtered.map((trainee) => {
-                          const chapters = traineeChapters[trainee.id!] || {};
-                          const completedCount = Object.values(chapters).filter(Boolean).length;
-                          const trainingCompletion = Math.round((completedCount / 30) * 100);
-                          const instrument = traineeInstruments[trainee.id!] || traineeVoices[trainee.id!] || '—';
+                          // ─── DATA SOURCE MAPPING ───
+                          // Training Completion: % of 30 chapters marked as completed (tracked in traineeChapters state)
+                          // Date Joined: trainee.dateJoined from User model in database
+                          // Instrument: trainee assigned instrument (from traineeInstruments state or trainee object)
+                          
+                          const trainingCompletion = trainee.completionRate !== undefined 
+                            ? trainee.completionRate 
+                            : (() => {
+                                const chapters = traineeChapters[trainee.id!] || {};
+                                const completedCount = Object.values(chapters).filter(Boolean).length;
+                                return Math.round((completedCount / 30) * 100);
+                              })();
+                          
+                          const instrument = trainee.instrument || trainee.assignedInstrument || traineeInstruments[trainee.id!] || traineeVoices[trainee.id!] || '—';
+                          
                           const dateJoined = trainee.dateJoined
                             ? new Date(trainee.dateJoined).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                             : '—';
@@ -159,13 +193,21 @@ export function DirectorTrainingTab({
                           </TableHeader>
                           <TableBody>
                             {filtered.map((trainee) => {
-                              const chapters = traineeChapters[trainee.id!] || {};
-                              const completedCount = Object.values(chapters).filter(Boolean).length;
-                              const trainingCompletion = Math.round((completedCount / 30) * 100);
-                              const instrument = traineeInstruments[trainee.id!] || traineeVoices[trainee.id!] || '—';
+                              // IMPORTANT: Use backend data directly when available
+                              const trainingCompletion = trainee.completionRate !== undefined 
+                                ? trainee.completionRate 
+                                : (() => {
+                                    const chapters = traineeChapters[trainee.id!] || {};
+                                    const completedCount = Object.values(chapters).filter(Boolean).length;
+                                    return Math.round((completedCount / 30) * 100);
+                                  })();
+                              
+                              const instrument = trainee.instrument || trainee.assignedInstrument || traineeInstruments[trainee.id!] || traineeVoices[trainee.id!] || '—';
+                              
                               const dateJoined = trainee.dateJoined
                                 ? new Date(trainee.dateJoined).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                                 : '—';
+                              
                               return (
                                 <TableRow key={trainee.id} className="hover:bg-gray-50">
                                   <TableCell className="font-medium cursor-pointer text-[#7A1E1E] hover:underline"
@@ -206,7 +248,7 @@ export function DirectorTrainingTab({
                     <CardTitle>Training Attendance</CardTitle>
                     <CardDescription>Check the box to mark present. Leave unchecked for absent. Toggle "No Practice" for non-training days.</CardDescription>
                   </div>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-3 shrink-0">
                     <Button
                       onClick={() => {
                         if (trainees.length === 0) {
@@ -215,20 +257,18 @@ export function DirectorTrainingTab({
                         }
                         setShowAddDateDialog(true);
                       }}
-                      className="bg-[#7A1E1E] hover:bg-[#6A1919]"
-                      size="sm"
+                      className="bg-[#7A1E1E] hover:bg-[#6A1919] px-4 py-2"
                     >
-                      <Calendar className="w-4 h-4 mr-1" />
+                      <Calendar className="w-4 h-4 mr-2" />
                       <span className="hidden sm:inline">{trainingAttendance.length === 0 ? 'Generate Dates' : 'Manage Dates'}</span>
                       <span className="sm:hidden">{trainingAttendance.length === 0 ? 'Generate' : 'Manage'}</span>
                     </Button>
                     <Button
-                      size="sm"
-                      className="bg-[#7A1E1E] hover:bg-[#6A1919] text-white"
+                      className="bg-[#7A1E1E] hover:bg-[#6A1919] text-white px-4 py-2"
                       onClick={() => setShowSummaryReportDialog(true)}
                       disabled={trainingAttendance.length === 0}
                     >
-                      <FileText className="w-4 h-4 mr-1" />
+                      <FileText className="w-4 h-4 mr-2" />
                       <span className="hidden sm:inline">Summary Report</span>
                       <span className="sm:hidden">Report</span>
                     </Button>
@@ -243,121 +283,157 @@ export function DirectorTrainingTab({
                     <p className="text-sm text-[#6c757d]">Click "Generate Dates" to create training dates and start tracking attendance</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto overflow-y-auto max-h-[420px] custom-scrollbar">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="sticky left-0 z-20 bg-white border-r-2 border-[#7A1E1E] w-[140px] py-2">
-                            <span className="font-medium">Trainee Name</span>
-                          </TableHead>
-{trainingAttendance.map((record, idx) => {
-                            const dateObj = record?.date ? new Date(record.date) : null;
-                            const isToday = dateObj ? dateObj.toDateString() === new Date().toDateString() : false;
-                            const isPast = dateObj ? dateObj < new Date() && !isToday : false;
-                            
-                            return (
-                              <TableHead key={idx} className={`text-center min-w-[110px] py-2 ${isToday ? 'bg-blue-50' : isPast ? 'bg-gray-50' : ''}`}>
-                                <div className="flex flex-col items-center gap-0.5">
-                                  <span className={`font-medium ${isToday ? 'text-[#7A1E1E]' : 'text-[#1a1a1a]'}`}>
-{dateObj instanceof Date && !isNaN(dateObj.getTime())
-  ? dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  : '—'}
-                                  </span>
-                                  <span className="text-[10px] text-[#6c757d] uppercase tracking-wide">
-                                    {dateObj instanceof Date && !isNaN(dateObj.getTime())
-                                      ? dateObj.toLocaleDateString('en-US', { weekday: 'short' })
-                                      : ''}
+                  <div className="space-y-5">
+                    {/* Week Selector */}
+                    <div className="flex items-center justify-between gap-4 px-2">
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        onClick={() => setSelectedWeekStart(new Date(selectedWeekStart.getTime() - 7 * 24 * 60 * 60 * 1000))}
+                        className="border-[#7A1E1E] text-[#7A1E1E] px-4 py-2"
+                      >
+                        ← Previous Week
+                      </Button>
+                      <div className="text-base font-semibold text-[#1a1a1a] bg-gray-50 px-4 py-2 rounded-lg">
+                        {selectedWeekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(selectedWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </div>
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        onClick={() => setSelectedWeekStart(new Date(selectedWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000))}
+                        className="border-[#7A1E1E] text-[#7A1E1E] px-4 py-2"
+                      >
+                        Next Week →
+                      </Button>
+                    </div>
 
-                                  </span>
-                                  <div className="flex items-center gap-1 mt-1.5 bg-white/50 px-1.5 py-0.5 rounded">
-                                    <Checkbox
-                                      id={`no-practice-${idx}`}
-                                      checked={record.noPractice || false}
-                                      onCheckedChange={(checked) => {
-                                        const updated = [...trainingAttendance];
-                                        updated[idx].noPractice = checked as boolean;
-                                        setTrainingAttendance(updated);
-                                        toast.success(checked ? 'Marked as no-practice day' : 'Marked as practice day');
-                                      }}
-                                      className="w-3 h-3"
-                                    />
-                                    <Label htmlFor={`no-practice-${idx}`} className="text-[9px] cursor-pointer text-[#6c757d]">
-                                      No Practice
-                                    </Label>
-                                  </div>
-                                </div>
-                              </TableHead>
-                            );
-                          })}
-                          <TableHead className="sticky right-0 z-20 bg-white border-l-2 border-[#7A1E1E] text-center w-[85px] py-2">
-                            <div className="flex flex-col items-center gap-0.5">
-                              <span className="font-medium">Attendance</span>
-                              <span className="text-[10px] text-[#6c757d]">Rate</span>
+                    {/* Week Days Header */}
+                    <div className="grid grid-cols-8 gap-4 px-2 py-4 bg-gray-50 rounded-lg">
+                      <div className="col-span-1 py-2"></div>
+                      {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
+                        const date = new Date(selectedWeekStart.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+                        const isToday = date.toDateString() === new Date().toDateString();
+                        return (
+                          <div key={dayOffset} className="text-center py-2">
+                            <p className={`text-xs font-medium ${isToday ? 'text-[#7A1E1E] font-semibold' : 'text-[#6c757d]'}`}>
+                              {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                            </p>
+                            <div className="flex justify-center mt-1">
+                              <span className={`text-base font-bold w-8 h-8 flex items-center justify-center rounded-full ${
+                                isToday ? 'bg-[#7A1E1E] text-white' : 'text-[#1a1a1a]'
+                              }`}>
+                                {date.getDate()}
+                              </span>
                             </div>
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {trainees.map((trainee) => {
-                          const practiceDays = trainingAttendance.filter(record => !record.noPractice);
-                          const presentCount = practiceDays.filter(record => record.attendees[trainee.id!] === 'present').length;
-                          const totalSessions = practiceDays.length;
-                          const attendanceRate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0;
-                          
-                          return (
-                            <TableRow key={trainee.id}>
-                              <TableCell className="sticky left-0 z-10 bg-white border-r-2 border-[#7A1E1E] font-medium py-2">
-                                {trainee.name}
-                              </TableCell>
-                              {trainingAttendance.map((record, dateIdx) => {
-                                const currentStatus = record.attendees[trainee.id!] || 'absent';
-                                const isNoPractice = record.noPractice;
-                                const dateObj = record?.date ? new Date(record.date) : null;
-                                const isToday = dateObj && dateObj.toDateString() === new Date().toDateString();
-                                const isPast = dateObj && dateObj < new Date() && !isToday;
+                            {isToday && <div className="text-[10px] text-[#7A1E1E] font-medium mt-0.5">Today</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Trainees Attendance */}
+                    <div className="space-y-5 max-h-[500px] overflow-y-auto px-4">
+                      {trainees.map((trainee) => {
+                        const practiceDays = trainingAttendance.filter(record => !record.noPractice);
+                        const presentCount = practiceDays.filter(record => record.attendees[trainee.id!] === 'present').length;
+                        const totalSessions = practiceDays.length;
+                        const attendanceRate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0;
+                        
+                        return (
+                          <div key={trainee.id} className="bg-white rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+                            {/* Trainee Header */}
+                            <div className="flex items-center justify-between mb-5 pb-4">
+                              <p className="font-medium text-[#1a1a1a]">{trainee.name}</p>
+                              <div className={`text-xs font-medium px-2 py-1 rounded-full ${
+                                attendanceRate >= 90 ? 'bg-green-50 text-green-700' :
+                                attendanceRate >= 70 ? 'bg-yellow-50 text-yellow-700' :
+                                'bg-red-50 text-red-700'
+                              }`}>
+                                {attendanceRate}% ({presentCount}/{totalSessions})
+                              </div>
+                            </div>
+
+                            {/* Weekly Attendance Toggles */}
+                            <div className="grid grid-cols-8 gap-4">
+                              <div></div>
+                              {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
+                                const date = new Date(selectedWeekStart.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+                                const attendanceRecord = trainingAttendance.find(r => 
+                                  new Date(r.date).toDateString() === date.toDateString()
+                                );
+                                const isNoPractice = attendanceRecord?.noPractice || false;
+                                const currentStatus = attendanceRecord?.attendees[trainee.id!] || 'absent';
                                 
                                 return (
-                                  <TableCell 
-                                    key={dateIdx} 
-                                    className={`text-center p-1.5 ${
-                                      isToday ? 'bg-blue-50' : isPast ? 'bg-gray-50' : ''
-                                    }`}
-                                  >
+                                  <div key={dayOffset} className="flex flex-col gap-2">
                                     {isNoPractice ? (
-                                      <span className="text-[#6c757d] text-lg">—</span>
+                                      <div className="h-9 flex items-center justify-center text-[#6c757d] text-sm">—</div>
                                     ) : (
-                                      <div className="flex items-center justify-center">
-                                        <Checkbox
-                                          checked={currentStatus === 'present'}
-                                          onCheckedChange={(checked) => {
-                                            const updated = [...trainingAttendance];
-                                            updated[dateIdx].attendees[trainee.id!] = checked ? 'present' : 'absent';
-                                            setTrainingAttendance(updated);
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => {
+                                            if (attendanceRecord) {
+                                              const updated = [...trainingAttendance];
+                                              const idx = updated.indexOf(attendanceRecord);
+                                              updated[idx].attendees[trainee.id!] = 'present';
+                                              setTrainingAttendance(updated);
+                                            }
                                           }}
-                                          className="w-5 h-5"
-                                        />
+                                          className={`flex-1 px-2.5 py-2 rounded text-xs font-medium transition-all ${
+                                            currentStatus === 'present'
+                                              ? 'bg-green-500 text-white'
+                                              : 'bg-gray-100 text-[#6c757d] hover:bg-green-100'
+                                          }`}
+                                          title="Present"
+                                        >
+                                          ✓
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            if (attendanceRecord) {
+                                              const updated = [...trainingAttendance];
+                                              const idx = updated.indexOf(attendanceRecord);
+                                              updated[idx].attendees[trainee.id!] = 'absent';
+                                              setTrainingAttendance(updated);
+                                            }
+                                          }}
+                                          className={`flex-1 px-2.5 py-2 rounded text-xs font-medium transition-all ${
+                                            currentStatus === 'absent'
+                                              ? 'bg-red-500 text-white'
+                                              : 'bg-gray-100 text-[#6c757d] hover:bg-red-100'
+                                          }`}
+                                          title="Absent"
+                                        >
+                                          ✗
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            if (attendanceRecord) {
+                                              const updated = [...trainingAttendance];
+                                              const idx = updated.indexOf(attendanceRecord);
+                                              updated[idx].attendees[trainee.id!] = 'excused';
+                                              setTrainingAttendance(updated);
+                                            }
+                                          }}
+                                          className={`flex-1 px-2.5 py-2 rounded text-xs font-medium transition-all ${
+                                            currentStatus === 'excused'
+                                              ? 'bg-yellow-500 text-white'
+                                              : 'bg-gray-100 text-[#6c757d] hover:bg-yellow-100'
+                                          }`}
+                                          title="Excused"
+                                        >
+                                          ~
+                                        </button>
                                       </div>
                                     )}
-                                  </TableCell>
+                                  </div>
                                 );
                               })}
-                              <TableCell className="sticky right-0 z-10 bg-white border-l-2 border-[#7A1E1E] text-center py-2">
-                                <div className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full font-medium ${
-                                  attendanceRate >= 90 ? 'text-green-600 bg-green-50' :
-                                  attendanceRate >= 70 ? 'text-yellow-600 bg-yellow-50' :
-                                  'text-red-600 bg-red-50'
-                                }`}>
-                                  {attendanceRate}%
-                                </div>
-                                <div className="text-[10px] text-[#6c757d] mt-0.5">
-                                  {presentCount}/{totalSessions}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -373,22 +449,136 @@ export function DirectorTrainingTab({
                 <div className="max-h-[420px] overflow-y-auto">
                   <div className="space-y-3">
                     {evaluations.length > 0 ? (
-                      evaluations.slice().reverse().map((evaluation) => (
-                        <div key={evaluation.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{evaluation.traineeName}</p>
-<p className="text-sm text-[#6c757d]">{evaluation?.date ? evaluation.date.toLocaleDateString() : "No Date Available"}</p>
-                            {evaluation.notes && (
-                              <p className="text-sm text-[#6c757d] mt-1 line-clamp-2">{evaluation.notes}</p>
+                      evaluations.slice().reverse().map((evaluation) => {
+                        const isExpanded = expandedEvaluations.has(evaluation.id);
+                        return (
+                          <div key={evaluation.id} className="border border-[#e0e0e0] rounded-lg overflow-hidden hover:border-[#7A1E1E] transition-colors">
+                            {/* Summary Row - Clickable */}
+                            <div
+                              className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                              onClick={() => toggleEvaluationExpanded(evaluation.id)}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium truncate">
+                                    {evaluation.traineeName || evaluation?.trainee?.user?.name || evaluation?.trainee_name || 'Unknown Trainee'}
+                                  </p>
+                                  {isExpanded && <ChevronDown className="w-4 h-4 text-[#6c757d] shrink-0" />}
+                                  {!isExpanded && <ChevronRight className="w-4 h-4 text-[#6c757d] shrink-0" />}
+                                </div>
+                                <p className="text-sm text-[#6c757d]">
+                                  {(() => {
+                                    const raw = evaluation?.date ?? evaluation?.evaluation_date;
+                                    if (!raw) return 'No Date Available';
+                                    const d = raw instanceof Date ? raw : new Date(raw);
+                                    return isNaN(d.getTime()) ? 'No Date Available' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                                  })()}
+                                </p>
+                              </div>
+                              <div className="text-right ml-4 shrink-0">
+                                <div className={`text-lg font-medium ${getScoreColor(evaluation.rating ?? 0)}`}>
+                                  {evaluation.rating ?? '—'}/100
+                                </div>
+                                <div className="text-xs text-[#6c757d] mt-1 capitalize">
+                                  {evaluation.adjectivalRating || evaluation.recommendation || 'Rated'}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Expanded Details */}
+                            {isExpanded && (
+                              <div className="border-t border-[#e0e0e0] bg-gray-50 p-4 space-y-4">
+                                {/* Overall Rating Card */}
+                                <div className="bg-white p-3 rounded-lg border border-[#e0e0e0]">
+                                  <p className="text-xs font-medium text-[#6c757d] mb-2">Overall Rating</p>
+                                  <p className="text-2xl font-bold text-[#7A1E1E]">{evaluation.overallRating}/5.00</p>
+                                </div>
+
+                                {/* Section Scores */}
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div className="bg-white p-3 rounded-lg border border-[#e0e0e0]">
+                                    <p className="text-xs font-medium text-[#6c757d] mb-1">Section A</p>
+                                    <div className="space-y-1">
+                                      {evaluation.sectionA && Object.entries(evaluation.sectionA).map(([key, value]) => (
+                                        <div key={key} className="text-xs text-[#1a1a1a]">
+                                          <span className="text-[#6c757d]">{String(value)}</span>
+                                        </div>
+                                      ))}
+                                      <p className="text-sm font-bold text-[#7A1E1E] mt-2">Total: {evaluation.sectionA ? Object.values(evaluation.sectionA).reduce((a: number, b: any) => a + b, 0) : 0}</p>
+                                    </div>
+                                  </div>
+                                  <div className="bg-white p-3 rounded-lg border border-[#e0e0e0]">
+                                    <p className="text-xs font-medium text-[#6c757d] mb-1">Section B</p>
+                                    <div className="space-y-1">
+                                      {evaluation.sectionB && Object.entries(evaluation.sectionB).map(([key, value]) => (
+                                        <div key={key} className="text-xs text-[#1a1a1a]">
+                                          <span className="text-[#6c757d]">{String(value)}</span>
+                                        </div>
+                                      ))}
+                                      <p className="text-sm font-bold text-[#7A1E1E] mt-2">Total: {evaluation.sectionB ? Object.values(evaluation.sectionB).reduce((a: number, b: any) => a + b, 0) : 0}</p>
+                                    </div>
+                                  </div>
+                                  <div className="bg-white p-3 rounded-lg border border-[#e0e0e0]">
+                                    <p className="text-xs font-medium text-[#6c757d] mb-1">Section C</p>
+                                    <div className="space-y-1">
+                                      {evaluation.sectionC && Object.entries(evaluation.sectionC).map(([key, value]) => (
+                                        <div key={key} className="text-xs text-[#1a1a1a]">
+                                          <span className="text-[#6c757d]">{String(value)}</span>
+                                        </div>
+                                      ))}
+                                      <p className="text-sm font-bold text-[#7A1E1E] mt-2">Total: {evaluation.sectionC ? Object.values(evaluation.sectionC).reduce((a: number, b: any) => a + b, 0) : 0}</p>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Strengths and Improvements */}
+                                {(evaluation.strengths || evaluation.improvements) && (
+                                  <div className="space-y-2">
+                                    {evaluation.strengths && (
+                                      <div className="bg-white p-3 rounded-lg border border-[#e0e0e0]">
+                                        <p className="text-xs font-medium text-[#16a34a] mb-1">Strengths</p>
+                                        <p className="text-sm text-[#1a1a1a]">{evaluation.strengths}</p>
+                                      </div>
+                                    )}
+                                    {evaluation.improvements && (
+                                      <div className="bg-white p-3 rounded-lg border border-[#e0e0e0]">
+                                        <p className="text-xs font-medium text-[#2563eb] mb-1">Areas for Improvement</p>
+                                        <p className="text-sm text-[#1a1a1a]">{evaluation.improvements}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Scholarship & Recommendation */}
+                                <div className="grid grid-cols-2 gap-2">
+                                  {evaluation.scholarshipPercentage !== undefined && (
+                                    <div className="bg-white p-3 rounded-lg border border-[#e0e0e0]">
+                                      <p className="text-xs font-medium text-[#6c757d] mb-1">Scholarship</p>
+                                      <p className="text-lg font-bold text-[#7A1E1E]">{evaluation.scholarshipPercentage}%</p>
+                                    </div>
+                                  )}
+                                  {evaluation.recommendForRenewal !== undefined && (
+                                    <div className="bg-white p-3 rounded-lg border border-[#e0e0e0]">
+                                      <p className="text-xs font-medium text-[#6c757d] mb-1">Renewal</p>
+                                      <Badge className={evaluation.recommendForRenewal ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                        {evaluation.recommendForRenewal ? 'Recommended' : 'Not Recommended'}
+                                      </Badge>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Evaluator Info */}
+                                {(evaluation.ratedBy || evaluation.ratedDate) && (
+                                  <div className="text-xs text-[#6c757d] space-y-1">
+                                    {evaluation.ratedBy && <p><span className="font-medium">Evaluated by:</span> {evaluation.ratedBy}</p>}
+                                    {evaluation.ratedDate && <p><span className="font-medium">Date:</span> {evaluation.ratedDate}</p>}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
-                          <div className="text-right ml-4 shrink-0">
-                            <div className={`text-lg font-medium ${getScoreColor(evaluation.rating)}`}>
-                              {evaluation.rating}/100
-                            </div>
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="text-center text-[#6c757d] py-8">
                         No evaluations yet

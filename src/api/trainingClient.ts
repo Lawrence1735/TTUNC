@@ -1,96 +1,148 @@
-import apiClient from './client';
+import { api as apiClient } from '../app/services/api';
 
-export interface TraineeResponse {
-  id: string;
-  user_id?: string;
-  talent_group: string;
+export interface Trainee {
+  id: number;
+  user_id: number;
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  completion_rate: number;
+  current_status: 'active' | 'inactive' | 'completed' | 'dropped';
+  chapter?: string;
+  chapters_completed?: Record<number, boolean>;
   instrument?: string;
   voice?: string;
-  [key: string]: any;
+  total_expected_sessions: number;
+  date_joined?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
-class TrainingClient {
+export interface TraineeResponse {
+  data: Trainee[];
+  meta?: {
+    total: number;
+    per_page: number;
+    current_page: number;
+  };
+}
+
+export class TrainingClient {
   /**
-   * Fetch all trainees from the API
+   * Fetch all trainees
    */
-  async getTrainees(): Promise<TraineeResponse[]> {
+  async getTrainees(): Promise<Trainee[]> {
     try {
-      const response = await apiClient.get('/trainees');
-      return response.data || [];
-    } catch (error: any) {
-      console.error('Error fetching trainees:', error);
+      const response = await apiClient.get('/training/trainees');
+      const data = response.data?.data || response.data || [];
+      return Array.isArray(data) ? data : [];
+    } catch (err: any) {
+      console.error('Failed to fetch trainees:', err);
       throw {
-        message: error.message || 'Failed to fetch trainees',
-        status: error.status,
+        status: err.status,
+        message: err.message || 'Failed to fetch trainees',
+        data: err.data,
+        errors: err.errors,
       };
     }
   }
 
   /**
-   * Fetch a specific trainee by ID
+   * Get specific trainee by ID
    */
-  async getTrainee(traineeId: string): Promise<TraineeResponse> {
+  async getTrainee(traineeId: number): Promise<Trainee> {
     try {
-      const response = await apiClient.get(`/trainees/${traineeId}`);
-      return response.data;
-    } catch (error: any) {
-      console.error(`Error fetching trainee ${traineeId}:`, error);
+      const response = await apiClient.get(`/training/trainees/${traineeId}`);
+      return response.data?.data || response.data;
+    } catch (err: any) {
+      console.error(`Failed to fetch trainee ${traineeId}:`, err);
       throw {
-        message: error.message || `Failed to fetch trainee ${traineeId}`,
-        status: error.status,
+        status: err.status,
+        message: err.message || `Failed to fetch trainee ${traineeId}`,
+        data: err.data,
+        errors: err.errors,
       };
     }
   }
 
   /**
-   * Update trainee information
+   * Update trainee (status, completion rate, etc.)
    */
-  async updateTrainee(traineeId: string, data: Partial<TraineeResponse>): Promise<TraineeResponse> {
+  async updateTrainee(traineeId: number, updates: Partial<Trainee>): Promise<Trainee> {
     try {
-      const response = await apiClient.put(`/trainees/${traineeId}`, data);
-      return response.data;
-    } catch (error: any) {
-      console.error(`Error updating trainee ${traineeId}:`, error);
+      const response = await apiClient.patch(`/training/trainees/${traineeId}`, updates);
+      return response.data?.data || response.data;
+    } catch (err: any) {
+      console.error(`Failed to update trainee ${traineeId}:`, err);
       throw {
-        message: error.message || `Failed to update trainee ${traineeId}`,
-        status: error.status,
+        status: err.status,
+        message: err.message || `Failed to update trainee ${traineeId}`,
+        data: err.data,
+        errors: err.errors,
       };
     }
   }
 
   /**
-   * Fetch trainee attendance records
+   * Create a new evaluation
    */
-  async getAttendance(traineeId: string): Promise<any[]> {
+  async createEvaluation(data: any): Promise<any> {
     try {
-      const response = await apiClient.get(`/trainees/${traineeId}/attendance`);
-      return response.data || [];
-    } catch (error: any) {
-      console.error(`Error fetching attendance for trainee ${traineeId}:`, error);
+      const response = await apiClient.post('/training/evaluations', data);
+      return response.data?.data || response.data;
+    } catch (err: any) {
+      console.error('Failed to create evaluation:', err);
       throw {
-        message: error.message || `Failed to fetch attendance for trainee ${traineeId}`,
-        status: error.status,
+        status: err.status,
+        message: err.message || 'Failed to create evaluation',
+        data: err.data,
+        errors: err.errors,
       };
     }
   }
 
   /**
-   * Fetch trainee progress/training records
+   * Update an existing evaluation
    */
-  async getTraineeProgress(traineeId: string): Promise<any> {
+  async updateEvaluation(evaluationId: number, data: any): Promise<any> {
     try {
-      const response = await apiClient.get(`/trainees/${traineeId}/progress`);
-      return response.data;
-    } catch (error: any) {
-      console.error(`Error fetching progress for trainee ${traineeId}:`, error);
+      const response = await apiClient.patch(`/training/evaluations/${evaluationId}`, data);
+      return response.data?.data || response.data;
+    } catch (err: any) {
+      console.error(`Failed to update evaluation ${evaluationId}:`, err);
       throw {
-        message: error.message || `Failed to fetch progress for trainee ${traineeId}`,
-        status: error.status,
+        status: err.status,
+        message: err.message || `Failed to update evaluation ${evaluationId}`,
+        data: err.data,
+        errors: err.errors,
+      };
+    }
+  }
+
+  /**
+   * Fetch all evaluations
+   */
+  async getEvaluations(filters?: { trainee_id?: number; status?: string }): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (filters?.trainee_id) params.append('trainee_id', filters.trainee_id.toString());
+      if (filters?.status) params.append('status', filters.status);
+      
+      const response = await apiClient.get('/training/evaluations', { params });
+      const data = response.data?.data || response.data || [];
+      return Array.isArray(data) ? data : [];
+    } catch (err: any) {
+      console.error('Failed to fetch evaluations:', err);
+      throw {
+        status: err.status,
+        message: err.message || 'Failed to fetch evaluations',
+        data: err.data,
+        errors: err.errors,
       };
     }
   }
 }
 
-// Export singleton instance
-const trainingClient = new TrainingClient();
-export default trainingClient;
+export default new TrainingClient();

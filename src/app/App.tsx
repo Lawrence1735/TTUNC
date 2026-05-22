@@ -1,4 +1,5 @@
-import { useState, useEffect, lazy, Suspense, useTransition } from "react";
+import React, { useState, useEffect, lazy, Suspense, useTransition } from "react";
+import { useAuth } from './context/AuthContext';
 import { TalentTrackLanding } from "./components/TalentTrackLanding";
 import { TalentTrackLogin } from "./components/TalentTrackLogin";
 import { AccountRecovery } from "./components/AccountRecovery";
@@ -8,7 +9,7 @@ import {
   PublicApplicationForm,
   ApplicationFormData,
 } from "./components/PublicApplicationForm";
-import { useAuth, AuthUser } from "../context/AuthContext";
+import { AuthUser } from "../context/AuthContext";
 import { toast } from "sonner";
 
 // Lazy load heavy dashboard components for better performance
@@ -25,9 +26,21 @@ import { Toaster } from "./components/ui/sonner";
 import { applicationClient } from "../api/applicationClient";
 import { initKeyboardNavigation } from "./utils/keyboardNavigation";
 import { SkipToContent } from "./components/accessibility/SkipToContent";
+import { recruitmentService } from "./services/recruitmentService";
 
-// NOTE: Mock data imports removed - using real API instead
-// TODO: Replace mock data in dashboards with API calls in Phase 2
+// Mock data imports for dashboard initialization
+import {
+  users as mockUsers,
+  evaluations as mockEvaluations,
+  events as mockEvents,
+  announcements as mockAnnouncements,
+  applications as mockApplications,
+  trainingRecords as mockTrainingRecords,
+  notifications as mockNotifications,
+  inventoryItems as mockInventoryItems,
+  benefits as mockBenefits,
+  renewals as mockRenewals,
+} from "./data/mockData";
 
 export interface Evaluation {
   id: string;
@@ -80,6 +93,19 @@ export interface User {
   assignedInstrument?: string;
   assignedVoice?: string;
   scholarshipPercentage?: number;
+  gender?: string;
+  dateOfBirth?: string;
+  birthdate?: string;
+  age?: string;
+  socialMedia?: string;
+  department?: string;
+  emergencyContactName?: string;
+  emergencyContactRelationship?: string;
+  emergencyContactPhone?: string;
+  guardianName?: string;
+  guardianContact?: string;
+  allergies?: string;
+  medicalConditions?: string;
 }
 
 export interface Application {
@@ -359,32 +385,32 @@ function AppContent() {
 
   const unreadNotificationsCount = userNotifications.filter(n => !n.read).length;
 
-  const handleLogin = async (email: string, password: string) => {
-    const { success, error } = await login(email, password);
-
-    if (success) {
-      // User and role come from API response (in AuthContext)
-      // The API response determines the dashboard redirect
-      startTransition(() => {
-        setCurrentPage("dashboard");
-
-        // Role-based redirect based on authenticated user from API
-        if (currentUser?.role === "student") {
-          if (currentUser.trainingStatus === "in_progress") {
-            setCurrentView("training");
+  const handleLogin = async (email: string, password: string, _selectedRole?: string) => {
+    const result = await login(email, password);
+    if (result.success) {
+      // Update current user from auth context
+      if (user) {
+        setCurrentUser(user);
+        startTransition(() => {
+          setCurrentPage("dashboard");
+          
+          // Role-based redirect
+          if (user.role === 'admin') {
+            setCurrentView('admin');
+          } else if (user.role === 'director') {
+            setCurrentView('director');
+          } else if (user.trainingStatus === 'in_progress') {
+            setCurrentView('training');
           } else {
-            setCurrentView("student");
+            setCurrentView('student');
           }
-        } else if (currentUser?.role === "scholar") {
-          setCurrentView("member-profile");
-        }
-      });
-      toast.success(`Welcome back, ${currentUser?.name}!`);
-      return { success: true };
+        });
+        toast.success(`Welcome back, ${user.name}!`);
+      }
+    } else {
+      toast.error(result.error ?? 'Invalid email or password');
     }
-
-    toast.error(error || "Invalid email or password");
-    return { success: false, error };
+    return result;
   };
 
   const handleLogout = async () => {
@@ -426,8 +452,7 @@ function AppContent() {
   const handlePublicApplicationSubmit = async (formData: ApplicationFormData) => {
     try {
       // Prepare API request payload with snake_case field names
-      // Only include fields that exist in the applications table schema
-      const apiPayload = {
+      const payload = {
         talent_group: formData.talentGroup,
         applicant_name: formData.fullName,
         applicant_email: formData.email,
@@ -443,23 +468,17 @@ function AppContent() {
         guardian_name: formData.guardianName,
         guardian_phone: formData.guardianContactNo,
         guardian_relationship: formData.guardianRelationship,
-        // Talent-group specific fields that exist in schema
-        instruments: formData.instruments || null,
-        voices: formData.voices || null,
-        vocal_range: formData.vocalRange || null,
-        primary_dance_genre: formData.primaryDanceGenre || null,
-        years_of_experience: formData.yearsOfExperience || null,
         experience: formData.experience || null,
         motivation: formData.motivation || null,
       };
 
-      // Call API to submit the application
-      const response = await applicationClient.submitApplication(apiPayload);
+      // Call API to submit the application (prioritizing recruitmentService)
+      const response = await recruitmentService.submitApplication(payload);
       
-      // Also maintain local state for immediate UI feedback
+      // Create local application for UI feedback
       const newApplication: Application = {
-        id: response.data.id || `app_${Date.now()}`,
-        userId: response.data.user_id || `user_${Date.now()}`,
+        id: response.id || `app_${Date.now()}`,
+        userId: `user_${Date.now()}`,
         talentGroup: formData.talentGroup,
         personalInfo: {
           name: formData.fullName,
@@ -477,25 +496,9 @@ function AppContent() {
           guardianName: formData.guardianName,
           guardianContactNo: formData.guardianContactNo,
           guardianRelationship: formData.guardianRelationship,
-          // Marching Band specific
-          hasBandExperience: formData.hasBandExperience,
-          // Glee Club specific
-          vocalRange: formData.vocalRange,
-          previousSingingExperience: formData.previousSingingExperience,
-          musicalBackground: formData.musicalBackground,
-          // Dance Club specific
-          primaryDanceGenre: formData.primaryDanceGenre,
-          yearsOfExperience: formData.yearsOfExperience,
-          performedOnStage: formData.performedOnStage,
-          willingToAttendRehearsals: formData.willingToAttendRehearsals,
-          // Majorettes specific
-          previousMajoretteTeam: formData.previousMajoretteTeam,
-          previousOrganization: formData.previousOrganization,
-          canPerformBasicRoutines: formData.canPerformBasicRoutines,
-          willingToAttendRehearsalsMajorettes: formData.willingToAttendRehearsalsMajorettes,
         },
-        experience: "",
-        motivation: "",
+        experience: formData.experience || "",
+        motivation: formData.motivation || "",
         documents: [],
         status: "pending",
         appliedAt: new Date(),
@@ -517,11 +520,12 @@ function AppContent() {
         );
       }
       
-      toast.success("Application submitted successfully! You will receive a notification once reviewed.", { duration: 6000 });
+      toast.success("Application submitted successfully! Check your email for updates on your application.", { duration: 6000 });
       startTransition(() => setCurrentPage("landing"));
     } catch (error: any) {
-      console.error('Failed to submit application:', error);
-      toast.error(error.message || 'Failed to submit application. Please try again.');
+      console.error('Application submission failed:', error);
+      const errorMessage = error.message || 'Failed to submit application. Please try again.';
+      toast.error(errorMessage);
     }
   };
 

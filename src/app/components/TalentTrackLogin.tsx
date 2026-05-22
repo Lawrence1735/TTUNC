@@ -194,6 +194,7 @@ export const TalentTrackLogin: React.FC<
                   onFocus={() => setFocusedField("password")}
                   onBlur={() => setFocusedField(null)}
                   placeholder="Enter your password"
+                  autoComplete="current-password"
                   className={`w-full h-11 px-4 pr-12 bg-[#F8FAFC] border rounded-lg transition-all duration-200 text-sm placeholder:text-[#CBD5E1] ${
                     focusedField === "password"
                       ? "bg-white border-[#7A1E1E] ring-2 ring-[#7A1E1E]/20"

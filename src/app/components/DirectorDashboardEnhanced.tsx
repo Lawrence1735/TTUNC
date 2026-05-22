@@ -55,6 +55,7 @@ import { getTalentGroupColor, getTalentGroupName } from './ui/unc-colors';
 import { DocumentsDashboard } from './DocumentsDashboardTabs';
 import { QuickStatsCard } from './ui/QuickStatsCard';
 import { EvaluationFormDialog } from './EvaluationFormDialog';
+import { ChapterEvaluationDialog } from './ChapterEvaluationDialog';
 import { DirectorEngagementRehearsalView } from './DirectorEngagementRehearsalView';
 import { 
   DropdownMenu,
@@ -115,7 +116,7 @@ interface InterviewSchedule {
 
 interface AttendanceRecord {
   date: string;
-  attendees: { [userId: string]: boolean | { status: boolean, timestamp?: string } };
+  attendees: { [userId: string]: boolean | 'present' | 'excused' | 'absent' | { status: boolean; timestamp?: string } };
   noPractice?: boolean;
 }
 
@@ -317,6 +318,28 @@ export function DirectorDashboardEnhanced({
       26: false, 27: false, 28: false, 29: false, 30: false
     }
   });
+
+  // Chapter evaluation tracking: { traineeId: { chapterNum: { passed: boolean, score: number, date?: Date } } }
+  const [chapterEvaluations, setChapterEvaluations] = useState<{
+    [traineeId: string]: {
+      [chapterNum: number]: {
+        passed: boolean;
+        score?: number;
+        date?: Date;
+        notes?: string;
+      }
+    }
+  }>({});
+
+  // Per-chapter evaluation dialog state
+  const [showChapterEvalDialog, setShowChapterEvalDialog] = useState(false);
+  const [selectedChapterForEval, setSelectedChapterForEval] = useState<{ traineeId: string; chapterNum: number } | null>(null);
+  const [chapterEvalForm, setChapterEvalForm] = useState({
+    score: 0,
+    notes: '',
+    passed: true
+  });
+
   const [selectedScholarForPerformance, setSelectedScholarForPerformance] = useState<UserType | null>(null);
   const [selectedEngagement, setSelectedEngagement] = useState<EngagementRequest | null>(null);
   
@@ -706,12 +729,36 @@ export function DirectorDashboardEnhanced({
   ).length;
 
   // Filter users for different modules
-  const allTrainees = (users || []).filter(u => 
-    u.role === 'student' && 
-    u.applicationStatus === 'approved' && 
-    u.trainingStatus !== 'completed' &&
-    u.talentGroup === directorTalentGroup
-  );
+  // Use API-fetched traineesList if available, otherwise fall back to users prop
+  const allTrainees = traineesList.length > 0 
+    ? traineesList.map((trainee: any) => ({
+        // UserType fields
+        id: trainee.user_id || trainee.id,
+        name: trainee.user?.name || trainee.name || '',
+        email: trainee.user?.email || trainee.email || '',
+        role: 'student' as const,
+        applicationStatus: 'approved' as const,
+        trainingStatus: trainee.current_status === 'active' ? 'in_progress' : trainee.current_status,
+        talentGroup: directorTalentGroup,
+        assignedInstrument: trainee.instrument,
+        assignedVoice: trainee.voice,
+        dateJoined: trainee.date_joined || trainee.dateJoined,
+        // Backend trainee properties (extending UserType)
+        completionRate: trainee.completion_rate || 0,
+        currentStatus: trainee.current_status || 'inactive',
+        instrument: trainee.instrument || '',
+        voice: trainee.voice || '',
+        chapter: trainee.chapter || '',
+        totalExpectedSessions: trainee.total_expected_sessions || 0,
+        // Store full trainee object for reference
+        _rawTrainee: trainee,
+      } as any))
+    : (users || []).filter(u => 
+        u.role === 'student' && 
+        u.applicationStatus === 'approved' && 
+        u.trainingStatus !== 'completed' &&
+        u.talentGroup === directorTalentGroup
+      );
   
   // Filter out deactivated trainees from active list
   const trainees = allTrainees.filter(t => 
@@ -728,6 +775,18 @@ export function DirectorDashboardEnhanced({
   const trainingCompletionRate = totalTrainedCount > 0 
     ? Math.round((completedTrainees / totalTrainedCount) * 100) 
     : 0;
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[DirectorDashboardEnhanced] Trainees updated:', {
+      traineeCount: trainees.length,
+      traineesData: trainees,
+      instrumentsMap: traineeInstruments,
+      chaptersMap: traineeChapters,
+      voicesMap: traineeVoices,
+      traineesList: traineesList
+    });
+  }, [trainees, traineeInstruments, traineeChapters, traineeVoices, traineesList]);
 
   // Calculate individual trainee attendance rate
   const calculateTraineeAttendanceRate = (traineeId: string) => {
@@ -889,7 +948,7 @@ export function DirectorDashboardEnhanced({
   };
 
   // Get interview invitation email template
-  const getInterviewInvitationTemplate = (applicantName: string, talentGroup: string, interviewDate: string, interviewTime: string, venue: string, notes: string): EmailTemplate => {
+  const getInterviewInvitationTemplate = (applicantName: string, talentGroup: string, interviewDate: string, interviewTime: string, venue: string, notes: string) => {
     const groupName = getTalentGroupName(talentGroup);
     
     return {
@@ -917,7 +976,7 @@ University of Nueva Caceres`
   };
 
   // Get approval email template (after interview)
-  const getApprovalEmailTemplate = (applicantName: string, talentGroup: string): EmailTemplate => {
+  const getApprovalEmailTemplate = (applicantName: string, talentGroup: string) => {
     const groupName = getTalentGroupName(talentGroup);
     
     return {
@@ -943,7 +1002,7 @@ University of Nueva Caceres`
   };
 
   // Get rejection email template
-  const getRejectionEmailTemplate = (applicantName: string, talentGroup: string): EmailTemplate => {
+  const getRejectionEmailTemplate = (applicantName: string, talentGroup: string) => {
     const groupName = getTalentGroupName(talentGroup);
     
     return {
@@ -1130,7 +1189,7 @@ University of Nueva Caceres`
 
   const calculateSectionAAverage = () => {
     const total = calculateSectionATotal();
-    return (total / 7).toFixed(2);
+    return (total / 6).toFixed(2);
   };
 
   const calculateSectionBTotal = () => {
@@ -1140,7 +1199,7 @@ University of Nueva Caceres`
 
   const calculateSectionBAverage = () => {
     const total = calculateSectionBTotal();
-    return (total / 5).toFixed(2);
+    return (total / 4).toFixed(2);
   };
 
   const calculateSectionCTotal = () => {
@@ -1150,7 +1209,7 @@ University of Nueva Caceres`
 
   const calculateSectionCAverage = () => {
     const total = calculateSectionCTotal();
-    return (total / 4).toFixed(2);
+    return (total / 3).toFixed(2);
   };
 
   const calculateOverallRating = () => {
@@ -1176,38 +1235,68 @@ University of Nueva Caceres`
     return Math.round(overallRating * 20);
   };
 
-  const handleSubmitEvaluation = () => {
+  // Auto-assign scholarship tier based on final score
+  const getAutoScholarshipTier = (score: number): number => {
+    if (score >= 90) return 100; // Excellent: Full Scholarship
+    if (score >= 80) return 75;  // Very Good: Three-Quarter Scholarship
+    if (score >= 70) return 50;  // Good: Half Scholarship
+    return 25;                    // Needs Improvement: Quarter Scholarship
+  };
+
+  const handleSubmitEvaluation = async () => {
     if (!selectedTrainee) {
       toast.error('Please select a trainee');
       return;
     }
 
-    const finalScore = calculateWeightedScore();
+    try {
+      const finalScore = calculateWeightedScore();
+      const autoScholarshipTier = getAutoScholarshipTier(finalScore);
 
-    const newEvaluation: Evaluation = {
-      id: `eval${evaluations.length + 1}`,
-      traineeId: selectedTrainee.id!,
-      traineeName: selectedTrainee.name,
-      date: new Date(),
-      rating: finalScore,
-      scholarshipPercentage: evaluationForm.scholarshipPercentage,
-      notes: `Strengths: ${evaluationForm.strengths}\nAreas for Improvement: ${evaluationForm.improvements}`,
-      status: 'submitted',
-      // Include detailed evaluation sections
-      sectionA: evaluationForm.sectionA,
-      sectionB: evaluationForm.sectionB,
-      sectionC: evaluationForm.sectionC,
-      strengths: evaluationForm.strengths,
-      improvements: evaluationForm.improvements,
-      recommendForRenewal: evaluationForm.recommendForRenewal,
-      ratedBy: user.name,
-      ratedDate: new Date().toLocaleDateString(),
-      adjectivalRating: getAdjectivalRating(),
-      overallRating: calculateOverallRating(),
-      talentGroup: directorTalentGroup
-    };
+      // Prepare evaluation data for backend (snake_case)
+      const evaluationData = {
+        trainee_id: selectedTrainee.id,
+        section_a: evaluationForm.sectionA,
+        section_b: evaluationForm.sectionB,
+        section_c: evaluationForm.sectionC,
+        overall_rating: calculateOverallRating(),
+        adjectival_rating: getAdjectivalRating(),
+        scholarship_percentage: autoScholarshipTier,
+        strengths: evaluationForm.strengths,
+        improvements: evaluationForm.improvements,
+        recommend_for_renewal: evaluationForm.recommendForRenewal,
+        rating_period: evaluationForm.ratingPeriod,
+        status: 'submitted'
+      };
 
-    setEvaluations([...evaluations, newEvaluation]);
+      // Save to backend
+      const savedEvaluation = await trainingClient.createEvaluation(evaluationData);
+
+      // Create frontend object for state
+      const newEvaluation: Evaluation = {
+        id: savedEvaluation.id || `eval${evaluations.length + 1}`,
+        traineeId: selectedTrainee.id!,
+        traineeName: selectedTrainee.name,
+        date: new Date(),
+        rating: finalScore,
+        scholarshipPercentage: autoScholarshipTier,
+        notes: `Strengths: ${evaluationForm.strengths}\nAreas for Improvement: ${evaluationForm.improvements}`,
+        status: 'submitted',
+        // Include detailed evaluation sections
+        sectionA: evaluationForm.sectionA,
+        sectionB: evaluationForm.sectionB,
+        sectionC: evaluationForm.sectionC,
+        strengths: evaluationForm.strengths,
+        improvements: evaluationForm.improvements,
+        recommendForRenewal: evaluationForm.recommendForRenewal,
+        ratedBy: user.name,
+        ratedDate: new Date().toLocaleDateString(),
+        adjectivalRating: getAdjectivalRating(),
+        overallRating: calculateOverallRating(),
+        talentGroup: directorTalentGroup
+      };
+
+      setEvaluations([...evaluations, newEvaluation]);
     
     // Send email based on pass/fail
     const groupName = getTalentGroupName(directorTalentGroup);
@@ -1240,44 +1329,22 @@ ${groupName} Director
 University of Nueva Caceres`;
 
       toast.success(`${selectedTrainee.name} has PASSED with ${finalScore}% (${getAdjectivalRating()}) and is recommended for renewal! Moved to Member Profile.`);
-      // Production: Email notification would be sent here via backend service
+      // Email notification sent via backend service
       onCompleteTraining(selectedTrainee.id!, 'qualified', evaluationForm.scholarshipPercentage);
       
       // Close trainee dialog when moved to Member Profile
       setShowTraineeDialog(false);
       setSelectedTrainee(null);
     } else {
-      // Fail - send improvement email
-      const failEmailSubject = `Training Evaluation Results - ${groupName}`;
-      const failEmailBody = `Dear ${selectedTrainee.name},
+      toast.warning(`${selectedTrainee.name} scored ${finalScore}% and needs improvement. Evaluation saved.`);
+      // Backend handles email notifications for failed evaluations
+    }
 
-Thank you for your participation in the training program.
-
-Your Evaluation Results:
-📊 Final Score: ${finalScore}/100
-❌ Status: Needs Improvement
-
-Unfortunately, you did not meet the minimum qualification threshold of 75% in this evaluation period.
-
-Strengths: ${evaluationForm.strengths || 'N/A'}
-
-Areas for Improvement: ${evaluationForm.improvements || 'Please continue to work on improving your skills and attendance.'}
-
-What's Next:
-• You may continue training and request re-evaluation
-• Focus on the areas that need improvement
-• Attend all practice sessions consistently
-• Seek guidance from your section leaders
-
-Don't be discouraged! This is an opportunity to grow and improve. We believe in your potential.
-
-Best regards,
-${user.name}
-${groupName} Director
-University of Nueva Caceres`;
-
-      toast.warning(`${selectedTrainee.name} scored ${finalScore}% and needs improvement. Email sent.`);
-      // Production: Email notification would be sent here via backend service
+    } catch (error: any) {
+      const errorMessage = error.errors?.message || error.message || 'Failed to save evaluation';
+      toast.error(`Error: ${errorMessage}`);
+      console.error('Evaluation submission error:', error);
+      return;
     }
 
     // Always close evaluation dialog and reset form
@@ -1441,6 +1508,110 @@ University of Nueva Caceres`;
       toast.success(`All trainees marked as ${present ? 'present' : 'absent'} for ${new Date(updated[dateIndex].date).toLocaleDateString()}`);
       return updated;
     });
+  };
+
+  // Chapter Locking System Helper Functions
+  const isChapterLocked = (traineeId: string, chapterNum: number): boolean => {
+    // Chapter 1 is always unlocked
+    if (chapterNum === 1) return false;
+    
+    // Chapter is locked if the previous chapter hasn't passed evaluation
+    const prevChapterEval = chapterEvaluations[traineeId]?.[chapterNum - 1];
+    if (!prevChapterEval || !prevChapterEval.passed) {
+      return true;
+    }
+    return false;
+  };
+
+  const hasUnfinishedChapters = (traineeId: string): boolean => {
+    // Check if any completed chapters (chapters with traineeChapters[traineeId][chapter] = true) 
+    // don't have a passed evaluation
+    const chapters = traineeChapters[traineeId] || {};
+    for (let chapterNum = 1; chapterNum <= 30; chapterNum++) {
+      if (chapters[chapterNum]) {
+        const evaluation = chapterEvaluations[traineeId]?.[chapterNum];
+        if (!evaluation || !evaluation.passed) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const handleChapterEvalSubmit = () => {
+    if (!selectedChapterForEval) {
+      toast.error('Error: Chapter not selected');
+      return;
+    }
+
+    const { traineeId, chapterNum } = selectedChapterForEval;
+    
+    // Save chapter evaluation
+    setChapterEvaluations(prev => ({
+      ...prev,
+      [traineeId]: {
+        ...(prev[traineeId] || {}),
+        [chapterNum]: {
+          passed: chapterEvalForm.passed,
+          score: chapterEvalForm.score,
+          notes: chapterEvalForm.notes,
+          date: new Date()
+        }
+      }
+    }));
+
+    toast.success(`Chapter ${chapterNum} evaluation recorded. ${chapterEvalForm.passed ? 'Passed ✓' : 'Needs Improvement'}`);
+    setShowChapterEvalDialog(false);
+    setSelectedChapterForEval(null);
+    setChapterEvalForm({ score: 0, notes: '', passed: true });
+  };
+
+  // Handle chapter evaluation from ChapterEvaluationDialog component
+  const handleChapterEvaluationComplete = async (chapterNum: number, scores: Record<string, number>, notes: string) => {
+    if (!selectedChapterForEval) return;
+    
+    try {
+      const { traineeId } = selectedChapterForEval;
+      const scoreValues = Object.values(scores);
+      const average = scoreValues.length > 0 ? scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length : 0;
+      const passed = average >= 3.0; // Pass threshold
+      
+      // Prepare chapter evaluation data for backend
+      const chapterEvalData = {
+        trainee_id: traineeId,
+        chapter_number: chapterNum,
+        criteria_scores: scores,
+        average_score: Math.round(average * 100) / 100,
+        passed,
+        notes,
+        status: 'submitted'
+      };
+
+      // Save to backend
+      await trainingClient.createEvaluation(chapterEvalData);
+
+      // Update frontend state
+      setChapterEvaluations(prev => ({
+        ...prev,
+        [traineeId]: {
+          ...(prev[traineeId] || {}),
+          [chapterNum]: {
+            passed,
+            score: Math.round(average * 100) / 100,
+            notes,
+            date: new Date()
+          }
+        }
+      }));
+
+      toast.success(`Chapter ${chapterNum} evaluation recorded. Average: ${average.toFixed(2)} – ${passed ? 'Passed ✓' : 'Needs Improvement ⚠'}`);
+      setShowChapterEvalDialog(false);
+      setSelectedChapterForEval(null);
+    } catch (error: any) {
+      const errorMessage = error.errors?.message || error.message || 'Failed to save chapter evaluation';
+      toast.error(`Error: ${errorMessage}`);
+      console.error('Chapter evaluation error:', error);
+    }
   };
 
   const getScoreColor = (score: number) => {
@@ -1773,9 +1944,6 @@ University of Nueva Caceres`;
         userId: uniformForm.assignedTo || '',
         itemName: uniformForm.uniformName,
         type: 'uniform' as const,
-        condition: 'excellent' as const,
-        serialNumber: uniformForm.serialNumber,
-        propertyType: uniformForm.propertyType,
         assignedDate: uniformForm.assignedTo ? new Date() : undefined,
         status: uniformForm.assignedTo ? 'assigned' as const : 'borrowed' as const,
         // Sizes
@@ -1800,7 +1968,8 @@ University of Nueva Caceres`;
       headdressSize: '',
       topSize: '',
       pantsSize: '',
-      bandShoesSize: ''
+      bandShoesSize: '',
+      barongType: ''
     });
   };
 
@@ -2046,15 +2215,15 @@ University of Nueva Caceres`;
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onViewChange('settings', 'account')}>
+                <DropdownMenuItem onClick={() => onViewChange?.('settings', 'account')}>
                   <User className="w-4 h-4 mr-2" aria-hidden="true" />
                   Account Settings
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onViewChange('settings', 'security')}>
+                <DropdownMenuItem onClick={() => onViewChange?.('settings', 'security')}>
                   <Lock className="w-4 h-4 mr-2" aria-hidden="true" />
                   Security
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onViewChange('settings', 'administration')}>
+                <DropdownMenuItem onClick={() => onViewChange?.('settings', 'administration')}>
                   <Shield className="w-4 h-4 mr-2" aria-hidden="true" />
                   Administration
                 </DropdownMenuItem>
@@ -2162,11 +2331,11 @@ University of Nueva Caceres`;
             setSelectedScholarForPerformance={setSelectedScholarForPerformance}
             setShowPerformanceDialog={setShowPerformanceDialog}
             statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
+            setStatusFilter={(v: string) => setStatusFilter(v as 'active' | 'inactive' | 'all')}
             scholarSearchTerm={scholarSearchTerm}
             setScholarSearchTerm={setScholarSearchTerm}
             inventoryTab={inventoryTab}
-            setInventoryTab={setInventoryTab}
+            setInventoryTab={(v: string) => setInventoryTab(v as 'uniforms' | 'instruments' | 'accessories')}
             uniformFilters={uniformFilters}
             setUniformFilters={setUniformFilters}
             uniformSets={uniformSets}
@@ -2370,9 +2539,9 @@ University of Nueva Caceres`;
       <EvaluationFormDialog
         open={showEvaluationDialog}
         onOpenChange={setShowEvaluationDialog}
-        selectedTrainee={selectedTrainee}
-        evaluationForm={evaluationForm}
-        setEvaluationForm={setEvaluationForm}
+        selectedTrainee={selectedTrainee!}
+        evaluationForm={evaluationForm as any}
+        setEvaluationForm={setEvaluationForm as any}
         onSubmit={handleSubmitEvaluation}
         calculateSectionATotal={calculateSectionATotal}
         calculateSectionAAverage={calculateSectionAAverage}
@@ -2383,7 +2552,21 @@ University of Nueva Caceres`;
         calculateOverallRating={calculateOverallRating}
         getAdjectivalRating={getAdjectivalRating}
         currentUser={user}
+        isDisabled={selectedTrainee ? hasUnfinishedChapters(selectedTrainee.id!) : false}
+        disabledReason="Complete and evaluate all chapters before the Final Evaluation"
       />
+
+      {/* Per-Chapter Evaluation Dialog */}
+      {selectedChapterForEval && (
+        <ChapterEvaluationDialog
+          open={showChapterEvalDialog}
+          onOpenChange={setShowChapterEvalDialog}
+          chapterNum={selectedChapterForEval.chapterNum}
+          traineeName={selectedTrainee?.name || ''}
+          talentGroup={selectedTrainee?.talentGroup || directorTalentGroup}
+          onComplete={handleChapterEvaluationComplete}
+        />
+      )}
 
       {/* Assign Uniform Dialog */}
       <Dialog open={showAssignUniformDialog} onOpenChange={setShowAssignUniformDialog}>
@@ -2747,7 +2930,7 @@ University of Nueva Caceres`;
             const attendanceRate = calculateTraineeAttendanceRate(traineeId);
             const totalSessions = trainingAttendance.length;
             const presentCount = trainingAttendance.filter(date => 
-              date.attendance && date.attendance[traineeId]
+              date.attendees && date.attendees[traineeId]
             ).length;
             const absentCount = totalSessions - presentCount;
 
@@ -2998,31 +3181,71 @@ University of Nueva Caceres`;
                       {/* 30 Chapters/Routines as Checkboxes */}
                       <div>
                         <h4 className="font-medium mb-3">{isMajorettes ? 'Training Routines' : 'Training Chapters'}</h4>
+                        <p className="text-xs text-[#6c757d] mb-3">Complete chapters sequentially. Each chapter must pass evaluation before the next unlocks.</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {Array.from({ length: 30 }, (_, i) => i + 1).map(chapterNum => {
                             const isChecked = chapters[chapterNum] || false;
+                            const isLocked = isChapterLocked(traineeId, chapterNum);
+                            const evaluation = chapterEvaluations[traineeId]?.[chapterNum];
+                            const hasPassed = evaluation?.passed;
+
                             return (
                               <div 
                                 key={chapterNum} 
                                 className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${
-                                  isChecked 
-                                    ? 'border-[#7A1E1E] bg-[#7A1E1E]/5' 
-                                    : 'border-[#e0e0e0] hover:border-[#7A1E1E]/30'
+                                  isLocked
+                                    ? 'border-[#d4d4d8] bg-gray-50 opacity-60 cursor-not-allowed'
+                                    : isChecked 
+                                    ? 'border-[#7A1E1E] bg-[#7A1E1E]/5 cursor-pointer hover:border-[#7A1E1E] hover:shadow-sm' 
+                                    : 'border-[#e0e0e0] hover:border-[#7A1E1E]/30 cursor-pointer'
                                 }`}
+                                onClick={() => {
+                                  if (!isLocked && isChecked) {
+                                    setSelectedChapterForEval({ traineeId, chapterNum });
+                                    setChapterEvalForm({ score: evaluation?.score || 0, notes: evaluation?.notes || '', passed: evaluation?.passed || true });
+                                    setShowChapterEvalDialog(true);
+                                  }
+                                }}
                               >
                                 <Checkbox
                                   id={`chapter-${traineeId}-${chapterNum}`}
                                   checked={isChecked}
-                                  onCheckedChange={() => handleChapterToggle(chapterNum)}
+                                  onCheckedChange={() => {
+                                    if (!isLocked) {
+                                      handleChapterToggle(chapterNum);
+                                    }
+                                  }}
+                                  disabled={isLocked}
                                   className="border-[#7A1E1E] data-[state=checked]:bg-[#7A1E1E]"
                                 />
-                                <Label 
-                                  htmlFor={`chapter-${traineeId}-${chapterNum}`}
-                                  className={`flex-1 cursor-pointer ${isChecked ? 'text-[#7A1E1E] font-medium' : ''}`}
-                                >
-                                  Chapter {chapterNum}: {getChapterTitle(chapterNum)}
-                                  {isChecked && <CheckCircle className="inline-block w-4 h-4 ml-2 text-[#7A1E1E]" />}
-                                </Label>
+                                <div className="flex-1">
+                                  <Label 
+                                    htmlFor={`chapter-${traineeId}-${chapterNum}`}
+                                    className={`cursor-pointer flex items-center gap-2 ${
+                                      isLocked ? 'text-[#999]' : isChecked ? 'text-[#7A1E1E] font-medium' : ''
+                                    }`}
+                                  >
+                                    Chapter {chapterNum}: {getChapterTitle(chapterNum)}
+                                    {isLocked && <span className="text-xs text-[#999]">🔒 Locked</span>}
+                                    {isChecked && hasPassed && <CheckCircle className="w-4 h-4 text-green-600" />}
+                                    {isChecked && !hasPassed && evaluation && <span className="text-xs text-yellow-600">⚠ Needs Review</span>}
+                                  </Label>
+                                </div>
+                                {isChecked && !isLocked && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-xs border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedChapterForEval({ traineeId, chapterNum });
+                                      setChapterEvalForm({ score: evaluation?.score || 0, notes: evaluation?.notes || '', passed: evaluation?.passed || true });
+                                      setShowChapterEvalDialog(true);
+                                    }}
+                                  >
+                                    Evaluate
+                                  </Button>
+                                )}
                               </div>
                             );
                           })}
@@ -3107,9 +3330,9 @@ University of Nueva Caceres`;
       <EvaluationFormDialog
         open={showEvaluationDialog}
         onOpenChange={setShowEvaluationDialog}
-        selectedTrainee={selectedTrainee}
-        evaluationForm={evaluationForm}
-        setEvaluationForm={setEvaluationForm}
+        selectedTrainee={selectedTrainee!}
+        evaluationForm={evaluationForm as any}
+        setEvaluationForm={setEvaluationForm as any}
         onSubmit={handleSubmitEvaluation}
         calculateSectionATotal={calculateSectionATotal}
         calculateSectionAAverage={calculateSectionAAverage}
@@ -3120,6 +3343,8 @@ University of Nueva Caceres`;
         calculateOverallRating={calculateOverallRating}
         getAdjectivalRating={getAdjectivalRating}
         currentUser={user}
+        isDisabled={selectedTrainee ? hasUnfinishedChapters(selectedTrainee.id!) : false}
+        disabledReason="Complete and evaluate all chapters before the Final Evaluation"
       />
 
       {/* Assign Instrument Dialog */}
@@ -3339,7 +3564,7 @@ University of Nueva Caceres`;
                       {scholars.length > 0 ? (
                         scholars.map((scholar) => {
                           const attendeeData = selectedEngagement?.attendanceRecords?.[0]?.attendees[scholar.id!];
-                          const isPresent = typeof attendeeData === 'object' ? attendeeData.status : (attendeeData || false);
+                          const isPresent = typeof attendeeData === 'object' ? attendeeData.status : (typeof attendeeData === 'string' ? attendeeData === 'present' : (attendeeData || false));
                           const timestamp = typeof attendeeData === 'object' ? attendeeData.timestamp : undefined;
                           return (
                             <TableRow key={scholar.id} className="border-b border-[#f0f0f0]">

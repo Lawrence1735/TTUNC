@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Auth\LoginRequest;
-use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,56 +13,61 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class AuthController extends Controller
 {
-    /**
-     * Authenticate a user and issue a Sanctum API token.
-     *
-     * Returns the token alongside the user resource so the frontend can
-     * immediately populate the auth context without a second round-trip.
-     */
-    public function login(LoginRequest $request): JsonResponse
+    public function login(Request $request): JsonResponse
     {
+        $request->validate([
+            'email'    => ['required', 'email'],
+            'password' => ['required', 'string'],
+        ]);
+
         $user = User::where('email', $request->email)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'message' => 'Invalid credentials.',
-            ], Response::HTTP_UNAUTHORIZED);
+            return response()->json(['message' => 'Invalid credentials.'], Response::HTTP_UNAUTHORIZED);
         }
 
-        // Revoke all previous tokens for this user (single-session policy)
         $user->tokens()->delete();
 
-        // Abilities are scoped to the user's role
-        $abilities = $this->abilitiesForRole($user->role);
-
-        $token = $user->createToken(
-            name: "api-token-{$user->id}",
-            abilities: $abilities,
-        )->plainTextToken;
+        $token = $user->createToken("api-token-{$user->id}")->plainTextToken;
 
         return response()->json([
             'token' => $token,
-            'user'  => new UserResource($user),
+            'user'  => [
+                'id'           => $user->id,
+                'name'         => $user->name,
+                'email'        => $user->email,
+                'role'         => $user->role,
+                'talent_group' => $user->talent_group,
+                'student_id'   => $user->student_id,
+                'phone'        => $user->phone,
+                'is_active'    => true,
+                'created_at'   => $user->created_at,
+            ],
         ], Response::HTTP_OK);
     }
 
-    /**
-     * Revoke the current token (logout).
-     */
     public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();
-
         return response()->json(['message' => 'Logged out successfully.'], Response::HTTP_OK);
     }
 
-    /**
-     * Return the currently authenticated user.
-     */
     public function me(Request $request): JsonResponse
     {
-        return response()->json(new UserResource($request->user()));
+        $user = $request->user();
+        return response()->json([
+            'id'           => $user->id,
+            'name'         => $user->name,
+            'email'        => $user->email,
+            'role'         => $user->role,
+            'talent_group' => $user->talent_group,
+            'student_id'   => $user->student_id,
+            'phone'        => $user->phone,
+            'is_active'    => true,
+            'created_at'   => $user->created_at,
+        ]);
     }
+<<<<<<< HEAD
 
     /**
      * Refresh the authentication token.
@@ -134,3 +137,6 @@ final class AuthController extends Controller
         };
     }
 }
+=======
+}
+>>>>>>> origin/main

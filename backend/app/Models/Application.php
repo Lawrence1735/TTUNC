@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -10,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+<<<<<<< HEAD
 /**
  * @property int         $id
  * @property int|null    $user_id
@@ -30,9 +29,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Carbon\Carbon $applied_at
  */
 final class Application extends Model
+=======
+class Application extends Model
+>>>>>>> origin/main
 {
-    use HasFactory;
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_id',
@@ -77,59 +78,19 @@ final class Application extends Model
         'applied_at',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'documents'   => 'array',
-            'applied_at'  => 'datetime',
-            'applicant_birthdate' => 'date',
-            'applications_this_week_tracker' => 'integer',
-        ];
-    }
+    protected $casts = [
+        'documents'   => 'array',
+        'applied_at'  => 'datetime',
+        'applicant_birthdate' => 'date',
+    ];
 
-    // ─── Relationships ────────────────────────────────────────────────────────
-
-    /**
-     * The user account linked to this application (nullable until account creation).
-     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * The scheduled interview for this application (one-to-one).
-     */
     public function interview(): HasOne
     {
         return $this->hasOne(Interview::class);
     }
-
-    // ─── Accessors ────────────────────────────────────────────────────────────
-
-    /**
-     * Returns a structured personalInfo array matching the frontend shape.
-     * Appended to JSON serialisation via $appends.
-     */
-    public function getPersonalInfoAttribute(): array
-    {
-        return [
-            'name'             => $this->applicant_name,
-            'email'            => $this->applicant_email,
-            'studentId'        => $this->applicant_student_id,
-            'phone'            => $this->applicant_phone,
-            'birthdate'        => $this->applicant_birthdate?->toDateString(),
-            'age'              => $this->applicant_age,
-            'address'          => $this->applicant_address,
-            'gender'           => $this->applicant_gender,
-            'yearLevel'        => $this->applicant_year_level,
-            'course'           => $this->applicant_course,
-            'department'       => $this->applicant_department,
-            'guardianName'     => $this->guardian_name,
-            'guardianContactNo'=> $this->guardian_phone,
-            'guardianRelationship' => $this->guardian_relationship,
-        ];
-    }
-
-    protected $appends = ['personal_info'];
 }

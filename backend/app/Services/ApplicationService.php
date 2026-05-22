@@ -143,6 +143,11 @@ final class ApplicationService
             throw new \DomainException('This application has already been decided.');
         }
 
+        // Workflow validation: ensure interview is scheduled before approval
+        if (! $application->interview) {
+            throw new \DomainException('Applicant must have a scheduled interview before approval.');
+        }
+
         return DB::transaction(function () use ($application, $approvalNotes): array {
             $this->applicationRepository->update($application, [
                 'status'         => 'approved',
@@ -206,6 +211,11 @@ final class ApplicationService
     {
         if (in_array($application->status, ['approved', 'rejected'], true)) {
             throw new \DomainException('This application has already been decided.');
+        }
+
+        // Workflow validation: ensure interview is scheduled before rejection
+        if (! $application->interview) {
+            throw new \DomainException('Applicant must have a scheduled interview before rejection.');
         }
 
         DB::transaction(function () use ($application, $denialData): void {

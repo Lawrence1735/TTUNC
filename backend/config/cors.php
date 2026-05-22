@@ -1,16 +1,14 @@
 <?php
 
-declare(strict_types=1);
-
 return [
+
     /*
     |--------------------------------------------------------------------------
     | Cross-Origin Resource Sharing (CORS) Configuration
     |--------------------------------------------------------------------------
     |
-    | Allows the React frontend (Vite dev server on :5173) to communicate
-    | with this API. In production, restrict allowed_origins to your actual
-    | frontend domain.
+    | Here you may configure CORS settings for your application. CORS allows
+    | controlled access to resources from other origins.
     |
     */
 
@@ -18,17 +16,22 @@ return [
 
     'allowed_methods' => ['*'],
 
+<<<<<<< HEAD
     'allowed_origins' => array_filter([
         env('FRONTEND_URL'),
     ]),
+=======
+    'allowed_origins' => ['http://localhost:5173'],
+>>>>>>> origin/main
 
     'allowed_origins_patterns' => [],
 
-    'allowed_headers' => ['*'],
+    'allowed_headers' => ['Authorization', 'Content-Type', 'Accept'],
 
     'exposed_headers' => [],
 
     'max_age' => 0,
 
     'supports_credentials' => true,
+
 ];

@@ -16,7 +16,7 @@ final class ApproveApplicationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'approval_notes' => ['nullable', 'string', 'max:2000'],
+            'approval_notes' => ['sometimes', 'nullable', 'string', 'max:2000'],
         ];
     }
 }

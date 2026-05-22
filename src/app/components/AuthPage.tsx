@@ -23,24 +23,6 @@ export function AuthPage({ onLogin, onBack }: AuthPageProps) {
 
   const [errors, setErrors] = useState<string>('');
 
-  // Test account quick login options
-  const testAccounts = [
-    { role: 'Admin', email: 'admin@unc.edu.ph', name: 'Test Admin' },
-    { role: 'Director - Marching Band', email: 'm.santos@unc.edu.ph', name: 'Prof. Michael Santos' },
-    { role: 'Director - Majorettes', email: 'p.reyes@unc.edu.ph', name: 'Ms. Patricia Reyes' },
-    { role: 'Director - Glee Club', email: 'c.villanueva@unc.edu.ph', name: 'Prof. Carmen Villanueva' },
-    { role: 'Director - Dance Club', email: 'i.torres@unc.edu.ph', name: 'Ms. Isabella Torres' },
-    { role: 'Scholar (Completed)', email: 'scholar@unc.edu.ph', name: 'Test Scholar' },
-    { role: 'Trainee - Marching Band', email: 'roberto.villanueva@unc.edu.ph', name: 'Roberto Villanueva' },
-    { role: 'Trainee - Majorettes', email: 'isabella.perez@unc.edu.ph', name: 'Isabella Grace Perez' },
-    { role: 'Trainee - Glee Club', email: 'training@unc.edu.ph', name: 'Test Training Student' },
-    { role: 'Trainee - Dance Club', email: 'rafael.santiago@unc.edu.ph', name: 'Rafael Santiago' },
-  ];
-
-  const handleQuickLogin = (email: string) => {
-    setLoginData({ role: '', email, password: 'test123' });
-    toast.success('Test account loaded! Click Sign In to continue.');
-  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,7 +72,7 @@ export function AuthPage({ onLogin, onBack }: AuthPageProps) {
               width="56"
               height="56"
               loading="eager"
-              fetchpriority="high"
+              fetchPriority="high"
             />
           </div>
           <h1 className="text-2xl unc-burgundy-text mb-1">TalentTrackUNC</h1>

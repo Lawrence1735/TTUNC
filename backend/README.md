@@ -1,261 +1,59 @@
-# TalentTrackUNC — Backend API
+<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
-Laravel 11 REST API for the Director, Recruitment & Training Management Dashboard.
+<p align="center">
+<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
+</p>
 
-## Stack
+## About Laravel
 
-| Layer        | Technology                          |
-|--------------|-------------------------------------|
-| Framework    | Laravel 11 (PHP 8.3)                |
-| Database     | PostgreSQL 15+                      |
-| Auth         | Laravel Sanctum (token-based)       |
-| Code style   | PSR-12 via Laravel Pint             |
-| Testing      | PestPHP                             |
+Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
 
----
+- [Simple, fast routing engine](https://laravel.com/docs/routing).
+- [Powerful dependency injection container](https://laravel.com/docs/container).
+- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
+- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
+- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
+- [Robust background job processing](https://laravel.com/docs/queues).
+- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
 
-## Quick Start
+Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
-```bash
-# 1. Install dependencies
-composer install
+## Learning Laravel
 
-# 2. Copy environment file and configure your DB credentials
-cp .env.example .env
-php artisan key:generate
+Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
 
-# 3. Create the PostgreSQL database
-createdb talenttrack_unc
+If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
 
-# 4. Run migrations
-php artisan migrate
+## Laravel Sponsors
 
-# 5. Seed with fixture data (mirrors the React mock datasets)
-php artisan db:seed
+We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
 
-# 6. Start the development server
-php artisan serve
-```
+### Premium Partners
 
----
+- **[Vehikl](https://vehikl.com)**
+- **[Tighten Co.](https://tighten.co)**
+- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
+- **[64 Robots](https://64robots.com)**
+- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
+- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
+- **[Redberry](https://redberry.international/laravel-development)**
+- **[Active Logic](https://activelogic.com)**
 
-## API Base URL
+## Contributing
 
-```
-http://localhost:8000/api/v1
-```
+Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
 
----
+## Code of Conduct
 
-## Authentication
+In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
 
-All protected endpoints require a `Bearer` token in the `Authorization` header.
+## Security Vulnerabilities
 
-### Login
+If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
 
-```http
-POST /api/v1/auth/login
-Content-Type: application/json
+## License
 
-{
-  "email": "carl.fausto@unc.edu.ph",
-  "password": "password"
-}
-```
-
-**Response:**
-```json
-{
-  "token": "<sanctum-token>",
-  "user": { "id": 3, "name": "Carl Ariel Fausto", "role": "director", ... }
-}
-```
-
-### Logout
-
-```http
-POST /api/v1/auth/logout
-Authorization: Bearer <token>
-```
-
----
-
-## Endpoint Reference
-
-### Dashboard
-
-| Method | Path                        | Role            | Description                                      |
-|--------|-----------------------------|-----------------|--------------------------------------------------|
-| GET    | `/dashboard/summary`        | director, admin | Composite metrics payload for the 70/30 UI view  |
-
-**Response shape:**
-```json
-{
-  "data": {
-    "pending_applications_count": 2,
-    "scheduled_interviews_count": 1,
-    "applications_this_week_count": 3,
-    "active_trainees_count": 12,
-    "avg_completion_rate": 67.4,
-    "pipeline_items": [...],
-    "calendar_events": [...],
-    "weekly_growth": [{ "date": "2024-11-10", "count": 2 }, ...]
-  }
-}
-```
-
----
-
-### Recruitment
-
-| Method | Path                                              | Role            | Description                          |
-|--------|---------------------------------------------------|-----------------|--------------------------------------|
-| GET    | `/recruitment/applications`                       | director, admin | Paginated application list           |
-| POST   | `/applications`                                   | public          | Submit a new scholarship application |
-| GET    | `/recruitment/applications/{id}`                  | director, admin | Single application detail            |
-| POST   | `/recruitment/applications/{id}/schedule-interview` | director, admin | Schedule interview → status transition |
-| POST   | `/recruitment/applications/{id}/approve`          | director, admin | Approve → provision user + trainee   |
-| POST   | `/recruitment/applications/{id}/reject`           | director, admin | Reject with reason + feedback        |
-
-#### Schedule Interview Body
-```json
-{
-  "scheduled_at": "2024-11-15T10:00:00",
-  "venue": "Music Building Room 201",
-  "notes": "Bring portfolio"
-}
-```
-
-#### Reject Body
-```json
-{
-  "denial_reason": "Did not meet talent requirements",
-  "denial_feedback": "The applicant's audition did not demonstrate sufficient proficiency."
-}
-```
-
----
-
-### Training
-
-| Method | Path                                          | Role                    | Description                              |
-|--------|-----------------------------------------------|-------------------------|------------------------------------------|
-| GET    | `/training/trainees`                          | director, admin         | Paginated trainee roster                 |
-| GET    | `/training/trainees/{id}`                     | director, admin, trainee| Single trainee with attendance + evals   |
-| GET    | `/training/trainees/{id}/stats`               | director, admin, trainee| Historical performance aggregations      |
-| GET    | `/training/attendance`                        | director, admin         | Attendance matrix (filterable by date)   |
-| POST   | `/training/attendance/batch`                  | director, admin         | Batch upsert attendance for a session    |
-| PATCH  | `/training/attendance/{id}/toggle-no-practice`| director, admin         | Toggle no-practice flag                  |
-| GET    | `/training/evaluations`                       | director, admin         | Paginated evaluations list               |
-| POST   | `/training/evaluations`                       | director, admin         | Create evaluation                        |
-| GET    | `/training/evaluations/{id}`                  | director, admin, trainee| Single evaluation detail                 |
-| PATCH  | `/training/evaluations/{id}`                  | director, admin         | Update draft evaluation                  |
-
-#### Batch Attendance Body
-```json
-{
-  "session_date": "2024-11-15",
-  "no_practice": false,
-  "records": [
-    { "trainee_id": 1, "status": "present" },
-    { "trainee_id": 2, "status": "absent"  },
-    { "trainee_id": 3, "status": "present" }
-  ]
-}
-```
-
-#### Create Evaluation Body
-```json
-{
-  "trainee_id": 1,
-  "rating": 88,
-  "evaluation_date": "2024-11-20",
-  "status": "submitted",
-  "recommendation": "continue",
-  "semester": "1st Semester",
-  "academic_year": "2024-2025",
-  "notes": "Consistent improvement across all metrics.",
-  "section_a": {
-    "reports_on_time": 5,
-    "reports_regularly": 4,
-    "practices_on_time": 5,
-    "practices_regularly": 4,
-    "no_unnecessary_absence": 5,
-    "mastery_tasks": 4,
-    "maintains_cleanliness": 5
-  },
-  "section_b": {
-    "improvement_interest": 4,
-    "performance_interest": 5,
-    "work_ethic": 4,
-    "initiative": 4,
-    "efficiency": 4
-  },
-  "section_c": {
-    "teamwork": 5,
-    "tact": 4,
-    "courtesy": 5,
-    "disposition": 4
-  }
-}
-```
-
----
-
-## Database Schema
-
-```
-users
-  id, name, email, student_id, password, role, talent_group,
-  phone, year_level, course, department, address,
-  emergency_contact, emergency_phone,
-  application_status, training_status, scholarship_percentage,
-  assigned_instrument, assigned_voice,
-  email_verified_at, remember_token, timestamps, soft_deletes
-
-applications
-  id, user_id (nullable FK), talent_group, status,
-  applications_this_week_tracker,
-  applicant_name, applicant_email, applicant_student_id, ...
-  chapters, instruments, voices, vocal_range, primary_dance_genre,
-  experience, motivation, documents (json), portfolio_url,
-  denial_reason, denial_feedback, approval_notes,
-  applied_at, timestamps, soft_deletes
-
-interviews
-  id, application_id (unique FK), reviewer_id (FK),
-  scheduled_at, venue, notes,
-  outcome, outcome_notes, completed_at,
-  timestamps
-
-trainees
-  id, user_id (unique FK), completion_rate (cached),
-  current_status, chapter, instrument, voice,
-  total_expected_sessions, date_joined,
-  timestamps, soft_deletes
-
-attendance_records
-  id, trainee_id (FK), session_date, no_practice, status, notes,
-  UNIQUE(trainee_id, session_date),
-  timestamps
-
-evaluations
-  id, trainee_id (FK), evaluator_id (FK),
-  rating (1-100), section_a (json), section_b (json), section_c (json),
-  notes, strengths, improvements,
-  recommendation, status, semester, academic_year,
-  adjectival_rating, recommend_for_renewal,
-  evaluation_date, timestamps, soft_deletes
-```
-
----
-
-## Seeded Credentials
-
-| Role     | Email                          | Password   |
-|----------|--------------------------------|------------|
-| Admin    | admin@unc.edu.ph               | password   |
-| Director | carl.fausto@unc.edu.ph         | password   |
-| Director | c.villanueva@unc.edu.ph        | password   |
-| Scholar  | scholar@unc.edu.ph             | password   |
-| Trainee  | training@unc.edu.ph            | password   |
+The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).

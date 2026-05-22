@@ -17,7 +17,7 @@ final class RejectApplicationRequest extends FormRequest
     {
         return [
             'denial_reason'   => ['required', 'string', 'max:120'],
-            'denial_feedback' => ['required', 'string', 'min:10', 'max:2000'],
+            'denial_feedback' => ['required', 'string', 'max:2000'],
         ];
     }
 }

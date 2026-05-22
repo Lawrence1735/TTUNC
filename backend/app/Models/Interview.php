@@ -1,25 +1,12 @@
 <?php
 
-declare(strict_types=1);
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/**
- * @property int              $id
- * @property int              $application_id
- * @property int              $reviewer_id
- * @property \Carbon\Carbon   $scheduled_at
- * @property string|null      $venue
- * @property string|null      $notes
- * @property string           $outcome    pending|passed|failed|no_show
- * @property string|null      $outcome_notes
- * @property \Carbon\Carbon|null $completed_at
- */
-final class Interview extends Model
+class Interview extends Model
 {
     use HasFactory;
 
@@ -34,15 +21,10 @@ final class Interview extends Model
         'completed_at',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'scheduled_at' => 'datetime',
-            'completed_at' => 'datetime',
-        ];
-    }
-
-    // ─── Relationships ────────────────────────────────────────────────────────
+    protected $casts = [
+        'scheduled_at' => 'datetime',
+        'completed_at' => 'datetime',
+    ];
 
     public function application(): BelongsTo
     {

@@ -8,28 +8,17 @@ use App\Http\Controllers\Api\RecruitmentController;
 use App\Http\Controllers\Api\TrainingController;
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| API Routes — TalentTrackUNC
-|--------------------------------------------------------------------------
-|
-| All routes are versioned under /api/v1.
-|
-| Auth routes are public (no Sanctum guard).
-| The "public" group allows unauthenticated application submissions.
-| All other routes require a valid Sanctum token.
-|
-| Role-based access is enforced via the role middleware defined in
-| bootstrap/app.php and checked inside each controller where fine-grained
-| ability checks are needed.
-|
-*/
+Route::prefix('v1')->group(function (): void {
 
-// ── Authentication (public) ───────────────────────────────────────────────────
-Route::prefix('v1/auth')->name('auth.')->group(function (): void {
-    Route::post('/login',  [AuthController::class, 'login'])->name('login');
+    // ── Public routes ─────────────────────────────────────────────────────────────
+    Route::post('/auth/login', [AuthController::class, 'login']);
 
+    // Public application submission (no auth required)
+    Route::post('/applications', [RecruitmentController::class, 'store']);
+
+    // ── Authenticated routes ───────────────────────────────────────────────────────
     Route::middleware('auth:sanctum')->group(function (): void {
+<<<<<<< HEAD
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
         Route::post('/refresh', [AuthController::class, 'refresh'])->name('refresh');
         Route::get('/me',      [AuthController::class, 'me'])->name('me');
@@ -45,12 +34,17 @@ Route::prefix('v1')->name('public.')->group(function (): void {
     )->name('applications.store')
      ->middleware('throttle:10,1'); // 10 requests per 1 minute per IP
 });
+=======
 
-// ── Protected endpoints (Sanctum token required) ──────────────────────────────
-Route::prefix('v1')
-    ->middleware('auth:sanctum')
-    ->group(function (): void {
+        // Auth
+        Route::post('/auth/logout', [AuthController::class, 'logout']);
+        Route::get('/auth/me', [AuthController::class, 'me']);
+>>>>>>> origin/main
 
+        // Dashboard
+        Route::get('/dashboard/summary', DashboardSummaryController::class);
+
+<<<<<<< HEAD
         // ── Dashboard ─────────────────────────────────────────────────────────
         Route::get(
             '/dashboard/summary',
@@ -106,87 +100,36 @@ Route::prefix('v1')
                 [RecruitmentController::class, 'handleRejectInterview']
             )->name('applications.reject')
              ->middleware('role:director,admin');
+=======
+        // Recruitment
+        Route::prefix('recruitment')->group(function (): void {
+            Route::get('/applications', [RecruitmentController::class, 'index']);
+            Route::get('/applications/{application}', [RecruitmentController::class, 'show']);
+            Route::post('/applications/{application}/schedule-interview', [RecruitmentController::class, 'scheduleInterview']);
+            Route::post('/applications/{application}/approve', [RecruitmentController::class, 'handleApproveInterview']);
+            Route::post('/applications/{application}/reject', [RecruitmentController::class, 'handleRejectInterview']);
+>>>>>>> origin/main
         });
 
-        // ── Training ──────────────────────────────────────────────────────────
-        Route::prefix('training')->name('training.')->group(function (): void {
-
-            // Trainee roster
-            Route::get(
-                '/trainees',
-                [TrainingController::class, 'indexTrainees']
-            )->name('trainees.index')
-             ->middleware('role:director,admin');
-
-            Route::get(
-                '/trainees/{trainee}',
-                [TrainingController::class, 'showTrainee']
-            )->name('trainees.show')
-             ->middleware('role:director,admin,trainee');
-
-            // Update trainee profile (director/admin only)
-            Route::patch(
-                '/trainees/{trainee}',
-                [TrainingController::class, 'updateTrainee']
-            )->name('trainees.update')
-             ->middleware('role:director,admin');
-
-            // Soft-delete trainee (director/admin only)
-            Route::delete(
-                '/trainees/{trainee}',
-                [TrainingController::class, 'destroyTrainee']
-            )->name('trainees.destroy')
-             ->middleware('role:director,admin');
-
-            // Per-trainee historical stats
-            Route::get(
-                '/trainees/{trainee}/stats',
-                [TrainingController::class, 'traineeStats']
-            )->name('trainees.stats')
-             ->middleware('role:director,admin,trainee');
+        // Training — Trainees
+        Route::prefix('training')->group(function (): void {
+            Route::get('/trainees', [TrainingController::class, 'indexTrainees']);
+            Route::get('/trainees/{trainee}', [TrainingController::class, 'showTrainee']);
+            Route::patch('/trainees/{trainee}', [TrainingController::class, 'updateTrainee']);
+            Route::delete('/trainees/{trainee}', [TrainingController::class, 'destroyTrainee']);
+            Route::get('/trainees/{trainee}/stats', [TrainingController::class, 'traineeStats']);
 
             // Attendance
-            Route::get(
-                '/attendance',
-                [TrainingController::class, 'indexAttendance']
-            )->name('attendance.index')
-             ->middleware('role:director,admin');
-
-            Route::post(
-                '/attendance/batch',
-                [TrainingController::class, 'batchUpsertAttendance']
-            )->name('attendance.batch')
-             ->middleware('role:director,admin');
-
-            Route::patch(
-                '/attendance/{record}/toggle-no-practice',
-                [TrainingController::class, 'toggleNoPractice']
-            )->name('attendance.toggle-no-practice')
-             ->middleware('role:director,admin');
+            Route::get('/attendance', [TrainingController::class, 'indexAttendance']);
+            Route::post('/attendance/batch', [TrainingController::class, 'batchUpsertAttendance']);
+            Route::patch('/attendance/{record}/toggle-no-practice', [TrainingController::class, 'toggleNoPractice']);
 
             // Evaluations
-            Route::get(
-                '/evaluations',
-                [TrainingController::class, 'indexEvaluations']
-            )->name('evaluations.index')
-             ->middleware('role:director,admin');
-
-            Route::post(
-                '/evaluations',
-                [TrainingController::class, 'storeEvaluation']
-            )->name('evaluations.store')
-             ->middleware('role:director,admin');
-
-            Route::get(
-                '/evaluations/{evaluation}',
-                [TrainingController::class, 'showEvaluation']
-            )->name('evaluations.show')
-             ->middleware('role:director,admin,trainee');
-
-            Route::patch(
-                '/evaluations/{evaluation}',
-                [TrainingController::class, 'updateEvaluation']
-            )->name('evaluations.update')
-             ->middleware('role:director,admin');
+            Route::get('/evaluations', [TrainingController::class, 'indexEvaluations']);
+            Route::post('/evaluations', [TrainingController::class, 'storeEvaluation']);
+            Route::get('/evaluations/{evaluation}', [TrainingController::class, 'showEvaluation']);
+            Route::patch('/evaluations/{evaluation}', [TrainingController::class, 'updateEvaluation']);
         });
     });
+
+});
