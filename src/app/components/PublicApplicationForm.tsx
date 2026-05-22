@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -319,13 +319,14 @@ function AddressBlock({
   );
 }
 
+// ── Main Component ────────────────────────────────────────────────────────────
+
 export function PublicApplicationForm({
   onSubmit,
   onBack,
   talentGroup,
   onSelectGroup,
 }: PublicApplicationFormProps) {
-  const isMajorettes = talentGroup === 'majorettes';
   const [formData, setFormData] = useState<ApplicationFormData>({
     fullName: '', lastName: '', firstName: '', middleName: '', birthdate: '', age: '', gender: '',
     permRegion: '', permProvince: '', permCity: '', permBarangay: '', permStreet: '',
@@ -342,13 +343,70 @@ export function PublicApplicationForm({
     address: '',
   });
 
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
   const [applicationId, setApplicationId] = useState('');
   const [currentStep, setCurrentStep] = useState(1);
   const [sameAsPermanent, setSameAsPermanent] = useState(false);
+
+  const update = <K extends keyof ApplicationFormData>(field: K, value: ApplicationFormData[K]) =>
+    setFormData(prev => ({ ...prev, [field]: value }));
+
+  const setError = (field: string, msg: string) =>
+    setErrors(prev => ({ ...prev, [field]: msg }));
+  const clearError = (field: string) =>
+    setErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
+
+  const handleAddressChange = useCallback((field: string, value: string) => {
+    // Convert perm_region → permRegion, resid_street → residStreet, etc.
+    const parts = field.split('_');
+    const key = (parts[0] + parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('')) as keyof ApplicationFormData;
+    update(key, value as any);
+    clearError(field);
+
+    // Mirror to resid if "same as permanent" is active
+    if (sameAsPermanent && parts[0] === 'perm') {
+      const residKey = ('resid' + parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('')) as keyof ApplicationFormData;
+      update(residKey, value as any);
+    }
+  }, [sameAsPermanent]);
+
+  const handleSameAsPermanent = useCallback((checked: boolean) => {
+    setSameAsPermanent(checked);
+    if (checked) {
+      setFormData(prev => ({
+        ...prev,
+        residRegion: prev.permRegion,
+        residProvince: prev.permProvince,
+        residCity: prev.permCity,
+        residBarangay: prev.permBarangay,
+        residStreet: prev.permStreet,
+      }));
+    }
+  }, []);
+
+  const handleBirthdate = (value: string) => {
+    update('birthdate', value);
+    update('age', calculateAge(value));
+  };
+
+  const getYearLevels = () => {
+    if (!formData.department) return [];
+    if (formData.department === 'Senior High School') return SHS_YEAR_LEVELS;
+    return COLLEGE_YEAR_LEVELS;
+  };
+
+  const getDepartments = () => {
+    if (formData.talentGroup === 'marching-band') return DEPARTMENTS;
+    return DEPARTMENTS.filter(d => d.value !== 'Senior High School');
+  };
+
+  const isMajorettes = formData.talentGroup === 'majorettes';
+
+  const validatePhone = (digits: string, cc: string) =>
+    cc === '+63' ? (digits.length === 10 && digits.startsWith('9')) : digits.length >= 7;
 
   // If no talent group selected, show group selection
   if (!talentGroup) {

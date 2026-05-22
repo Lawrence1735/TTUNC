@@ -9,4 +9,3 @@
       <App />
     </AuthProvider>
   );
-  

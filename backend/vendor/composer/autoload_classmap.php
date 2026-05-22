@@ -13,7 +13,21 @@ return array(
     'App\\Http\\Controllers\\Controller' => $baseDir . '/app/Http/Controllers/Controller.php',
     'App\\Http\\Requests\\Recruitment\\ApproveApplicationRequest' => $baseDir . '/app/Http/Requests/Recruitment/ApproveApplicationRequest.php',
     'App\\Http\\Requests\\Recruitment\\RejectApplicationRequest' => $baseDir . '/app/Http/Requests/Recruitment/RejectApplicationRequest.php',
+<<<<<<< HEAD
+    'App\\Http\\Requests\\Recruitment\\ScheduleInterviewRequest' => $baseDir . '/app/Http/Requests/Recruitment/ScheduleInterviewRequest.php',
+    'App\\Http\\Requests\\Recruitment\\StoreApplicationRequest' => $baseDir . '/app/Http/Requests/Recruitment/StoreApplicationRequest.php',
+    'App\\Http\\Requests\\Training\\BatchAttendanceRequest' => $baseDir . '/app/Http/Requests/Training/BatchAttendanceRequest.php',
+    'App\\Http\\Requests\\Training\\StoreEvaluationRequest' => $baseDir . '/app/Http/Requests/Training/StoreEvaluationRequest.php',
+    'App\\Http\\Requests\\Training\\UpdateTraineeRequest' => $baseDir . '/app/Http/Requests/Training/UpdateTraineeRequest.php',
     'App\\Http\\Resources\\ApplicationResource' => $baseDir . '/app/Http/Resources/ApplicationResource.php',
+    'App\\Http\\Resources\\AttendanceRecordResource' => $baseDir . '/app/Http/Resources/AttendanceRecordResource.php',
+    'App\\Http\\Resources\\EvaluationResource' => $baseDir . '/app/Http/Resources/EvaluationResource.php',
+    'App\\Http\\Resources\\InterviewResource' => $baseDir . '/app/Http/Resources/InterviewResource.php',
+    'App\\Http\\Resources\\TraineeResource' => $baseDir . '/app/Http/Resources/TraineeResource.php',
+    'App\\Http\\Resources\\UserResource' => $baseDir . '/app/Http/Resources/UserResource.php',
+=======
+    'App\\Http\\Resources\\ApplicationResource' => $baseDir . '/app/Http/Resources/ApplicationResource.php',
+>>>>>>> origin/main
     'App\\Models\\Application' => $baseDir . '/app/Models/Application.php',
     'App\\Models\\AttendanceRecord' => $baseDir . '/app/Models/AttendanceRecord.php',
     'App\\Models\\Evaluation' => $baseDir . '/app/Models/Evaluation.php',
@@ -21,7 +35,18 @@ return array(
     'App\\Models\\Trainee' => $baseDir . '/app/Models/Trainee.php',
     'App\\Models\\User' => $baseDir . '/app/Models/User.php',
     'App\\Providers\\AppServiceProvider' => $baseDir . '/app/Providers/AppServiceProvider.php',
+<<<<<<< HEAD
+    'App\\Repositories\\ApplicationRepository' => $baseDir . '/app/Repositories/ApplicationRepository.php',
+    'App\\Repositories\\AttendanceRepository' => $baseDir . '/app/Repositories/AttendanceRepository.php',
+    'App\\Repositories\\EvaluationRepository' => $baseDir . '/app/Repositories/EvaluationRepository.php',
+    'App\\Repositories\\TraineeRepository' => $baseDir . '/app/Repositories/TraineeRepository.php',
     'App\\Services\\ApplicationService' => $baseDir . '/app/Services/ApplicationService.php',
+    'App\\Services\\AttendanceService' => $baseDir . '/app/Services/AttendanceService.php',
+    'App\\Services\\EvaluationService' => $baseDir . '/app/Services/EvaluationService.php',
+    'App\\Services\\TraineeService' => $baseDir . '/app/Services/TraineeService.php',
+=======
+    'App\\Services\\ApplicationService' => $baseDir . '/app/Services/ApplicationService.php',
+>>>>>>> origin/main
     'Attribute' => $vendorDir . '/symfony/polyfill-php80/Resources/stubs/Attribute.php',
     'Brick\\Math\\BigDecimal' => $vendorDir . '/brick/math/src/BigDecimal.php',
     'Brick\\Math\\BigInteger' => $vendorDir . '/brick/math/src/BigInteger.php',

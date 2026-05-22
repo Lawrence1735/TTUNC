@@ -9,6 +9,9 @@ import {
   PublicApplicationForm,
   ApplicationFormData,
 } from "./components/PublicApplicationForm";
+import { AuthUser } from "../context/AuthContext";
+import { toast } from "sonner";
+
 // Lazy load heavy dashboard components for better performance
 const StudentDashboard = lazy(() => import("./components/StudentDashboard").then(module => ({ default: module.StudentDashboard })));
 const TrainingDashboard = lazy(() => import("./components/TrainingDashboard").then(module => ({ default: module.TrainingDashboard })));
@@ -20,10 +23,12 @@ const DirectorDashboard = lazy(() => import("./components/DirectorDashboardEnhan
 const Settings = lazy(() => import("./components/Settings").then(module => ({ default: module.Settings })));
 import { NotificationPanel } from "./components/NotificationPanel";
 import { Toaster } from "./components/ui/sonner";
-import { toast } from "sonner";
+import { applicationClient } from "../api/applicationClient";
 import { initKeyboardNavigation } from "./utils/keyboardNavigation";
 import { SkipToContent } from "./components/accessibility/SkipToContent";
 import { recruitmentService } from "./services/recruitmentService";
+
+// Mock data imports for dashboard initialization
 import {
   users as mockUsers,
   evaluations as mockEvaluations,
@@ -254,7 +259,13 @@ const DashboardLoader = () => (
   </div>
 );
 
-export default function App() {
+function AppContent() {
+  const { user, logout, login } = useAuth();
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(user || null);
+
+  // Cast AuthUser to User for component compatibility
+  const userAsComponentUser = currentUser ? (currentUser as unknown as User) : null;
+
   const [currentPage, setCurrentPage] = useState<
     | "landing"
     | "requirements"
@@ -263,9 +274,7 @@ export default function App() {
     | "login"
     | "forgot-password"
     | "dashboard"
-  >("login");
-
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  >(user ? "dashboard" : "login");
 
   const [currentView, setCurrentView] = useState<
     | "student"
@@ -302,23 +311,25 @@ export default function App() {
     });
   };
 
-  // Mock datasets (moved out of this file to ./data/mockData)
-  const [users, setUsers] = useState<User[]>(mockUsers);
-  const [evaluations, setEvaluations] = useState<Evaluation[]>(mockEvaluations);
+  // Sync currentUser with auth context user on changes
+  useEffect(() => {
+    if (user) {
+      setCurrentUser(user);
+    }
+  }, [user]);
 
-  const [events, setEvents] = useState<Event[]>(mockEvents);
-  const [announcements, setAnnouncements] = useState<Announcement[]>(mockAnnouncements);
-
-  const [applications, setApplications] = useState<Application[]>(mockApplications);
-  const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>(mockTrainingRecords);
-
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
-
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(mockInventoryItems);
-
-  const [benefits] = useState<Benefit[]>(mockBenefits);
-
-  const [renewals, setRenewals] = useState<ScholarshipRenewal[]>(mockRenewals);
+  // TODO: Replace with API calls in Phase 2
+  // Mock data for now - will be replaced with real API calls
+  const [users, setUsers] = useState<User[]>([]);
+  const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
+  const [events] = useState<Event[]>([]);
+  const [announcements] = useState<Announcement[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [benefits] = useState<Benefit[]>([]);
+  const [renewals, setRenewals] = useState<ScholarshipRenewal[]>([]);
 
 
   // Notification Panel State
@@ -374,34 +385,27 @@ export default function App() {
 
   const unreadNotificationsCount = userNotifications.filter(n => !n.read).length;
 
-  const { login, logout } = useAuth();
-
-  const handleLogin = async (email: string, password: string, _selectedRole: string) => {
+  const handleLogin = async (email: string, password: string, _selectedRole?: string) => {
     const result = await login(email, password);
     if (result.success) {
-      const { user: authUser } = await import('./services/authService').then(m => ({ user: m.authService.getStoredUser() }));
-      if (authUser) {
-        setCurrentUser({
-          id: String(authUser.id),
-          name: authUser.name,
-          email: authUser.email,
-          role: authUser.role === 'admin' ? 'admin' : authUser.role === 'director' ? 'director' : 'student',
-          talentGroup: authUser.talent_group ?? undefined,
-          studentId: authUser.student_id ?? undefined,
-          phone: authUser.phone ?? undefined,
-          trainingStatus: 'in_progress',
-        });
+      // Update current user from auth context
+      if (user) {
+        setCurrentUser(user);
         startTransition(() => {
           setCurrentPage("dashboard");
-          if (authUser.role === 'admin') {
+          
+          // Role-based redirect
+          if (user.role === 'admin') {
             setCurrentView('admin');
-          } else if (authUser.role === 'director') {
+          } else if (user.role === 'director') {
             setCurrentView('director');
-          } else {
+          } else if (user.trainingStatus === 'in_progress') {
             setCurrentView('training');
+          } else {
+            setCurrentView('student');
           }
         });
-        toast.success(`Welcome back, ${authUser.name}!`);
+        toast.success(`Welcome back, ${user.name}!`);
       }
     } else {
       toast.error(result.error ?? 'Invalid email or password');
@@ -426,7 +430,7 @@ export default function App() {
     }
   };
 
-  const handleUpdatePassword = async (userId: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+  const handleUpdatePassword = async (userId: string, currentPassword: string): Promise<{ success: boolean; error?: string }> => {
     // In a real application, this would make an API call to verify the current password
     // For demo purposes, we'll simulate validation
     const user = users.find(u => u.id === userId);
@@ -447,31 +451,31 @@ export default function App() {
 
   const handlePublicApplicationSubmit = async (formData: ApplicationFormData) => {
     try {
-      // Convert frontend field names to backend snake_case format
+      // Prepare API request payload with snake_case field names
       const payload = {
         talent_group: formData.talentGroup,
         applicant_name: formData.fullName,
         applicant_email: formData.email,
         applicant_student_id: formData.studentId || null,
         applicant_phone: formData.mobileNo,
-        applicant_birthdate: formData.birthdate || null,
-        applicant_age: formData.age || null,
-        applicant_address: formData.address,
-        applicant_gender: formData.gender,
         applicant_year_level: formData.yearLevel || null,
         applicant_course: formData.course || null,
         applicant_department: formData.department || null,
-        guardian_name: formData.guardianName || null,
-        guardian_phone: formData.guardianContactNo || null,
-        guardian_relationship: formData.guardianRelationship || null,
-        experience: formData.experience || "",
-        motivation: formData.motivation || "",
+        applicant_address: formData.address,
+        applicant_gender: formData.gender || null,
+        applicant_birthdate: formData.birthdate,
+        applicant_age: formData.age,
+        guardian_name: formData.guardianName,
+        guardian_phone: formData.guardianContactNo,
+        guardian_relationship: formData.guardianRelationship,
+        experience: formData.experience || null,
+        motivation: formData.motivation || null,
       };
 
-      // Call backend API to submit application
+      // Call API to submit the application (prioritizing recruitmentService)
       const response = await recruitmentService.submitApplication(payload);
       
-      // Add to local state for demo purposes (in production, just fetch from backend)
+      // Create local application for UI feedback
       const newApplication: Application = {
         id: response.id || `app_${Date.now()}`,
         userId: `user_${Date.now()}`,
@@ -525,7 +529,7 @@ export default function App() {
     }
   };
 
-  const handleCreateUserAccount = (application: Application, tempPassword: string) => {
+  const handleCreateUserAccount = (application: Application) => {
     const newUser: User = {
       id: `user_${Date.now()}`,
       name: application.personalInfo.name,
@@ -556,7 +560,7 @@ export default function App() {
     
     // Notify the new user about their account
     addNotification(
-      newUser.id,
+      newUser.id || '',
       'Welcome to TalentTrackUNC!',
       `Your account has been created successfully. You can now access the training dashboard. Your temporary password has been sent to ${newUser.email}.`,
       'acceptance'
@@ -642,7 +646,7 @@ export default function App() {
                 return (
                   <Suspense fallback={<DashboardLoader />}>
                     <Settings
-                      user={currentUser}
+                      user={userAsComponentUser}
                       onLogout={handleLogout}
                       allUsers={users}
                       onUpdateUser={handleUpdateUser}
@@ -659,7 +663,7 @@ export default function App() {
               return (
                 <Suspense fallback={<DashboardLoader />}>
                   <TrainingDashboard
-                    user={currentUser}
+                    user={userAsComponentUser}
                     onLogout={handleLogout}
                     trainingRecord={trainingRecords.find((tr) => tr.userId === currentUser.id) || null}
                     unreadNotifications={unreadNotificationsCount}
@@ -675,7 +679,7 @@ export default function App() {
             return (
               <Suspense fallback={<DashboardLoader />}>
                 <StudentDashboard
-                  user={currentUser}
+                  user={userAsComponentUser}
                   onLogout={handleLogout}
                   applications={applications.filter((app) => app.userId === currentUser.id)}
                   notifications={notifications.filter((n) => n.userId === currentUser.id)}
@@ -693,7 +697,7 @@ export default function App() {
               return (
                 <Suspense fallback={<DashboardLoader />}>
                   <Settings
-                    user={currentUser}
+                    user={userAsComponentUser}
                     onLogout={handleLogout}
                     allUsers={users}
                     onUpdateUser={handleUpdateUser}
@@ -712,7 +716,7 @@ export default function App() {
                 return (
                   <Suspense fallback={<DashboardLoader />}>
                     <MemberProfileDashboard
-                      user={currentUser}
+                      user={userAsComponentUser}
                       onLogout={handleLogout}
                       onNavigate={(view, tab) => {
                         navigateTo(view as any, tab ?? undefined);
@@ -736,13 +740,13 @@ export default function App() {
                 return (
                   <Suspense fallback={<DashboardLoader />}>
                     <EngagementDashboard
-                      user={currentUser}
+                      user={userAsComponentUser}
                       onLogout={handleLogout}
                       onNavigate={(view, tab) => {
                         navigateTo(view as any, tab ?? undefined);
                       }}
-                      events={events.filter((e) => e.talentGroups.includes(currentUser.talentGroup || ""))}
-                      notifications={notifications.filter((n) => n.userId === currentUser.id)}
+                      events={events.filter((e: any) => e.talentGroups.includes(currentUser?.talentGroup || ""))}
+                      notifications={notifications.filter((n) => n.userId === currentUser?.id)}
                       onMarkNotificationRead={(notificationId) => {
                         setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                       }}
@@ -757,15 +761,15 @@ export default function App() {
                 return (
                   <Suspense fallback={<DashboardLoader />}>
                     <ScholarshipDashboard
-                      user={currentUser}
+                      user={userAsComponentUser}
                       onLogout={handleLogout}
                       onNavigate={(view, tab) => {
                         navigateTo(view as any, tab ?? undefined);
                       }}
                       benefits={benefits}
                       renewals={renewals}
-                      evaluations={evaluations.filter((e) => e.traineeId === currentUser.id)}
-                      notifications={notifications.filter((n) => n.userId === currentUser.id)}
+                      evaluations={evaluations.filter((e: any) => e.traineeId === currentUser?.id)}
+                      notifications={notifications.filter((n) => n.userId === currentUser?.id)}
                       onMarkNotificationRead={(notificationId) => {
                         setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                       }}
@@ -788,11 +792,11 @@ export default function App() {
               return (
                 <Suspense fallback={<DashboardLoader />}>
                   <MemberProfileDashboard
-                    user={currentUser}
+                    user={userAsComponentUser}
                     onLogout={handleLogout}
                     onNavigate={(view) => navigateTo(view as any)}
-                    inventory={inventoryItems.filter((item) => item.userId === currentUser.id)}
-                    notifications={notifications.filter((n) => n.userId === currentUser.id)}
+                    inventory={inventoryItems.filter((item) => item.userId === currentUser?.id)}
+                    notifications={notifications.filter((n) => n.userId === currentUser?.id)}
                     onMarkNotificationRead={(notificationId) => {
                       setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                     }}
@@ -808,10 +812,10 @@ export default function App() {
               return (
                 <Suspense fallback={<DashboardLoader />}>
                   <StudentDashboard
-                    user={currentUser}
+                    user={userAsComponentUser}
                     onLogout={handleLogout}
-                    applications={applications.filter((app) => app.userId === currentUser.id)}
-                    notifications={notifications.filter((n) => n.userId === currentUser.id)}
+                    applications={applications.filter((app) => app.userId === currentUser?.id)}
+                    notifications={notifications.filter((n) => n.userId === currentUser?.id)}
                     onMarkNotificationRead={(notificationId) => {
                       setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                     }}
@@ -825,7 +829,7 @@ export default function App() {
               return (
                 <Suspense fallback={<DashboardLoader />}>
                   <Settings
-                    user={currentUser}
+                    user={userAsComponentUser}
                     onLogout={handleLogout}
                     allUsers={users}
                     onUpdateUser={handleUpdateUser}
@@ -842,14 +846,14 @@ export default function App() {
             return (
               <Suspense fallback={<DashboardLoader />}>
                 <AdminDashboard
-                user={currentUser}
-                onLogout={handleLogout}
-                applications={applications}
-                users={users}
-                events={events}
-                announcements={announcements}
-                trainingRecords={trainingRecords}
-                evaluations={evaluations}
+                  user={userAsComponentUser}
+                  onLogout={handleLogout}
+                  applications={applications}
+                  users={users}
+                  events={events}
+                  announcements={announcements}
+                  trainingRecords={trainingRecords}
+                  evaluations={evaluations}
                 onUpdateApplicationStatus={(applicationId, status) => {
                   setApplications(applications.map((app) => 
                     app.id === applicationId ? { ...app, status } : app
@@ -872,7 +876,7 @@ export default function App() {
               return (
                 <Suspense fallback={<DashboardLoader />}>
                   <Settings
-                  user={currentUser}
+                  user={userAsComponentUser}
                   onLogout={handleLogout}
                   allUsers={users}
                   onUpdateUser={handleUpdateUser}
@@ -889,7 +893,7 @@ export default function App() {
             return (
               <Suspense fallback={<DashboardLoader />}>
                 <DirectorDashboard
-                user={currentUser}
+                user={userAsComponentUser}
                 onLogout={handleLogout}
                 applications={applications}
                 users={users}
@@ -1037,6 +1041,15 @@ export default function App() {
           />
         )}
       </div>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      {/* Wrap app with AuthProvider for auth context */}
+      <AppContent />
     </>
   );
 }
