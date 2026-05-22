@@ -17,12 +17,8 @@
         "laravel/pint": "^1.24",
         "laravel/sail": "^1.41",
         "mockery/mockery": "^1.6",
-<<<<<<< HEAD
-        "nunomaduro/collision": "^8.1"
-=======
         "nunomaduro/collision": "^8.6",
         "phpunit/phpunit": "^11.5.50"
->>>>>>> origin/main
     },
     "autoload": {
         "psr-4": {
@@ -68,13 +64,10 @@
             "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
             "@php artisan migrate --graceful --ansi"
         ],
-<<<<<<< HEAD
-        "pint": "vendor/bin/pint"
-=======
+        "pint": "vendor/bin/pint",
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
         ]
->>>>>>> origin/main
     },
     "extra": {
         "laravel": {

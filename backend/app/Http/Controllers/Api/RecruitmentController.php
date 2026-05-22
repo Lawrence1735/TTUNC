@@ -6,24 +6,20 @@ namespace App\Http\Controllers\Api;
  
 use App\Http\Controllers\Controller;
 use App\Models\Application;
-<<<<<<< HEAD
 use App\Models\Interview;
 use App\Services\ApplicationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Log;
-=======
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
->>>>>>> origin/main
 use Symfony\Component\HttpFoundation\Response;
  
 final class RecruitmentController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-<<<<<<< HEAD
 $applications = $this->applicationService->list(
             talentGroup: $request->user()->talent_group,
             status:      $request->string('status')->value() ?: null,
@@ -57,7 +53,6 @@ $talentGroup = $request->user()->talent_group;
      * POST /api/v1/applications  (public)
      */
     public function store(StoreApplicationRequest $request): JsonResponse
-=======
         $query = Application::query()->with('interview');
  
         if ($request->user()->role === 'director') {
@@ -78,7 +73,6 @@ $talentGroup = $request->user()->talent_group;
     }
  
     public function store(Request $request): JsonResponse
->>>>>>> origin/main
     {
         $data = $request->validate([
             'talent_group'                => ['required', 'in:marching-band,glee-club,dance-club,majorettes'],
@@ -127,7 +121,6 @@ $talentGroup = $request->user()->talent_group;
  
     public function show(Application $application): JsonResponse
     {
-<<<<<<< HEAD
 $application = $this->applicationService->get($application->id);
 
         return response()->json(['data' => new ApplicationResource($application)]);
@@ -213,7 +206,6 @@ $application = $this->applicationService->get($application->id);
         return response()->json([
             'message'   => 'Interview rescheduled successfully.',
             'interview' => new InterviewResource($interview),
-=======
         return response()->json(['data' => $application->load('interview')]);
     }
  
@@ -223,7 +215,6 @@ $application = $this->applicationService->get($application->id);
             'scheduled_at' => ['required', 'date'],
             'venue'        => ['nullable', 'string'],
             'notes'        => ['nullable', 'string'],
->>>>>>> origin/main
         ]);
  
         $application->update(['status' => 'interview_scheduled']);

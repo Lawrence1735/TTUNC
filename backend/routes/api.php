@@ -18,33 +18,11 @@ Route::prefix('v1')->group(function (): void {
 
     // ── Authenticated routes ───────────────────────────────────────────────────────
     Route::middleware('auth:sanctum')->group(function (): void {
-<<<<<<< HEAD
+        // Auth
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
         Route::post('/refresh', [AuthController::class, 'refresh'])->name('refresh');
-        Route::get('/me',      [AuthController::class, 'me'])->name('me');
-    });
-});
+        Route::get('/me', [AuthController::class, 'me'])->name('me');
 
-// ── Public endpoints (no auth required) ──────────────────────────────────────
-Route::prefix('v1')->name('public.')->group(function (): void {
-    // Public scholarship application submission (rate-limited to prevent spam/DoS)
-    Route::post(
-        '/applications',
-        [RecruitmentController::class, 'store']
-    )->name('applications.store')
-     ->middleware('throttle:10,1'); // 10 requests per 1 minute per IP
-});
-=======
-
-        // Auth
-        Route::post('/auth/logout', [AuthController::class, 'logout']);
-        Route::get('/auth/me', [AuthController::class, 'me']);
->>>>>>> origin/main
-
-        // Dashboard
-        Route::get('/dashboard/summary', DashboardSummaryController::class);
-
-<<<<<<< HEAD
         // ── Dashboard ─────────────────────────────────────────────────────────
         Route::get(
             '/dashboard/summary',
@@ -100,15 +78,6 @@ Route::prefix('v1')->name('public.')->group(function (): void {
                 [RecruitmentController::class, 'handleRejectInterview']
             )->name('applications.reject')
              ->middleware('role:director,admin');
-=======
-        // Recruitment
-        Route::prefix('recruitment')->group(function (): void {
-            Route::get('/applications', [RecruitmentController::class, 'index']);
-            Route::get('/applications/{application}', [RecruitmentController::class, 'show']);
-            Route::post('/applications/{application}/schedule-interview', [RecruitmentController::class, 'scheduleInterview']);
-            Route::post('/applications/{application}/approve', [RecruitmentController::class, 'handleApproveInterview']);
-            Route::post('/applications/{application}/reject', [RecruitmentController::class, 'handleRejectInterview']);
->>>>>>> origin/main
         });
 
         // Training — Trainees
