@@ -10,7 +10,6 @@ return new class extends Migration
     {
         Schema::create('applications', function (Blueprint $table): void {
             $table->id();
-<<<<<<< HEAD:backend/database/migrations/2024_01_01_000002_create_applications_table.php
 
             // Nullable FK — applicant may not have an account yet
             $table->foreignId('user_id')
@@ -35,11 +34,9 @@ return new class extends Migration
             ])->default('pending')->index();
 
             // Weekly growth tracker — incremented on creation, reset weekly via scheduler
-=======
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->enum('talent_group', ['marching-band','glee-club','dance-club','majorettes'])->index();
             $table->enum('status', ['pending','interview_scheduled','approved','rejected'])->default('pending')->index();
->>>>>>> origin/main:backend/database/migrations/2026_05_19_070335_create_applications_table.php
             $table->unsignedSmallInteger('applications_this_week_tracker')->default(0);
             $table->string('applicant_name');
             $table->string('applicant_email');

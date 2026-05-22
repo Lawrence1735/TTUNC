@@ -67,7 +67,6 @@ final class AuthController extends Controller
             'created_at'   => $user->created_at,
         ]);
     }
-<<<<<<< HEAD
 
     /**
      * Refresh the authentication token.
@@ -98,7 +97,17 @@ final class AuthController extends Controller
 
         return response()->json([
             'token' => $newToken,
-            'user'  => new UserResource($user),
+            'user'  => [
+                'id'           => $user->id,
+                'name'         => $user->name,
+                'email'        => $user->email,
+                'role'         => $user->role,
+                'talent_group' => $user->talent_group,
+                'student_id'   => $user->student_id,
+                'phone'        => $user->phone,
+                'is_active'    => true,
+                'created_at'   => $user->created_at,
+            ],
         ], Response::HTTP_OK);
     }
 
@@ -137,6 +146,3 @@ final class AuthController extends Controller
         };
     }
 }
-=======
-}
->>>>>>> origin/main

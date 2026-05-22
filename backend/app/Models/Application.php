@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-<<<<<<< HEAD
 /**
  * @property int         $id
  * @property int|null    $user_id
@@ -29,9 +28,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Carbon\Carbon $applied_at
  */
 final class Application extends Model
-=======
 class Application extends Model
->>>>>>> origin/main
 {
     use HasFactory, SoftDeletes;
 

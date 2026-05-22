@@ -3,13 +3,8 @@
         'name' => 'laravel/laravel',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-<<<<<<< HEAD
-        'reference' => '2ee5b6c8d3b29c8c8e4862baf7300be8ec9ce32b',
-        'type' => 'library',
-=======
-        'reference' => '8547e8a08bad1dfab3515116f5ebb17b78d35173',
+        'reference' => '98f2cebc7e577a13bd56ceb7f29ead6450d4a6d6',
         'type' => 'project',
->>>>>>> origin/main
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
         'dev' => true,
@@ -405,7 +400,7 @@
         'laravel/laravel' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '8547e8a08bad1dfab3515116f5ebb17b78d35173',
+            'reference' => '98f2cebc7e577a13bd56ceb7f29ead6450d4a6d6',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -1327,18 +1322,6 @@
             'aliases' => array(),
             'dev_requirement' => false,
         ),
-<<<<<<< HEAD
-        'ttunc/talent-track-api' => array(
-            'pretty_version' => 'dev-main',
-            'version' => 'dev-main',
-            'reference' => '2ee5b6c8d3b29c8c8e4862baf7300be8ec9ce32b',
-            'type' => 'library',
-            'install_path' => __DIR__ . '/../../',
-            'aliases' => array(),
-            'dev_requirement' => false,
-        ),
-=======
->>>>>>> origin/main
         'vlucas/phpdotenv' => array(
             'pretty_version' => 'v5.6.3',
             'version' => '5.6.3.0',
