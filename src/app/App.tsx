@@ -215,6 +215,21 @@ export interface InventoryItem {
   name?: string;
   type: "uniform" | "instrument" | "accessory";
   condition: "excellent" | "good" | "fair" | "needs_repair";
+  serialNumber?: string;
+  propertyType?: string;
+  instrumentType?: string;
+  accessoryType?: string;
+  uniformSet?: string;
+  quantity?: number;
+  description?: string;
+  notes?: string;
+  assignedTo?: string;
+  headpieceSize?: string;
+  topSize?: string;
+  pantsSize?: string;
+  bandShoesSize?: string;
+  dressSize?: string;
+  shoesSize?: string;
   assignedDate?: Date;
   borrowedDate?: Date;
   returnDate?: Date;
@@ -727,7 +742,7 @@ function AppContent() {
                       onNavigate={(view, tab) => {
                         navigateTo(view as any, tab ?? undefined);
                       }}
-                      inventory={inventoryItems.filter((item) => item.userId === currentUser.id)}
+                      inventory={inventoryItems}
                       notifications={notifications.filter((n) => n.userId === currentUser.id)}
                       onMarkNotificationRead={(notificationId) => {
                         setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
@@ -801,8 +816,8 @@ function AppContent() {
                     user={userAsComponentUser}
                     onLogout={handleLogout}
                     onNavigate={(view) => navigateTo(view as any)}
-                    inventory={inventoryItems.filter((item) => item.userId === currentUser?.id)}
-                    notifications={notifications.filter((n) => n.userId === currentUser?.id)}
+                    inventory={inventoryItems}
+                    notifications={notifications.filter((n) => n.userId === currentUser.id)}
                     onMarkNotificationRead={(notificationId) => {
                       setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                     }}

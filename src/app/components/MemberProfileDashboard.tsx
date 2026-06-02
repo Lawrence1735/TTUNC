@@ -90,20 +90,10 @@ export function MemberProfileDashboard({
   // Filter inventory items assigned to this user
   const myInventory = inventory.filter(item => item.userId === user.id && item.status === 'assigned');
 
-  // Get assigned instruments (Marching Band only)
-  const assignedInstruments = isMarchingBand 
-    ? myInventory.filter(item => item.type === 'instrument')
-    : [];
-
-  // Get assigned uniforms (All groups except Dance Club)
-  const assignedUniforms = !isDanceClub
-    ? myInventory.filter(item => item.type === 'uniform')
-    : [];
-
-  // Get assigned accessories (Marching Band and Majorettes only)
-  const assignedAccessories = (isMarchingBand || isMajorettes)
-    ? myInventory.filter(item => item.type === 'accessory')
-    : [];
+  // Assigned items by type
+  const assignedInstruments = myInventory.filter(item => item.type === 'instrument');
+  const assignedUniforms = myInventory.filter(item => item.type === 'uniform');
+  const assignedAccessories = myInventory.filter(item => item.type === 'accessory');
 
   const visibleNotifications = notifications.filter(n => !hiddenNotifIds.includes(n.id));
   const unreadNotifications = visibleNotifications.filter(n => !n.read);
@@ -362,7 +352,6 @@ export function MemberProfileDashboard({
             </CardContent>
           </Card>
 
-          {!isDanceClub && (
           <Card
             role="listitem"
             className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
@@ -374,17 +363,10 @@ export function MemberProfileDashboard({
             <CardContent className="p-2 sm:p-3">
               <p className="text-[#6B7280] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Assigned Items</p>
               <p className="text-[#1A1A1A] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">
-                {(() => {
-                  let count = 0;
-                  if (assignedInstruments.length > 0) count += 1;
-                  if (assignedUniforms.length > 0) count += 1;
-                  if (isMarchingBand) count += assignedAccessories.length;
-                  return count;
-                })()}
+                {myInventory.length}
               </p>
             </CardContent>
           </Card>
-          )}
           </div>
         </section>
 
@@ -742,7 +724,10 @@ export function MemberProfileDashboard({
                           <CardContent className="pt-4">
                             <div className="space-y-3">
                               <div className="flex items-start justify-between">
-                                <p className="font-medium text-[#1A1A1A]">{instrument.itemName}</p>
+                                <div>
+                                  <p className="font-medium text-[#1A1A1A]">{instrument.itemName}</p>
+                                  {instrument.instrumentType && <p className="text-[11px] text-[#6c757d] mt-1">{instrument.instrumentType}</p>}
+                                </div>
                                 <Badge className="bg-green-100 text-green-800 text-xs">
                                   {instrument.condition}
                                 </Badge>
@@ -752,14 +737,22 @@ export function MemberProfileDashboard({
                                   <p className="text-xs text-[#6c757d]">Item ID</p>
                                   <p className="font-mono text-xs">{instrument.id}</p>
                                 </div>
+                                {instrument.serialNumber && (
+                                  <div>
+                                    <p className="text-xs text-[#6c757d]">Serial Number</p>
+                                    <p className="text-xs">{instrument.serialNumber}</p>
+                                  </div>
+                                )}
                                 <div>
                                   <p className="text-xs text-[#6c757d]">Date Issued</p>
                                   <p className="text-xs">{instrument.assignedDate?.toLocaleDateString() || 'Not specified'}</p>
                                 </div>
-                                <div>
-                                  <p className="text-xs text-[#6c757d]">Notes</p>
-                                  <p className="text-xs">{instrument.notes}</p>
-                                </div>
+                                {instrument.notes && (
+                                  <div>
+                                    <p className="text-xs text-[#6c757d]">Notes</p>
+                                    <p className="text-xs">{instrument.notes}</p>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </CardContent>
@@ -787,80 +780,74 @@ export function MemberProfileDashboard({
                           <div className="space-y-3">
                             <div className="flex items-start justify-between">
                               <div>
-                                <p className="font-medium text-[#1A1A1A] text-sm">Complete Set</p>
+                                <p className="font-medium text-[#1A1A1A] text-sm">{uniform.itemName || 'Uniform Set'}</p>
                                 <p className="text-xs text-[#6c757d] mt-1">ID: {uniform.id}</p>
                               </div>
                               <Badge className="bg-green-100 text-green-800 text-xs">
                                 {uniform.condition}
                               </Badge>
                             </div>
-                            
-                            <div className="space-y-2">
-                              {/* Dress - for Majorettes only */}
-                              {uniform.items.dress && (
-                                <div className="p-2 bg-gray-50 rounded">
-                                  <p className="text-xs text-[#6c757d]">Dress</p>
-                                  <p className="text-xs font-medium">{uniform.items.dress.name}</p>
-                                  <p className="text-xs text-[#6c757d]">Size: {uniform.items.dress.size}</p>
+
+                            <div className="grid gap-3 sm:grid-cols-2 text-sm">
+                              {uniform.uniformSet && (
+                                <div>
+                                  <p className="text-xs text-[#6c757d]">Set</p>
+                                  <p className="font-medium text-xs">{uniform.uniformSet}</p>
                                 </div>
                               )}
-
-                              {/* Top - for Marching Band, Glee Club, Dance Club */}
-                              {uniform.items.top && (
-                                <div className="p-2 bg-gray-50 rounded">
-                                  <p className="text-xs text-[#6c757d]">Top</p>
-                                  <p className="text-xs font-medium">{uniform.items.top.name}</p>
-                                  <p className="text-xs text-[#6c757d]">Size: {uniform.items.top.size}</p>
+                              {uniform.serialNumber && (
+                                <div>
+                                  <p className="text-xs text-[#6c757d]">Serial Number</p>
+                                  <p className="font-medium text-xs">{uniform.serialNumber}</p>
                                 </div>
                               )}
-
-                              {/* Pants - for Marching Band, Glee Club, Dance Club */}
-                              {uniform.items.pants && (
-                                <div className="p-2 bg-gray-50 rounded">
-                                  <p className="text-xs text-[#6c757d]">Pants</p>
-                                  <p className="text-xs font-medium">{uniform.items.pants.name}</p>
-                                  <p className="text-xs text-[#6c757d]">Size: {uniform.items.pants.size}</p>
+                              {uniform.propertyType && (
+                                <div>
+                                  <p className="text-xs text-[#6c757d]">Property Type</p>
+                                  <p className="font-medium text-xs">{uniform.propertyType}</p>
                                 </div>
                               )}
-
-                              {/* Skirt - for Majorettes */}
-                              {uniform.items.skirt && (
-                                <div className="p-2 bg-gray-50 rounded">
-                                  <p className="text-xs text-[#6c757d]">Skirt</p>
-                                  <p className="text-xs font-medium">{uniform.items.skirt.name}</p>
-                                  <p className="text-xs text-[#6c757d]">Size: {uniform.items.skirt.size}</p>
+                              {uniform.headpieceSize && (
+                                <div>
+                                  <p className="text-xs text-[#6c757d]">Headpiece Size</p>
+                                  <p className="font-medium text-xs">{uniform.headpieceSize}</p>
                                 </div>
                               )}
-
-                              {/* Gala - for Majorettes, Glee Club, Dance Club */}
-                              {uniform.items.gala && (
-                                <div className="p-2 bg-gray-50 rounded">
-                                  <p className="text-xs text-[#6c757d]">Gala</p>
-                                  <p className="text-xs font-medium">{uniform.items.gala.name}</p>
-                                  <p className="text-xs text-[#6c757d]">Size: {uniform.items.gala.size}</p>
+                              {uniform.topSize && (
+                                <div>
+                                  <p className="text-xs text-[#6c757d]">Top Size</p>
+                                  <p className="font-medium text-xs">{uniform.topSize}</p>
                                 </div>
                               )}
-
-                              {/* Headdress - for Marching Band and Majorettes */}
-                              {uniform.items.headdress && (
-                                <div className="p-2 bg-gray-50 rounded">
-                                  <p className="text-xs text-[#6c757d]">Headdress</p>
-                                  <p className="text-xs font-medium">{uniform.items.headdress.name}</p>
-                                  <p className="text-xs text-[#6c757d]">Size: {uniform.items.headdress.size}</p>
+                              {uniform.pantsSize && (
+                                <div>
+                                  <p className="text-xs text-[#6c757d]">Pants Size</p>
+                                  <p className="font-medium text-xs">{uniform.pantsSize}</p>
                                 </div>
                               )}
-
-                              {/* Shoes - all groups have this */}
-                              <div className="p-2 bg-gray-50 rounded">
-                                <p className="text-xs text-[#6c757d]">Shoes</p>
-                                <p className="text-xs font-medium">{uniform.items.shoes.name}</p>
-                                <p className="text-xs text-[#6c757d]">Size: {uniform.items.shoes.size}</p>
-                              </div>
+                              {uniform.bandShoesSize && (
+                                <div>
+                                  <p className="text-xs text-[#6c757d]">Band Shoes Size</p>
+                                  <p className="font-medium text-xs">{uniform.bandShoesSize}</p>
+                                </div>
+                              )}
+                              {uniform.dressSize && (
+                                <div>
+                                  <p className="text-xs text-[#6c757d]">Dress Size</p>
+                                  <p className="font-medium text-xs">{uniform.dressSize}</p>
+                                </div>
+                              )}
+                              {uniform.shoesSize && (
+                                <div>
+                                  <p className="text-xs text-[#6c757d]">Shoes Size</p>
+                                  <p className="font-medium text-xs">{uniform.shoesSize}</p>
+                                </div>
+                              )}
                             </div>
 
-                            <div className="pt-2 border-t border-[#e0e0e0]">
-                              <p className="text-xs text-[#6c757d]">Issued: {uniform.dateIssued}</p>
-                              <p className="text-xs text-[#6c757d] mt-1">{uniform.notes}</p>
+                            <div className="pt-2 border-t border-[#e0e0e0] text-sm">
+                              <p className="text-xs text-[#6c757d]">Issued: {uniform.assignedDate?.toLocaleDateString() || 'Not specified'}</p>
+                              {uniform.description && <p className="text-xs text-[#6c757d] mt-1">{uniform.description}</p>}
                             </div>
                           </div>
                         </CardContent>
@@ -888,10 +875,11 @@ export function MemberProfileDashboard({
                           <CardContent className="pt-3 pb-3">
                             <div className="space-y-2">
                               <div className="flex items-start justify-between">
-                                <p className="font-medium text-sm text-[#1A1A1A]">{accessory.name}</p>
+                                <p className="font-medium text-sm text-[#1A1A1A]">{accessory.itemName || accessory.name || 'Accessory'}</p>
                                 <Badge className={
-                                  accessory.condition === 'Good' ? 'bg-green-100 text-green-800' :
-                                  accessory.condition === 'Fair' ? 'bg-yellow-100 text-yellow-800' :
+                                  accessory.condition === 'excellent' ? 'bg-green-100 text-green-800' :
+                                  accessory.condition === 'good' ? 'bg-blue-100 text-blue-800' :
+                                  accessory.condition === 'fair' ? 'bg-yellow-100 text-yellow-800' :
                                   'bg-red-100 text-red-800'
                                 } variant="secondary">
                                   {accessory.condition}
@@ -899,11 +887,12 @@ export function MemberProfileDashboard({
                               </div>
                               <div>
                                 <p className="text-xs text-[#6c757d]">ID: {accessory.id}</p>
-                                <p className="text-xs text-[#6c757d]">Issued: {accessory.dateIssued}</p>
+                                {accessory.quantity !== undefined && <p className="text-xs text-[#6c757d]">Quantity: {accessory.quantity}</p>}
+                                <p className="text-xs text-[#6c757d]">Issued: {accessory.assignedDate?.toLocaleDateString() || 'Not specified'}</p>
                               </div>
-                              {accessory.notes && (
+                              {accessory.description && (
                                 <div className="pt-2 border-t border-[#e0e0e0]">
-                                  <p className="text-xs text-[#6c757d]">{accessory.notes}</p>
+                                  <p className="text-xs text-[#6c757d]">{accessory.description}</p>
                                 </div>
                               )}
                             </div>
