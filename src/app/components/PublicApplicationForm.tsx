@@ -1,29 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Alert, AlertDescription } from './ui/alert';
 import { Checkbox } from './ui/checkbox';
 import { toast } from 'sonner';
 import {
-  Send, User, Phone, Home, GraduationCap,
-  AlertCircle, X, Shield, ChevronRight, ChevronDown,
-  ArrowLeft, FileText, Award,
+  Send, User, Phone, GraduationCap, Shield, 
+  MapPin, Lock, ArrowLeft
 } from './ui/icons';
-import { Separator } from './ui/separator';
+import { SuccessConfirmation } from './SuccessConfirmation';
 import uncLogo from 'figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png';
 import marchingBandImage from 'figma:asset/b242c5c349e0b89983c68f7897a6a917cfadb783.png';
 import majorettesImage from 'figma:asset/720c2c7918c80e99d38a856e37434c03a71dfb51.png';
 import gleeClubImage from 'figma:asset/64360cbb01ae76c176fb14f1e5d341950738dfa7.png';
 import danceClubImage from 'figma:asset/a2be20b0c6962239c4e654249dbc602dbc00c37e.png';
 import {
-  PH_REGIONS,
-  PH_PROVINCES_BY_REGION,
-  PH_CITIES_BY_PROVINCE,
-  PH_BARANGAYS_BY_CITY,
+  PH_REGIONS, PH_PROVINCES_BY_REGION, PH_CITIES_BY_PROVINCE, PH_BARANGAYS_BY_CITY,
 } from './PhilippineAddressData';
 
 interface PublicApplicationFormProps {
@@ -34,7 +27,6 @@ interface PublicApplicationFormProps {
 }
 
 export interface ApplicationFormData {
-  // Personal Information
   fullName: string;
   lastName: string;
   firstName: string;
@@ -42,41 +34,28 @@ export interface ApplicationFormData {
   birthdate: string;
   age: string;
   gender: string;
-
-  // Permanent Address
   permRegion: string;
   permProvince: string;
   permCity: string;
   permBarangay: string;
   permStreet: string;
-
-  // Residing Address
   residRegion: string;
   residProvince: string;
   residCity: string;
   residBarangay: string;
   residStreet: string;
-
-  // Contact Information
   mobileNo: string;
   email: string;
-  socialMediaLink: string;
-
-  // Academic Information
   studentId: string;
   yearLevel: string;
   course: string;
   department: string;
-
-  // Emergency Contact
-  guardianName: string;
+  guardianLastName: string;
+  guardianFirstName: string;
+  guardianMiddleName: string;
   guardianRelationship: string;
   guardianContactNo: string;
-
-  // Talent Group
   talentGroup: 'marching-band' | 'glee-club' | 'majorettes' | 'dance-club' | '';
-
-  // Group-specific (kept for backward compat)
   hasBandExperience: boolean | null;
   vocalRange: string;
   previousSingingExperience: string;
@@ -89,107 +68,284 @@ export interface ApplicationFormData {
   previousOrganization: string;
   canPerformBasicRoutines: string;
   willingToAttendRehearsalsMajorettes: string;
-
-  // Consent
   dataPrivacyConsent: boolean;
   confirmedAccuracy: boolean;
-
-  // Legacy
   address: string;
-  guardianName_legacy?: string;
-
-  submittedAt: Date;
 }
 
 const TALENT_GROUPS = [
-  { value: 'marching-band', label: 'Marching Band', desc: 'Precision, rhythm & musical excellence', longDesc: 'Perform at university events, parades, and competitions with brass, woodwind, and percussion instruments.', icon: marchingBandImage },
-  { value: 'glee-club',     label: 'Glee Club',     desc: 'Vocal harmony & choral tradition',      longDesc: 'Showcase your vocal talent in choral performances, university concerts, and regional competitions.', icon: gleeClubImage },
-  { value: 'majorettes',    label: 'Majorettes',    desc: 'Grace, coordination & showmanship',     longDesc: 'Combine dance and precision movements to enhance band performances at parades and special events.', icon: majorettesImage },
-  { value: 'dance-club',    label: 'Dance Club',    desc: 'Movement, expression & artistry',       longDesc: 'Express yourself through various dance styles in university performances and inter-school competitions.', icon: danceClubImage },
+  { value: 'marching-band', label: 'Marching Band', image: marchingBandImage },
+  { value: 'glee-club', label: 'Glee Club', image: gleeClubImage },
+  { value: 'majorettes', label: 'Majorettes', image: majorettesImage },
+  { value: 'dance-club', label: 'Dance Club', image: danceClubImage },
 ];
 
+const RELATIONSHIP_OPTIONS = ['Parent', 'Guardian', 'Sibling', 'Relative'];
 const DEPARTMENTS = [
-  { value: 'College of Engineering & Architecture', label: 'College of Engineering & Architecture' },
-  { value: 'College of Business & Accountancy', label: 'College of Business & Accountancy' },
-  { value: 'College of Arts & Sciences', label: 'College of Arts & Sciences' },
-  { value: 'College of Computer Science', label: 'College of Computer Science' },
-  { value: 'College of Education', label: 'College of Education' },
-  { value: 'College of Criminal Justice Education', label: 'College of Criminal Justice Education' },
-  { value: 'Senior High School', label: 'Senior High School' },
+  { value: 'cea', label: 'College of Engineering and Architecture (CEA)' },
+  { value: 'sba', label: 'School of Business and Accountancy (SBA)' },
+  { value: 'scis', label: 'School of Computer and Information Sciences (SCIS)' },
+  { value: 'sted', label: 'School of Teacher Education (STEd)' },
+  { value: 'ssns', label: 'School of Social and Natural Sciences (SSNS)' },
+  { value: 'ccje', label: 'College of Criminal Justice Education (CCJE)' },
+  { value: 'shs', label: 'Senior High School (SHS)' },
 ];
-
 const COURSES: Record<string, string[]> = {
-  'College of Engineering & Architecture': [
-    'BS Civil Engineering', 'BS Mechanical Engineering', 'BS Electrical Engineering',
-    'BS Electronics Engineering', 'BS Computer Engineering', 'BS Architecture',
+  cea: [
+    'Bachelor of Science in Architecture (BSA)',
+    'Bachelor of Science in Civil Engineering (BSCE)',
+    'Bachelor of Science in Computer Engineering (BSCpE)',
+    'Bachelor of Science in Electrical Engineering (BSEE)',
+    'Bachelor of Science in Electronics Engineering (BSECE)',
+    'Bachelor of Science in Mechanical Engineering (BSME)',
   ],
-  'College of Business & Accountancy': [
-    'BS Accountancy', 'BS Accounting Information Systems',
-    'BS Business Administration – Financial Management',
-    'BS Business Administration – Marketing Management',
-    'BS Entrepreneurship', 'BS Hospitality Management',
+  sba: [
+    'Bachelor of Science in Accountancy (BSA)',
+    'Bachelor of Science in Management Accounting (BSMA)',
+    'Bachelor of Science in Business Administration - Human Resource Management (BSBA-HRM)',
+    'Bachelor of Science in Business Administration - Marketing Management (BSBA-MM)',
+    'Bachelor of Science in Business Administration - Financial Management (BSBA-FM)',
+    'Bachelor of Science in Business Administration - Operations Management (BSBA-OM)',
+    'Bachelor of Science in Hospitality Management (BSHM)',
+    'Bachelor of Science in Tourism Management (BSTM)',
   ],
-  'College of Arts & Sciences': [
-    'BA Political Science', 'BA Psychology', 'BS Biology',
+  scis: [
+    'Bachelor of Science in Computer Science (BSCS)',
+    'Bachelor of Science in Information Technology (BSIT)',
+    'Bachelor of Library and Information Science (BLIS)',
+    'Associate in Computer Technology (ACT)',
   ],
-  'College of Computer Science': [
-    'BS Computer Science', 'BS Information Technology', 'BS Library and Information Science',
+  sted: [
+    'Bachelor of Elementary Education (BEEd)',
+    'Bachelor of Early Childhood Education (BECEd)',
+    'Bachelor of Special Needs Education - Visual Impairment (BSNEd-VI)',
+    'Bachelor of Special Needs Education - Hearing Impairment (BSNEd-HI)',
+    'Bachelor of Special Needs Education - Cognitive Impairment (BSNEd-CI)',
+    'Bachelor of Secondary Education - English (BSEd-English)',
+    'Bachelor of Secondary Education - Filipino (BSEd-Filipino)',
+    'Bachelor of Secondary Education - Mathematics (BSEd-Mathematics)',
+    'Bachelor of Secondary Education - Science (BSEd-Science)',
+    'Bachelor of Secondary Education - Social Studies (BSEd-Social Studies)',
+    'Bachelor of Physical Education (BPEd)',
   ],
-  'College of Education': [
-    'Bachelor of Elementary Education', 'BS Physical Education',
-    'BS Secondary Education – Science', 'BS Secondary Education – Filipino',
-    'BS Secondary Education – Social Studies', 'BS Secondary Education – English',
-    'BS Secondary Education – Mathematics',
+  ssns: [
+    'Bachelor of Arts in Political Science (BAPS)',
+    'Bachelor of Arts in Psychology (BAPsy)',
+    'Bachelor of Science in Biology (BSBio)',
   ],
-  'College of Criminal Justice Education': ['BS Criminology'],
-  'Senior High School': [
-    'STEM', 'ABM', 'HUMSS', 'ICT', 'HE', 'IA', 'GAS',
+  snahs: [
+    'Bachelor of Science in Nursing (BSN)',
+    'Caregiving NC II',
+  ],
+  ccje: [
+    'Bachelor of Science in Criminology (BSCrim)',
+  ],
+  shs: [
+    'Academic Track - STEM Engineering',
+    'Academic Track - STEM Sciences',
+    'Academic Track - ABM (Accountancy, Business, and Management)',
+    'Academic Track - HUMSS (Humanities and Social Sciences)',
+    'Academic Track - GAS (General Academic Strand)',
+    'TVL Track - ICT Strand (Information and Communications Technology)',
+    'TVL Track - HE Strand (Home Economics)',
   ],
 };
-
-const COLLEGE_YEAR_LEVELS = ['Incoming 1st Year', 'Incoming 2nd Year'];
-const SHS_YEAR_LEVELS = ['Grade 11', 'Grade 12'];
-const RELATIONSHIP_OPTIONS = ['Parent', 'Sibling', 'Aunt/Uncle', 'Grandparent'];
-
 const COUNTRY_CODES = [
-  { code: '+63', label: '🇵🇭 +63' },
-  { code: '+1',  label: '🇺🇸 +1'  },
-  { code: '+44', label: '🇬🇧 +44' },
-  { code: '+61', label: '🇦🇺 +61' },
-  { code: '+81', label: '🇯🇵 +81' },
-  { code: '+82', label: '🇰🇷 +82' },
-  { code: '+852',label: '🇭🇰 +852'},
-  { code: '+65', label: '🇸🇬 +65' },
-  { code: '+971',label: '🇦🇪 +971'},
-  { code: '+966',label: '🇸🇦 +966'},
-  { code: '+39', label: '🇮🇹 +39' },
-  { code: '+49', label: '🇩🇪 +49' },
-  { code: '+33', label: '🇫🇷 +33' },
+  { value: '+93', label: 'Afghanistan (+93)' },
+  { value: '+355', label: 'Albania (+355)' },
+  { value: '+213', label: 'Algeria (+213)' },
+  { value: '+376', label: 'Andorra (+376)' },
+  { value: '+244', label: 'Angola (+244)' },
+  { value: '+54', label: 'Argentina (+54)' },
+  { value: '+374', label: 'Armenia (+374)' },
+  { value: '+61', label: 'Australia (+61)' },
+  { value: '+43', label: 'Austria (+43)' },
+  { value: '+994', label: 'Azerbaijan (+994)' },
+  { value: '+1-242', label: 'Bahamas (+1-242)' },
+  { value: '+973', label: 'Bahrain (+973)' },
+  { value: '+880', label: 'Bangladesh (+880)' },
+  { value: '+375', label: 'Belarus (+375)' },
+  { value: '+32', label: 'Belgium (+32)' },
+  { value: '+501', label: 'Belize (+501)' },
+  { value: '+229', label: 'Benin (+229)' },
+  { value: '+975', label: 'Bhutan (+975)' },
+  { value: '+591', label: 'Bolivia (+591)' },
+  { value: '+387', label: 'Bosnia and Herzegovina (+387)' },
+  { value: '+267', label: 'Botswana (+267)' },
+  { value: '+55', label: 'Brazil (+55)' },
+  { value: '+673', label: 'Brunei (+673)' },
+  { value: '+359', label: 'Bulgaria (+359)' },
+  { value: '+226', label: 'Burkina Faso (+226)' },
+  { value: '+257', label: 'Burundi (+257)' },
+  { value: '+238', label: 'Cape Verde (+238)' },
+  { value: '+855', label: 'Cambodia (+855)' },
+  { value: '+237', label: 'Cameroon (+237)' },
+  { value: '+1', label: 'Canada (+1)' },
+  { value: '+236', label: 'Central African Republic (+236)' },
+  { value: '+235', label: 'Chad (+235)' },
+  { value: '+56', label: 'Chile (+56)' },
+  { value: '+86', label: 'China (+86)' },
+  { value: '+57', label: 'Colombia (+57)' },
+  { value: '+269', label: 'Comoros (+269)' },
+  { value: '+242', label: 'Congo (+242)' },
+  { value: '+506', label: 'Costa Rica (+506)' },
+  { value: '+385', label: 'Croatia (+385)' },
+  { value: '+53', label: 'Cuba (+53)' },
+  { value: '+357', label: 'Cyprus (+357)' },
+  { value: '+420', label: 'Czech Republic (+420)' },
+  { value: '+243', label: 'DR Congo (+243)' },
+  { value: '+45', label: 'Denmark (+45)' },
+  { value: '+253', label: 'Djibouti (+253)' },
+  { value: '+1-767', label: 'Dominica (+1-767)' },
+  { value: '+1-809', label: 'Dominican Republic (+1-809)' },
+  { value: '+593', label: 'Ecuador (+593)' },
+  { value: '+20', label: 'Egypt (+20)' },
+  { value: '+503', label: 'El Salvador (+503)' },
+  { value: '+240', label: 'Equatorial Guinea (+240)' },
+  { value: '+291', label: 'Eritrea (+291)' },
+  { value: '+372', label: 'Estonia (+372)' },
+  { value: '+268', label: 'Eswatini (+268)' },
+  { value: '+251', label: 'Ethiopia (+251)' },
+  { value: '+679', label: 'Fiji (+679)' },
+  { value: '+358', label: 'Finland (+358)' },
+  { value: '+33', label: 'France (+33)' },
+  { value: '+241', label: 'Gabon (+241)' },
+  { value: '+220', label: 'Gambia (+220)' },
+  { value: '+995', label: 'Georgia (+995)' },
+  { value: '+49', label: 'Germany (+49)' },
+  { value: '+233', label: 'Ghana (+233)' },
+  { value: '+30', label: 'Greece (+30)' },
+  { value: '+1-473', label: 'Grenada (+1-473)' },
+  { value: '+502', label: 'Guatemala (+502)' },
+  { value: '+224', label: 'Guinea (+224)' },
+  { value: '+245', label: 'Guinea-Bissau (+245)' },
+  { value: '+592', label: 'Guyana (+592)' },
+  { value: '+509', label: 'Haiti (+509)' },
+  { value: '+504', label: 'Honduras (+504)' },
+  { value: '+36', label: 'Hungary (+36)' },
+  { value: '+354', label: 'Iceland (+354)' },
+  { value: '+91', label: 'India (+91)' },
+  { value: '+62', label: 'Indonesia (+62)' },
+  { value: '+98', label: 'Iran (+98)' },
+  { value: '+964', label: 'Iraq (+964)' },
+  { value: '+353', label: 'Ireland (+353)' },
+  { value: '+972', label: 'Israel (+972)' },
+  { value: '+39', label: 'Italy (+39)' },
+  { value: '+1-876', label: 'Jamaica (+1-876)' },
+  { value: '+81', label: 'Japan (+81)' },
+  { value: '+962', label: 'Jordan (+962)' },
+  { value: '+7', label: 'Kazakhstan (+7)' },
+  { value: '+254', label: 'Kenya (+254)' },
+  { value: '+686', label: 'Kiribati (+686)' },
+  { value: '+383', label: 'Kosovo (+383)' },
+  { value: '+965', label: 'Kuwait (+965)' },
+  { value: '+996', label: 'Kyrgyzstan (+996)' },
+  { value: '+856', label: 'Laos (+856)' },
+  { value: '+371', label: 'Latvia (+371)' },
+  { value: '+961', label: 'Lebanon (+961)' },
+  { value: '+266', label: 'Lesotho (+266)' },
+  { value: '+231', label: 'Liberia (+231)' },
+  { value: '+218', label: 'Libya (+218)' },
+  { value: '+423', label: 'Liechtenstein (+423)' },
+  { value: '+370', label: 'Lithuania (+370)' },
+  { value: '+352', label: 'Luxembourg (+352)' },
+  { value: '+261', label: 'Madagascar (+261)' },
+  { value: '+265', label: 'Malawi (+265)' },
+  { value: '+60', label: 'Malaysia (+60)' },
+  { value: '+960', label: 'Maldives (+960)' },
+  { value: '+223', label: 'Mali (+223)' },
+  { value: '+356', label: 'Malta (+356)' },
+  { value: '+692', label: 'Marshall Islands (+692)' },
+  { value: '+222', label: 'Mauritania (+222)' },
+  { value: '+230', label: 'Mauritius (+230)' },
+  { value: '+52', label: 'Mexico (+52)' },
+  { value: '+691', label: 'Micronesia (+691)' },
+  { value: '+373', label: 'Moldova (+373)' },
+  { value: '+377', label: 'Monaco (+377)' },
+  { value: '+976', label: 'Mongolia (+976)' },
+  { value: '+382', label: 'Montenegro (+382)' },
+  { value: '+212', label: 'Morocco (+212)' },
+  { value: '+258', label: 'Mozambique (+258)' },
+  { value: '+95', label: 'Myanmar (+95)' },
+  { value: '+264', label: 'Namibia (+264)' },
+  { value: '+674', label: 'Nauru (+674)' },
+  { value: '+977', label: 'Nepal (+977)' },
+  { value: '+31', label: 'Netherlands (+31)' },
+  { value: '+64', label: 'New Zealand (+64)' },
+  { value: '+505', label: 'Nicaragua (+505)' },
+  { value: '+227', label: 'Niger (+227)' },
+  { value: '+234', label: 'Nigeria (+234)' },
+  { value: '+850', label: 'North Korea (+850)' },
+  { value: '+389', label: 'North Macedonia (+389)' },
+  { value: '+47', label: 'Norway (+47)' },
+  { value: '+968', label: 'Oman (+968)' },
+  { value: '+92', label: 'Pakistan (+92)' },
+  { value: '+680', label: 'Palau (+680)' },
+  { value: '+970', label: 'Palestine (+970)' },
+  { value: '+507', label: 'Panama (+507)' },
+  { value: '+675', label: 'Papua New Guinea (+675)' },
+  { value: '+595', label: 'Paraguay (+595)' },
+  { value: '+51', label: 'Peru (+51)' },
+  { value: '+63', label: 'Philippines (+63)' },
+  { value: '+48', label: 'Poland (+48)' },
+  { value: '+351', label: 'Portugal (+351)' },
+  { value: '+974', label: 'Qatar (+974)' },
+  { value: '+40', label: 'Romania (+40)' },
+  { value: '+7', label: 'Russia (+7)' },
+  { value: '+250', label: 'Rwanda (+250)' },
+  { value: '+1-869', label: 'Saint Kitts and Nevis (+1-869)' },
+  { value: '+1-758', label: 'Saint Lucia (+1-758)' },
+  { value: '+1-784', label: 'Saint Vincent and the Grenadines (+1-784)' },
+  { value: '+685', label: 'Samoa (+685)' },
+  { value: '+378', label: 'San Marino (+378)' },
+  { value: '+239', label: 'Sao Tome and Principe (+239)' },
+  { value: '+966', label: 'Saudi Arabia (+966)' },
+  { value: '+221', label: 'Senegal (+221)' },
+  { value: '+381', label: 'Serbia (+381)' },
+  { value: '+248', label: 'Seychelles (+248)' },
+  { value: '+232', label: 'Sierra Leone (+232)' },
+  { value: '+65', label: 'Singapore (+65)' },
+  { value: '+421', label: 'Slovakia (+421)' },
+  { value: '+386', label: 'Slovenia (+386)' },
+  { value: '+677', label: 'Solomon Islands (+677)' },
+  { value: '+252', label: 'Somalia (+252)' },
+  { value: '+27', label: 'South Africa (+27)' },
+  { value: '+82', label: 'South Korea (+82)' },
+  { value: '+211', label: 'South Sudan (+211)' },
+  { value: '+34', label: 'Spain (+34)' },
+  { value: '+94', label: 'Sri Lanka (+94)' },
+  { value: '+249', label: 'Sudan (+249)' },
+  { value: '+597', label: 'Suriname (+597)' },
+  { value: '+46', label: 'Sweden (+46)' },
+  { value: '+41', label: 'Switzerland (+41)' },
+  { value: '+963', label: 'Syria (+963)' },
+  { value: '+886', label: 'Taiwan (+886)' },
+  { value: '+992', label: 'Tajikistan (+992)' },
+  { value: '+255', label: 'Tanzania (+255)' },
+  { value: '+66', label: 'Thailand (+66)' },
+  { value: '+670', label: 'Timor-Leste (+670)' },
+  { value: '+228', label: 'Togo (+228)' },
+  { value: '+676', label: 'Tonga (+676)' },
+  { value: '+1-868', label: 'Trinidad and Tobago (+1-868)' },
+  { value: '+216', label: 'Tunisia (+216)' },
+  { value: '+90', label: 'Turkey (+90)' },
+  { value: '+993', label: 'Turkmenistan (+993)' },
+  { value: '+688', label: 'Tuvalu (+688)' },
+  { value: '+256', label: 'Uganda (+256)' },
+  { value: '+380', label: 'Ukraine (+380)' },
+  { value: '+971', label: 'United Arab Emirates (+971)' },
+  { value: '+44', label: 'United Kingdom (+44)' },
+  { value: '+1', label: 'United States (+1)' },
+  { value: '+598', label: 'Uruguay (+598)' },
+  { value: '+998', label: 'Uzbekistan (+998)' },
+  { value: '+678', label: 'Vanuatu (+678)' },
+  { value: '+379', label: 'Vatican City (+379)' },
+  { value: '+58', label: 'Venezuela (+58)' },
+  { value: '+84', label: 'Vietnam (+84)' },
+  { value: '+967', label: 'Yemen (+967)' },
+  { value: '+260', label: 'Zambia (+260)' },
+  { value: '+263', label: 'Zimbabwe (+263)' },
 ];
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const toTitleCase = (str: string) =>
-  str.replace(/\b\w/g, (c) => c.toUpperCase());
-
-const formatPhoneDigits = (raw: string) => {
-  // Keep only digits, max 10, must start with 9
-  const digits = raw.replace(/\D/g, '').slice(0, 10);
-  return digits;
-};
-
-const displayPhone = (digits: string) => {
-  if (!digits) return '';
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
-};
-
-const formatStudentId = (value: string) => {
-  const digits = value.replace(/\D/g, '').slice(0, 7);
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)}-${digits.slice(2)}`;
-};
 
 const calculateAge = (birthdate: string): string => {
   if (!birthdate) return '';
@@ -201,224 +357,301 @@ const calculateAge = (birthdate: string): string => {
   return age.toString();
 };
 
-// Max birthdate = today minus 15 years
-const getMaxBirthdate = () => {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - 15);
-  return d.toISOString().split('T')[0];
-};
-
-// ── Address sub-form ──────────────────────────────────────────────────────────
-
-interface AddressBlockProps {
-  prefix: 'perm' | 'resid';
-  label: string;
-  region: string;
-  province: string;
-  city: string;
-  barangay: string;
-  street: string;
-  errors: Record<string, string>;
-  onChange: (field: string, value: string) => void;
-}
-
-function AddressBlock({ prefix, label, region, province, city, barangay, street, errors, onChange }: AddressBlockProps) {
-  const provinces = region ? PH_PROVINCES_BY_REGION[region] || [] : [];
-  const cities = province ? PH_CITIES_BY_PROVINCE[province] || [] : [];
-  const barangays = city ? PH_BARANGAYS_BY_CITY[city] || [] : [];
-  const hasBarangayDropdown = barangays.length > 0;
-
-  const field = (f: string) => `${prefix}_${f}`;
+function PhoneInput({ 
+  value, 
+  onChange, 
+  error,
+  touched,
+  countryCode = '+63',
+  onCountryCodeChange,
+  ...props 
+}: { 
+  value: string; 
+  onChange: (v: string) => void;
+  error?: string;
+  touched?: boolean;
+  countryCode?: string;
+  onCountryCodeChange?: (v: string) => void;
+  [key: string]: any;
+}) {
+  // Safely find the index of the current country code for proper Select value matching
+  const activeIndex = COUNTRY_CODES.findIndex(cc => cc.value === countryCode);
+  // Build the compound key only if a valid index is found; otherwise default to undefined
+  const selectValue = activeIndex >= 0 ? `${countryCode}_${activeIndex}` : undefined;
 
   return (
-    <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
-      <p className="text-sm text-[#7A1E1E] border-b border-[#e0e0e0] pb-1">{label}</p>
+    <div>
+      <div className="flex gap-2">
+        <Select 
+          value={selectValue} 
+          onValueChange={(v) => {
+            // Extract raw country code by splitting on underscore and taking the first part
+            const rawCode = v.split('_')[0];
+            onCountryCodeChange?.(rawCode);
+          }}
+        >
+          <SelectTrigger 
+            className="w-32 h-10 text-sm border-2 border-gray-200 mt-1" 
+            aria-label="Country code"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {/* Create unique key/value pairs using country code and array index */}
+            {COUNTRY_CODES.map((cc, index) => (
+              <SelectItem 
+                key={`${cc.value}_${index}`} 
+                value={`${cc.value}_${index}`}
+              >
+                {cc.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input 
+          {...props}
+          value={value} 
+          onChange={(e) => onChange(e.target.value)}
+          className={`flex-1 h-10 ${
+            touched && error ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+          }`}
+          maxLength={15}
+        />
+      </div>
+      {touched && error && (
+        <p className="text-red-500 text-xs mt-1" role="alert">{error}</p>
+      )}
+    </div>
+  );
+}
+
+function AddressBlock({ 
+  prefix, 
+  label, 
+  region = '', 
+  province = '', 
+  city = '', 
+  barangay = '', 
+  street = '', 
+  errors = {},
+  touched = {},
+  onChange, 
+}: {
+  prefix: string;
+  label: string;
+  region?: string;
+  province?: string;
+  city?: string;
+  barangay?: string;
+  street?: string;
+  errors?: Record<string, string>;
+  touched?: Record<string, boolean>;
+  onChange: (field: string, value: string) => void;
+}) {
+  const field = (f: string) => `${prefix}_${f}`;
+  const shouldShowError = (f: string) => {
+    if (!touched || !errors) return false;
+    const fieldName = field(f);
+    return !!(touched[fieldName] && errors[fieldName]);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 pl-3 border-l-4 border-[#7A1E1E]">
+        <MapPin className="w-4 h-4 text-[#7A1E1E] shrink-0" aria-hidden="true" />
+        <h3 className="text-sm font-semibold text-[#7A1E1E] uppercase tracking-wide">{label}</h3>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Region */}
         <div>
-          <Label className="text-xs">Region *</Label>
-          <Select value={region} onValueChange={(v) => { onChange(field('region'), v); onChange(field('province'), ''); onChange(field('city'), ''); onChange(field('barangay'), ''); }}>
-            <SelectTrigger className="mt-1 h-9 text-sm">
+          <Label className="text-xs text-gray-600">
+            Region <span className="text-red-500">*</span>
+            <span className="sr-only">(required)</span>
+          </Label>
+          <Select value={region} onValueChange={(v) => onChange(field('Region'), v)}>
+            <SelectTrigger 
+              id={field('Region')}
+              className={`mt-1 h-10 text-sm ${
+                shouldShowError('Region') ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+              }`}
+              aria-required="true"
+            >
               <SelectValue placeholder="Select region" />
             </SelectTrigger>
-            <SelectContent className="max-h-56">
-              {PH_REGIONS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+            <SelectContent>
+              {PH_REGIONS.map((option) => {
+                const value = typeof option === 'object' ? (option as any).value : option;
+                const label = typeof option === 'object' ? (option as any).label : option;
+                return (
+                  <SelectItem key={String(value)} value={String(value)}>
+                    {String(label)}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
-          {errors[field('region')] && <p className="text-red-500 text-xs mt-1">{errors[field('region')]}</p>}
+          {shouldShowError('Region') && (
+            <p className="text-red-500 text-xs mt-1" role="alert">{errors?.[field('Region')]}</p>
+          )}
         </div>
 
         {/* Province */}
         <div>
-          <Label className="text-xs">Province *</Label>
-          <Select value={province} disabled={!region} onValueChange={(v) => { onChange(field('province'), v); onChange(field('city'), ''); onChange(field('barangay'), ''); }}>
-            <SelectTrigger className="mt-1 h-9 text-sm">
+          <Label className="text-xs text-gray-600">
+            Province <span className="text-red-500">*</span>
+            <span className="sr-only">(required)</span>
+          </Label>
+          <Select value={province} onValueChange={(v) => onChange(field('Province'), v)} disabled={!region}>
+            <SelectTrigger 
+              id={field('Province')}
+              className={`mt-1 h-10 text-sm ${
+                shouldShowError('Province') ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+              }`}
+              aria-required="true"
+            >
               <SelectValue placeholder={region ? 'Select province' : 'Select region first'} />
             </SelectTrigger>
-            <SelectContent className="max-h-56">
-              {provinces.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+            <SelectContent>
+              {region && (PH_PROVINCES_BY_REGION[region] || []).map((option) => {
+                const value = typeof option === 'object' ? (option as any).value : option;
+                const label = typeof option === 'object' ? (option as any).label : option;
+                return (
+                  <SelectItem key={String(value)} value={String(value)}>
+                    {String(label)}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
-          {errors[field('province')] && <p className="text-red-500 text-xs mt-1">{errors[field('province')]}</p>}
+          {shouldShowError('Province') && (
+            <p className="text-red-500 text-xs mt-1" role="alert">{errors?.[field('Province')]}</p>
+          )}
         </div>
 
-        {/* City/Municipality */}
+        {/* City */}
         <div>
-          <Label className="text-xs">City / Municipality *</Label>
-          <Select value={city} disabled={!province} onValueChange={(v) => { onChange(field('city'), v); onChange(field('barangay'), ''); }}>
-            <SelectTrigger className="mt-1 h-9 text-sm">
+          <Label className="text-xs text-gray-600">
+            City <span className="text-red-500">*</span>
+            <span className="sr-only">(required)</span>
+          </Label>
+          <Select value={city} onValueChange={(v) => onChange(field('City'), v)} disabled={!province}>
+            <SelectTrigger 
+              id={field('City')}
+              className={`mt-1 h-10 text-sm ${
+                shouldShowError('City') ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+              }`}
+              aria-required="true"
+            >
               <SelectValue placeholder={province ? 'Select city' : 'Select province first'} />
             </SelectTrigger>
-            <SelectContent className="max-h-56">
-              {cities.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            <SelectContent>
+              {province && (PH_CITIES_BY_PROVINCE[province] || []).map((option) => {
+                const value = typeof option === 'object' ? (option as any).value : option;
+                const label = typeof option === 'object' ? (option as any).label : option;
+                return (
+                  <SelectItem key={String(value)} value={String(value)}>
+                    {String(label)}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
-          {errors[field('city')] && <p className="text-red-500 text-xs mt-1">{errors[field('city')]}</p>}
+          {shouldShowError('City') && (
+            <p className="text-red-500 text-xs mt-1" role="alert">{errors?.[field('City')]}</p>
+          )}
         </div>
 
         {/* Barangay */}
         <div>
-          <Label className="text-xs">Barangay *</Label>
-          {hasBarangayDropdown ? (
-            <Select value={barangay} disabled={!city} onValueChange={(v) => onChange(field('barangay'), v)}>
-              <SelectTrigger className="mt-1 h-9 text-sm">
-                <SelectValue placeholder="Select barangay" />
-              </SelectTrigger>
-              <SelectContent className="max-h-56">
-                {barangays.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="relative mt-1">
-              <input
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 pr-8"
-                placeholder={city ? 'Type barangay name' : 'Select city first'}
-                disabled={!city}
-                value={barangay}
-                onChange={(e) => onChange(field('barangay'), toTitleCase(e.target.value))}
-              />
-              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            </div>
+          <Label className="text-xs text-gray-600">
+            Barangay <span className="text-red-500">*</span>
+            <span className="sr-only">(required)</span>
+          </Label>
+          <Select value={barangay} onValueChange={(v) => onChange(field('Barangay'), v)} disabled={!city}>
+            <SelectTrigger 
+              id={field('Barangay')}
+              className={`mt-1 h-10 text-sm ${
+                shouldShowError('Barangay') ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+              }`}
+              aria-required="true"
+            >
+              <SelectValue placeholder={city ? 'Select barangay' : 'Select city first'} />
+            </SelectTrigger>
+            <SelectContent>
+              {city && (PH_BARANGAYS_BY_CITY[city] || []).map((option) => {
+                const value = typeof option === 'object' ? (option as any).value : option;
+                const label = typeof option === 'object' ? (option as any).label : option;
+                return (
+                  <SelectItem key={String(value)} value={String(value)}>
+                    {String(label)}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          {shouldShowError('Barangay') && (
+            <p className="text-red-500 text-xs mt-1" role="alert">{errors?.[field('Barangay')]}</p>
           )}
-          {errors[field('barangay')] && <p className="text-red-500 text-xs mt-1">{errors[field('barangay')]}</p>}
         </div>
       </div>
 
       {/* Street */}
       <div>
-        <Label className="text-xs">Street Name / Building / House No. *</Label>
-        <Input
-          className="mt-1 h-9 text-sm"
-          placeholder="e.g. 123 Mayon St., Brgy. Centro"
+        <Label className="text-xs text-gray-600">
+          Street Address <span className="text-red-500">*</span>
+          <span className="sr-only">(required)</span>
+        </Label>
+        <Input 
+          id={field('Street')}
+          className={`mt-1 h-10 text-sm ${
+            shouldShowError('Street') ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+          }`}
+          placeholder="House no., street name, etc." 
           value={street}
-          onChange={(e) => onChange(field('street'), toTitleCase(e.target.value))}
+          onChange={(e) => onChange(field('Street'), e.target.value)}
+          aria-required="true"
         />
-        {errors[field('street')] && <p className="text-red-500 text-xs mt-1">{errors[field('street')]}</p>}
+        {shouldShowError('Street') && (
+          <p className="text-red-500 text-xs mt-1" role="alert">{errors?.[field('Street')]}</p>
+        )}
       </div>
-    </div>
-  );
-}
-
-// ── Phone Input ───────────────────────────────────────────────────────────────
-
-interface PhoneInputProps {
-  id: string;
-  value: string;
-  onChange: (digits: string) => void;
-  countryCode: string;
-  onCountryCodeChange: (code: string) => void;
-  error?: string;
-  required?: boolean;
-}
-
-function PhoneInput({ id, value, onChange, countryCode, onCountryCodeChange, error, required }: PhoneInputProps) {
-  return (
-    <div>
-      <div className="flex mt-1">
-        <Select value={countryCode} onValueChange={onCountryCodeChange}>
-          <SelectTrigger className="w-[90px] rounded-r-none border-r-0 h-9 text-xs shrink-0 focus:ring-0 focus:ring-offset-0">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {COUNTRY_CODES.map(cc => (
-              <SelectItem key={cc.code} value={cc.code} className="text-sm">{cc.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          id={id}
-          type="tel"
-          className="rounded-l-none h-9 text-sm"
-          placeholder="9XX-XXX-XXXX"
-          value={displayPhone(value)}
-          required={required}
-          onChange={(e) => {
-            const raw = e.target.value.replace(/\D/g, '');
-            onChange(formatPhoneDigits(raw));
-          }}
-        />
-      </div>
-      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
     </div>
   );
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function PublicApplicationForm({ onSubmit, onBack, talentGroup: initialGroup, onSelectGroup }: PublicApplicationFormProps) {
-  const emptyForm = (): ApplicationFormData => ({
-    fullName: '',
-    lastName: '',
-    firstName: '',
-    middleName: '',
-    birthdate: '',
-    age: '',
-    gender: '',
-    permRegion: '',
-    permProvince: '',
-    permCity: '',
-    permBarangay: '',
-    permStreet: '',
-    residRegion: '',
-    residProvince: '',
-    residCity: '',
-    residBarangay: '',
-    residStreet: '',
-    mobileNo: '',
-    email: '',
-    socialMediaLink: '',
-    studentId: '',
-    yearLevel: '',
-    course: '',
-    department: '',
-    guardianName: '',
-    guardianRelationship: '',
-    guardianContactNo: '',
-    talentGroup: initialGroup as any,
-    hasBandExperience: null as any,
-    vocalRange: '',
-    previousSingingExperience: '',
-    musicalBackground: '',
-    primaryDanceGenre: '',
-    yearsOfExperience: '',
-    performedOnStage: '',
-    willingToAttendRehearsals: '',
-    previousMajoretteTeam: '',
-    previousOrganization: '',
-    canPerformBasicRoutines: '',
-    willingToAttendRehearsalsMajorettes: '',
-    dataPrivacyConsent: false,
-    confirmedAccuracy: false,
+export function PublicApplicationForm({
+  onSubmit,
+  onBack,
+  talentGroup,
+  onSelectGroup,
+}: PublicApplicationFormProps) {
+  const [formData, setFormData] = useState<ApplicationFormData>({
+    fullName: '', lastName: '', firstName: '', middleName: '', birthdate: '', age: '', gender: '',
+    permRegion: '', permProvince: '', permCity: '', permBarangay: '', permStreet: '',
+    residRegion: '', residProvince: '', residCity: '', residBarangay: '', residStreet: '',
+    mobileNo: '', email: '',
+    studentId: '', yearLevel: '', course: '', department: '',
+    guardianLastName: '', guardianFirstName: '', guardianMiddleName: '', guardianRelationship: '', guardianContactNo: '',
+    talentGroup: talentGroup as any,
+    hasBandExperience: null, vocalRange: '', previousSingingExperience: '',
+    musicalBackground: '', primaryDanceGenre: '', yearsOfExperience: '',
+    performedOnStage: '', willingToAttendRehearsals: '',
+    previousMajoretteTeam: '', previousOrganization: '', canPerformBasicRoutines: '',
+    willingToAttendRehearsalsMajorettes: '', dataPrivacyConsent: false, confirmedAccuracy: false,
     address: '',
-    submittedAt: new Date(),
   });
 
-  const [formData, setFormData] = useState<ApplicationFormData>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionSuccess, setSubmissionSuccess] = useState(false);
+  const [applicationId, setApplicationId] = useState('');
+  const [currentStep, setCurrentStep] = useState(1);
   const [sameAsPermanent, setSameAsPermanent] = useState(false);
   const [mobileCC, setMobileCC] = useState('+63');
-  const [guardianCC, setGuardianCC] = useState('+63');
 
   const update = <K extends keyof ApplicationFormData>(field: K, value: ApplicationFormData[K]) =>
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -428,7 +661,7 @@ export function PublicApplicationForm({ onSubmit, onBack, talentGroup: initialGr
   const clearError = (field: string) =>
     setErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
 
-  const handleAddressChange = (field: string, value: string) => {
+  const handleAddressChange = useCallback((field: string, value: string) => {
     // Convert perm_region → permRegion, resid_street → residStreet, etc.
     const parts = field.split('_');
     const key = (parts[0] + parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('')) as keyof ApplicationFormData;
@@ -440,9 +673,9 @@ export function PublicApplicationForm({ onSubmit, onBack, talentGroup: initialGr
       const residKey = ('resid' + parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('')) as keyof ApplicationFormData;
       update(residKey, value as any);
     }
-  };
+  }, [sameAsPermanent]);
 
-  const handleSameAsPermanent = (checked: boolean) => {
+  const handleSameAsPermanent = useCallback((checked: boolean) => {
     setSameAsPermanent(checked);
     if (checked) {
       setFormData(prev => ({
@@ -454,7 +687,7 @@ export function PublicApplicationForm({ onSubmit, onBack, talentGroup: initialGr
         residStreet: prev.permStreet,
       }));
     }
-  };
+  }, []);
 
   const handleBirthdate = (value: string) => {
     update('birthdate', value);
@@ -462,9 +695,7 @@ export function PublicApplicationForm({ onSubmit, onBack, talentGroup: initialGr
   };
 
   const getYearLevels = () => {
-    if (!formData.department) return [];
-    if (formData.department === 'Senior High School') return SHS_YEAR_LEVELS;
-    return COLLEGE_YEAR_LEVELS;
+    return ['1st Year', '2nd Year', '3rd Year', '4th Year'];
   };
 
   const getDepartments = () => {
@@ -477,188 +708,32 @@ export function PublicApplicationForm({ onSubmit, onBack, talentGroup: initialGr
   const validatePhone = (digits: string, cc: string) =>
     cc === '+63' ? (digits.length === 10 && digits.startsWith('9')) : digits.length >= 7;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
-    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
-    if (!formData.birthdate) newErrors.birthdate = 'Birthdate is required';
-    else if (parseInt(formData.age) < 15) newErrors.birthdate = 'You must be at least 15 years old to apply';
-    if (!isMajorettes && !formData.gender) newErrors.gender = 'Gender is required';
-
-    // Permanent address
-    if (!formData.permRegion) newErrors.perm_region = 'Required';
-    if (!formData.permProvince) newErrors.perm_province = 'Required';
-    if (!formData.permCity) newErrors.perm_city = 'Required';
-    if (!formData.permBarangay) newErrors.perm_barangay = 'Required';
-    if (!formData.permStreet.trim()) newErrors.perm_street = 'Required';
-
-    // Residing address (only if different from permanent)
-    if (!sameAsPermanent) {
-      if (!formData.residRegion) newErrors.resid_region = 'Required';
-      if (!formData.residProvince) newErrors.resid_province = 'Required';
-      if (!formData.residCity) newErrors.resid_city = 'Required';
-      if (!formData.residBarangay) newErrors.resid_barangay = 'Required';
-      if (!formData.residStreet.trim()) newErrors.resid_street = 'Required';
-    }
-
-    if (!formData.mobileNo) newErrors.mobileNo = 'Mobile number is required';
-    else if (!validatePhone(formData.mobileNo, mobileCC)) newErrors.mobileNo = mobileCC === '+63' ? 'Must be 10 digits starting with 9' : 'Enter a valid number';
-
-    if (!formData.email.trim()) newErrors.email = 'Email is required';
-    else if (!formData.email.includes('@')) newErrors.email = 'Invalid email address';
-
-    if (formData.studentId && !/^\d{2}-\d{5}$/.test(formData.studentId)) {
-      newErrors.studentId = 'Format must be XX-XXXXX (e.g. 24-12345)';
-    }
-
-    if (!formData.guardianName.trim()) newErrors.guardianName = 'Guardian name is required';
-    if (!formData.guardianRelationship) newErrors.guardianRelationship = 'Relationship is required';
-    if (!formData.guardianContactNo) newErrors.guardianContactNo = 'Contact number is required';
-    else if (!validatePhone(formData.guardianContactNo, guardianCC)) newErrors.guardianContactNo = guardianCC === '+63' ? 'Must be 10 digits starting with 9' : 'Enter a valid number';
-
-    if (!formData.dataPrivacyConsent) newErrors.dataPrivacyConsent = 'You must agree to the Data Privacy consent';
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      toast.error('Please fix all errors before submitting.');
-      const firstKey = Object.keys(newErrors)[0];
-      document.getElementById(firstKey)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return;
-    }
-
-    // Build composite fields for backward compatibility
-    const fullName = `${formData.lastName}, ${formData.firstName}${formData.middleName ? ' ' + formData.middleName : ''}`;
-    const address = `${formData.permStreet}, ${formData.permBarangay}, ${formData.permCity}, ${formData.permProvince}`;
-    const gender = isMajorettes ? 'Female' : formData.gender;
-
-    const finalData: ApplicationFormData = {
-      ...formData,
-      fullName,
-      address,
-      gender,
-      confirmedAccuracy: true,
-      mobileNo: `${mobileCC}${formData.mobileNo}`,
-      guardianContactNo: `${guardianCC}${formData.guardianContactNo}`,
-      submittedAt: new Date(),
-    };
-
-    onSubmit(finalData);
-    const groupName = TALENT_GROUPS.find(g => g.value === formData.talentGroup)?.label || '';
-    toast.success(`Application submitted! Check your email for updates on your ${groupName} application.`, { duration: 6000 });
-    setTimeout(() => window.location.reload(), 2000);
-  };
-
-  // ── Group selection screen ──────────────────────────────────────────────────
-  if (!formData.talentGroup) {
-    const journeySteps = [
-      { num: 1, label: 'Submit Application', sub: 'Fill out the form with your details', color: '#7A1E1E', gold: false },
-      { num: 2, label: 'Audition',           sub: 'Showcase your talent',               color: '#7A1E1E', gold: false },
-      { num: 3, label: 'Training',           sub: 'Practice & develop skills',           color: '#7A1E1E', gold: false },
-      { num: 4, label: 'Official Scholar',   sub: "You're one of us!",                   color: '#C49A2A', gold: true  },
-    ];
-
+  // If no talent group selected, show group selection
+  if (!talentGroup) {
     return (
-      <div className="min-h-screen bg-[#F7F8FA]">
-        {/* Header */}
-        <header className="bg-white border-b border-[#E5E7EB] shadow-sm sticky top-0 z-10">
-          <div className="container mx-auto px-6 h-20 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img src={uncLogo} alt="UNC" className="w-12 h-12 object-contain" />
-              <div>
-                <p className="text-[#7A1E1E] text-base leading-tight">TalentTrackUNC</p>
-                <p className="text-xs text-[#6B7280]">Scholarship Application Portal</p>
-              </div>
-            </div>
-            <button type="button" onClick={onBack}
-              className="flex items-center gap-2 px-4 py-2 border border-[#7A1E1E] rounded-md text-[#7A1E1E] text-sm bg-[#F7F8FA] hover:bg-[#7A1E1E]/5 transition-colors">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Home
-            </button>
-          </div>
-        </header>
-
-        <div className="container mx-auto px-6 py-12 max-w-5xl">
-          {/* Title */}
-          <div className="text-center mb-10">
-            <h1 className="text-4xl text-[#7A1E1E] mb-3">Choose Your Talent Group</h1>
-            <div className="w-24 h-1 bg-[#e9c0c0] mx-auto mb-4 rounded-full" />
-            <p className="text-[#6c757d] text-lg">Choose a talent group to apply for and start your journey as a UNC talent scholar.</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+        <div className="max-w-4xl w-full">
+          <div className="text-center mb-12">
+            <img src={uncLogo} alt="UNC Logo" className="w-16 h-16 mx-auto mb-4 object-contain" />
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">TalentTrackUNC</h1>
+            <p className="text-lg text-gray-600">Select Your Talent Group</p>
           </div>
 
-          {/* Application Journey Card */}
-          <div className="rounded-2xl border border-[#7A1E1E]/10 shadow-lg mb-8 overflow-hidden"
-            style={{ background: 'linear-gradient(164deg, rgba(122,30,30,0.05) 0%, #ffffff 50%, rgba(255,251,235,0.3) 100%)' }}>
-            <div className="px-10 pt-10 pb-8">
-              <div className="text-center mb-8">
-                <p className="text-[#7A1E1E] text-base">Your Application Journey</p>
-                <p className="text-[#6B7280] text-sm mt-1">Follow these steps to become a UNC talent scholar</p>
-              </div>
-              <div className="flex items-start justify-center gap-0">
-                {journeySteps.map((step, i) => (
-                  <div key={step.num} className="flex items-start">
-                    <div className="flex flex-col items-center w-36 text-center">
-                      <div className="relative mb-4">
-                        <div className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg"
-                          style={{ background: `linear-gradient(135deg, ${step.color} 0%, ${step.gold ? '#B8860B' : '#6A1919'} 100%)` }}>
-                          {step.gold
-                            ? <Award className="w-7 h-7 text-white" />
-                            : <FileText className="w-7 h-7 text-white" />}
-                        </div>
-                        <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white border-2 flex items-center justify-center text-xs shadow"
-                          style={{ borderColor: step.color, color: step.color, fontWeight: 700 }}>
-                          {step.num}
-                        </span>
-                      </div>
-                      <p className="text-sm text-[#1a1a1a] leading-tight mb-1">{step.label}</p>
-                      <p className="text-xs text-[#6c757d] leading-tight">{step.sub}</p>
-                    </div>
-                    {i < journeySteps.length - 1 && (
-                      <div className="flex items-center mt-7 mx-1 shrink-0">
-                        <div className="h-[3px] w-16 rounded-full relative" style={{ background: 'linear-gradient(90deg, #7A1E1E, rgba(122,30,30,0.4))' }}>
-                          <span className="absolute -top-[2.5px] right-0 w-2 h-2 rounded-full bg-[#e9c0c0] shadow-sm" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Talent Group Cards */}
-          <div className="space-y-5">
-            {TALENT_GROUPS.map((group) => (
-              <div key={group.value} className="bg-white rounded-xl border border-[#e0e0e0] shadow overflow-hidden flex"
-                style={{ minHeight: '240px' }}>
-                {/* Left: text + buttons */}
-                <div className="flex flex-col justify-between p-10 w-1/2 shrink-0">
-                  <div>
-                    <p className="text-[#880808] text-lg mb-3">{group.label}</p>
-                    <p className="text-[#6c757d] text-sm leading-relaxed">{group.longDesc}</p>
-                  </div>
-                  <div className="flex flex-col gap-3 mt-6">
-                    <button type="button" onClick={onBack}
-                      className="w-full rounded-lg py-3 flex items-center justify-center gap-2 text-[#880808] text-sm transition-colors hover:bg-[rgba(136,8,8,0.15)]"
-                      style={{ background: 'rgba(136,8,8,0.08)' }}>
-                      <FileText className="w-4 h-4" />
-                      View Requirements
-                      <ChevronDown className="w-4 h-4" />
-                    </button>
-                    <button type="button" onClick={() => { update('talentGroup', group.value as any); onSelectGroup?.(group.value); }}
-                      className="w-full bg-[#880808] hover:bg-[#6d0606] text-white rounded-md py-2.5 flex items-center justify-center gap-2 text-sm transition-colors">
-                      <Send className="w-4 h-4" />
-                      Apply Now
-                    </button>
-                  </div>
-                </div>
-                {/* Right: image */}
-                <div className="flex-1 relative">
-                  <img src={group.icon} alt={group.label} className="absolute inset-0 w-full h-full object-cover" />
-                  <div className="absolute inset-0" style={{ background: 'linear-gradient(270deg, transparent 0%, rgba(136,8,8,0.18) 100%)' }} />
-                </div>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {TALENT_GROUPS.map(group => (
+              <button
+                key={group.value}
+                onClick={() => onSelectGroup?.(group.value)}
+                className="group relative overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-all duration-300 h-64 flex flex-col items-center justify-center bg-white"
+              >
+                <img 
+                  src={group.image} 
+                  alt={group.label}
+                  className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity"
+                />
+                <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors" />
+                <h2 className="relative text-white text-2xl font-bold text-center">{group.label}</h2>
+              </button>
             ))}
           </div>
         </div>
@@ -666,283 +741,653 @@ export function PublicApplicationForm({ onSubmit, onBack, talentGroup: initialGr
     );
   }
 
-  // ── Application form ────────────────────────────────────────────────────────
-  const groupLabel = TALENT_GROUPS.find(g => g.value === formData.talentGroup)?.label || '';
+  // If submission success, show confirmation
+  if (submissionSuccess) {
+    return (
+      <SuccessConfirmation
+        applicantName={`${formData.firstName} ${formData.lastName}`}
+        talentGroup={talentGroup}
+        applicationId={applicationId}
+        email={formData.email}
+        onClose={onBack}
+      />
+    );
+  }
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    // Personal info
+    if (!formData.lastName) newErrors.lastName = 'Last name is required';
+    if (!formData.firstName) newErrors.firstName = 'First name is required';
+    if (!formData.birthdate) newErrors.birthdate = 'Birthdate is required';
+    if (!formData.gender && !isMajorettes) newErrors.gender = 'Gender is required';
+
+    // Address
+    if (!formData.permRegion) newErrors.perm_Region = 'Region is required';
+    if (!formData.permProvince) newErrors.perm_Province = 'Province is required';
+    if (!formData.permCity) newErrors.perm_City = 'City is required';
+    if (!formData.permBarangay) newErrors.perm_Barangay = 'Barangay is required';
+    if (!formData.permStreet) newErrors.perm_Street = 'Street address is required';
+
+    // Contact
+    if (!formData.mobileNo) newErrors.mobileNo = 'Mobile number is required';
+    if (!formData.email) newErrors.email = 'Email is required';
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Invalid email';
+
+    // Guardian
+    if (!formData.guardianLastName) newErrors.guardianLastName = 'Last name is required';
+    if (!formData.guardianFirstName) newErrors.guardianFirstName = 'First name is required';
+    if (!formData.guardianRelationship) newErrors.guardianRelationship = 'Relationship is required';
+    if (!formData.guardianContactNo) newErrors.guardianContactNo = 'Contact number is required';
+
+    // Consent
+    if (!formData.dataPrivacyConsent) newErrors.dataPrivacyConsent = 'You must agree to data privacy';
+    if (!formData.confirmedAccuracy) newErrors.confirmedAccuracy = 'You must confirm accuracy';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleBlur = (field: string) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Mark all fields as touched
+    const allFields = Object.keys(formData).reduce((acc, key) => ({...acc, [key]: true}), {});
+    setTouched(allFields);
+
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    try {
+      // Build submission payload with all relevant application data
+      const submissionPayload = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        middleName: formData.middleName,
+        email: formData.email,
+        birthdate: formData.birthdate,
+        age: formData.age,
+        gender: formData.gender,
+        mobileNumber: `${mobileCC}${formData.mobileNo}`,
+        studentId: formData.studentId,
+        course: formData.course,
+        yearLevel: formData.yearLevel,
+        department: formData.department,
+        permRegion: formData.permRegion,
+        permProvince: formData.permProvince,
+        permCity: formData.permCity,
+        permBarangay: formData.permBarangay,
+        permStreet: formData.permStreet,
+        residRegion: formData.residRegion,
+        residProvince: formData.residProvince,
+        residCity: formData.residCity,
+        residBarangay: formData.residBarangay,
+        residStreet: formData.residStreet,
+        guardianFirstName: formData.guardianFirstName,
+        guardianLastName: formData.guardianLastName,
+        guardianMiddleName: formData.guardianMiddleName,
+        guardianRelationship: formData.guardianRelationship,
+        guardianContactNo: formData.guardianContactNo,
+        talentGroup: formData.talentGroup,
+        submittedAt: new Date().toISOString()
+      };
+
+      // Generate a fallback application ID
+      let assignedId = 'APP-' + Math.floor(100000 + Math.random() * 900000);
+
+      try {
+        // Attempt to save to live backend database
+        const response = await fetch('/api/applications', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(submissionPayload),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.id) assignedId = result.id;
+          toast.success('Application successfully saved to database!');
+        } else {
+          // Fallback if server responds with error in dev mode
+          console.warn(`Backend endpoint returned ${response.status}. Falling back to local storage.`);
+          const existing = JSON.parse(localStorage.getItem('saved_applications') || '[]');
+          existing.push({ id: assignedId, ...submissionPayload });
+          localStorage.setItem('saved_applications', JSON.stringify(existing));
+          toast.info('Application saved locally for development.');
+        }
+      } catch (netError) {
+        // Fallback if network is unreachable or offline
+        console.warn('Network request failed. Persisting to local storage:', netError);
+        const existing = JSON.parse(localStorage.getItem('saved_applications') || '[]');
+        existing.push({ id: assignedId, ...submissionPayload });
+        localStorage.setItem('saved_applications', JSON.stringify(existing));
+        toast.info('Application saved locally. Will sync when backend is available.');
+      }
+
+      // Update success view states
+      setApplicationId(assignedId);
+      onSubmit(submissionPayload);
+      setSubmissionSuccess(true);
+    } catch (error) {
+      console.error('Fatal submission processing error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An unhandled exception occurred';
+      toast.error(`${errorMessage}. Please try again.`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getTalentGroupLabel = () => {
+    const group = TALENT_GROUPS.find(g => g.value === talentGroup);
+    return group?.label || talentGroup;
+  };
 
   return (
-    <div className="min-h-screen bg-[#F3F4F6]">
-      <header className="bg-white border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center space-x-4">
-          <img src={uncLogo} alt="UNC Logo" className="w-12 h-12 object-contain" />
-          <div>
-            <h1 className="unc-burgundy-text">TalentTrackUNC</h1>
-            <p className="text-sm text-muted-foreground">Scholarship Application</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Form Container */}
+      <div className="container mx-auto px-4 py-8 max-w-3xl">
+        {/* Form Header with Back Button */}
+        <div className="flex items-start justify-between mb-8">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Application Form <span className="text-[#7A1E1E]">{getTalentGroupLabel()}</span>
+            </h1>
+            <p className="text-gray-600">Please fill out all required fields marked with <span className="text-red-500">*</span></p>
           </div>
+          <Button
+            type="button"
+            onClick={onBack}
+            variant="ghost"
+            className="ml-4 h-10 px-3"
+            title="Go back"
+            aria-label="Back to previous page"
+          >
+            <ArrowLeft className="w-5 h-5 text-[#7A1E1E]" aria-hidden="true" />
+          </Button>
         </div>
-      </header>
 
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <form onSubmit={handleSubmit}>
-          <Card className="border-2">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="unc-burgundy-text text-2xl">{groupLabel} Application Form</CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">University of Nueva Caceres</p>
-                </div>
-                <Button type="button" variant="ghost" size="icon" onClick={() => { update('talentGroup', '' as any); onSelectGroup?.(''); }}>
-                  <X className="w-5 h-5" />
-                </Button>
-              </div>
-            </CardHeader>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* SECTION 1: Personal Information */}
+          <section className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-8" aria-labelledby="personal-heading">
+            <div className="flex items-center gap-2 mb-6">
+              <User className="w-5 h-5 text-[#7A1E1E]" aria-hidden="true" />
+              <h2 id="personal-heading" className="text-lg font-semibold text-[#7A1E1E]">Personal Information</h2>
+            </div>
 
-            <CardContent className="p-0">
-
-              {/* ── 1. Personal Information ── */}
-              <div className="px-6 py-5 space-y-4">
-                <div className="flex items-center gap-2 pl-3 border-l-4 border-[#7A1E1E]">
-                  <User className="w-4 h-4 text-[#7A1E1E] shrink-0" />
-                  <h3 className="unc-burgundy-text text-sm uppercase tracking-wide">Personal Information</h3>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <Label className="text-xs text-gray-600">Last Name *</Label>
-                    <Input id="lastName" className="mt-1 h-9" placeholder="Dela Cruz" value={formData.lastName}
-                      onChange={(e) => { update('lastName', toTitleCase(e.target.value)); clearError('lastName'); }} />
-                    {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-600">First Name *</Label>
-                    <Input id="firstName" className="mt-1 h-9" placeholder="Juan" value={formData.firstName}
-                      onChange={(e) => { update('firstName', toTitleCase(e.target.value)); clearError('firstName'); }} />
-                    {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-600">Middle Name</Label>
-                    <Input id="middleName" className="mt-1 h-9" placeholder="Santos" value={formData.middleName}
-                      onChange={(e) => update('middleName', toTitleCase(e.target.value))} />
-                  </div>
-                </div>
-
-                <div className={`grid grid-cols-1 gap-3 ${isMajorettes ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
-                  <div>
-                    <Label className="text-xs text-gray-600">Birthdate *</Label>
-                    <Input id="birthdate" type="date" className="mt-1 h-9" max={getMaxBirthdate()} value={formData.birthdate}
-                      style={{ colorScheme: 'light' }}
-                      onChange={(e) => { handleBirthdate(e.target.value); clearError('birthdate'); }} />
-                    {errors.birthdate && <p className="text-red-500 text-xs mt-1">{errors.birthdate}</p>}
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-600">Age</Label>
-                    <Input id="age" className="mt-1 h-9 bg-gray-50 text-gray-500"
-                      value={formData.age ? `${formData.age} years old` : ''} readOnly disabled placeholder="—" />
-                  </div>
-                  {!isMajorettes && (
-                    <div>
-                      <Label className="text-xs text-gray-600">Gender *</Label>
-                      <Select value={formData.gender} onValueChange={(v) => { update('gender', v); clearError('gender'); }}>
-                        <SelectTrigger id="gender" className="mt-1 h-9"><SelectValue placeholder="Select" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Male">Male</SelectItem>
-                          <SelectItem value="Female">Female</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender}</p>}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* ── 2. Address ── */}
-              <div className="px-6 py-5 space-y-4">
-                <div className="flex items-center gap-2 pl-3 border-l-4 border-[#7A1E1E]">
-                  <Home className="w-4 h-4 text-[#7A1E1E] shrink-0" />
-                  <h3 className="unc-burgundy-text text-sm uppercase tracking-wide">Address</h3>
-                </div>
-
-                <AddressBlock prefix="perm" label="Permanent Address"
-                  region={formData.permRegion} province={formData.permProvince}
-                  city={formData.permCity} barangay={formData.permBarangay} street={formData.permStreet}
-                  errors={errors} onChange={handleAddressChange} />
-
-                <div className="flex items-center gap-2.5 cursor-pointer select-none" onClick={() => handleSameAsPermanent(!sameAsPermanent)}>
-                  <Checkbox id="sameAsPermanent" checked={sameAsPermanent}
-                    onCheckedChange={(c) => handleSameAsPermanent(!!c)}
-                    className="shrink-0" />
-                  <span className="text-sm text-gray-600 leading-none">Residing address is the same as permanent address</span>
-                </div>
-
-                {!sameAsPermanent && (
-                  <AddressBlock prefix="resid" label="Residing Address"
-                    region={formData.residRegion} province={formData.residProvince}
-                    city={formData.residCity} barangay={formData.residBarangay} street={formData.residStreet}
-                    errors={errors} onChange={handleAddressChange} />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div>
+                <Label className="text-xs text-gray-600">
+                  Last Name <span className="text-red-500">*</span>
+                  <span className="sr-only">(required)</span>
+                </Label>
+                <Input 
+                  id="lastName"
+                  className={`mt-1 h-10 text-sm ${
+                    touched.lastName && errors.lastName ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                  }`}
+                  placeholder="Dela Cruz"
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                  onBlur={() => handleBlur('lastName')}
+                  aria-required="true"
+                />
+                {touched.lastName && errors.lastName && (
+                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.lastName}</p>
                 )}
               </div>
 
-              <Separator />
-
-              {/* ── 3. Contact Information ── */}
-              <div className="px-6 py-5 space-y-4">
-                <div className="flex items-center gap-2 pl-3 border-l-4 border-[#7A1E1E]">
-                  <Phone className="w-4 h-4 text-[#7A1E1E] shrink-0" />
-                  <h3 className="unc-burgundy-text text-sm uppercase tracking-wide">Contact Information</h3>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-gray-600">Mobile Number *</Label>
-                    <PhoneInput id="mobileNo" value={formData.mobileNo}
-                      onChange={(v) => { update('mobileNo', v); clearError('mobileNo'); }}
-                      countryCode={mobileCC} onCountryCodeChange={setMobileCC}
-                      error={errors.mobileNo} required />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-600">Email Address *</Label>
-                    <Input id="email" type="email" className="mt-1 h-9" placeholder="juan@unc.edu.ph"
-                      value={formData.email}
-                      onChange={(e) => { update('email', e.target.value); clearError('email'); }} />
-                    {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-                  </div>
-                </div>
+              <div>
+                <Label className="text-xs text-gray-600">
+                  First Name <span className="text-red-500">*</span>
+                  <span className="sr-only">(required)</span>
+                </Label>
+                <Input 
+                  id="firstName"
+                  className={`mt-1 h-10 text-sm ${
+                    touched.firstName && errors.firstName ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                  }`}
+                  placeholder="Juan"
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+                  onBlur={() => handleBlur('firstName')}
+                  aria-required="true"
+                />
+                {touched.firstName && errors.firstName && (
+                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.firstName}</p>
+                )}
               </div>
 
-              <Separator />
+              <div>
+                <Label className="text-xs text-gray-600">Middle Name</Label>
+                <Input 
+                  id="middleName"
+                  className="mt-1 h-10 text-sm border-2 border-gray-200"
+                  placeholder="Santos"
+                  value={formData.middleName}
+                  onChange={(e) => setFormData({...formData, middleName: e.target.value})}
+                />
+              </div>
+            </div>
 
-              {/* ── 4. Academic Information ── */}
-              <div className="px-6 py-5 space-y-4">
-                <div className="flex items-center gap-2 pl-3 border-l-4 border-[#7A1E1E]">
-                  <GraduationCap className="w-4 h-4 text-[#7A1E1E] shrink-0" />
-                  <h3 className="unc-burgundy-text text-sm uppercase tracking-wide">Academic Information</h3>
-                </div>
-
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                  Only fill this section if you are already enrolled or have your academic details available.
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-gray-600">Student ID</Label>
-                    <Input id="studentId" className="mt-1 h-9" placeholder="24-12345"
-                      value={formData.studentId} maxLength={8}
-                      onChange={(e) => { update('studentId', formatStudentId(e.target.value)); clearError('studentId'); }} />
-                    {errors.studentId && <p className="text-red-500 text-xs mt-1">{errors.studentId}</p>}
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-600">Department / School</Label>
-                    <Select value={formData.department} onValueChange={(v) => { update('department', v); update('yearLevel', ''); update('course', ''); }}>
-                      <SelectTrigger id="department" className="mt-1 h-9"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        {getDepartments().map(d => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-600">Year Level</Label>
-                    <Select value={formData.yearLevel} disabled={!formData.department} onValueChange={(v) => update('yearLevel', v)}>
-                      <SelectTrigger id="yearLevel" className="mt-1 h-9">
-                        <SelectValue placeholder={formData.department ? 'Select' : 'Select department first'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getYearLevels().map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-600">Course / Strand</Label>
-                    <Select value={formData.course} disabled={!formData.department} onValueChange={(v) => update('course', v)}>
-                      <SelectTrigger id="course" className="mt-1 h-9">
-                        <SelectValue placeholder={formData.department ? 'Select' : 'Select department first'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(COURSES[formData.department] || []).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div>
+                <Label className="text-xs text-gray-600">
+                  Birthdate <span className="text-red-500">*</span>
+                  <span className="sr-only">(required)</span>
+                </Label>
+                <Input 
+                  id="birthdate"
+                  type="date"
+                  className={`mt-1 h-10 text-sm ${
+                    touched.birthdate && errors.birthdate ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                  }`}
+                  value={formData.birthdate}
+                  onChange={(e) => {
+                    const bd = e.target.value;
+                    const age = calculateAge(bd);
+                    setFormData({...formData, birthdate: bd, age});
+                  }}
+                  onBlur={() => handleBlur('birthdate')}
+                  aria-required="true"
+                  style={{ colorScheme: 'light' }}
+                />
+                {touched.birthdate && errors.birthdate && (
+                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.birthdate}</p>
+                )}
               </div>
 
-              <Separator />
-
-              {/* ── 5. Emergency Contact ── */}
-              <div className="px-6 py-5 space-y-4">
-                <div className="flex items-center gap-2 pl-3 border-l-4 border-[#7A1E1E]">
-                  <Phone className="w-4 h-4 text-[#7A1E1E] shrink-0" />
-                  <h3 className="unc-burgundy-text text-sm uppercase tracking-wide">Emergency Contact</h3>
-                </div>
-
-                <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded px-3 py-2">
-                  Please provide a parent or legal guardian as your emergency contact.
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-gray-600">Guardian Name *</Label>
-                    <Input id="guardianName" className="mt-1 h-9" placeholder="Maria Dela Cruz"
-                      value={formData.guardianName}
-                      onChange={(e) => { update('guardianName', toTitleCase(e.target.value)); clearError('guardianName'); }} />
-                    {errors.guardianName && <p className="text-red-500 text-xs mt-1">{errors.guardianName}</p>}
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-600">Relationship *</Label>
-                    <Select value={formData.guardianRelationship} onValueChange={(v) => { update('guardianRelationship', v); clearError('guardianRelationship'); }}>
-                      <SelectTrigger id="guardianRelationship" className="mt-1 h-9"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        {RELATIONSHIP_OPTIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    {errors.guardianRelationship && <p className="text-red-500 text-xs mt-1">{errors.guardianRelationship}</p>}
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Label className="text-xs text-gray-600">Contact Number *</Label>
-                    <PhoneInput id="guardianContactNo" value={formData.guardianContactNo}
-                      onChange={(v) => { update('guardianContactNo', v); clearError('guardianContactNo'); }}
-                      countryCode={guardianCC} onCountryCodeChange={setGuardianCC}
-                      error={errors.guardianContactNo} required />
-                  </div>
-                </div>
+              <div>
+                <Label className="text-xs text-gray-600">Age</Label>
+                <Input 
+                  id="age"
+                  className="mt-1 h-10 text-sm bg-gray-50 text-gray-500 border-2 border-gray-200"
+                  value={formData.age ? `${formData.age} years old` : ''}
+                  readOnly
+                  disabled
+                  placeholder="—"
+                />
               </div>
 
-              <Separator />
-
-              {/* ── 6. Data Privacy Consent ── */}
-              <div className="px-6 py-5 space-y-4 bg-gray-50 rounded-b-xl">
-                <div className="flex items-center gap-2 pl-3 border-l-4 border-[#7A1E1E]">
-                  <Shield className="w-4 h-4 text-[#7A1E1E] shrink-0" />
-                  <h3 className="unc-burgundy-text text-sm uppercase tracking-wide">Privacy & Consent</h3>
+              {!isMajorettes && (
+                <div>
+                  <Label className="text-xs text-gray-600">
+                    Gender <span className="text-red-500">*</span>
+                    <span className="sr-only">(required)</span>
+                  </Label>
+                  <Select value={formData.gender} onValueChange={(v) => setFormData({...formData, gender: v})}>
+                    <SelectTrigger 
+                      id="gender"
+                      className={`mt-1 h-10 text-sm ${
+                        touched.gender && errors.gender ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                      }`}
+                      aria-required="true"
+                      onBlur={() => handleBlur('gender')}
+                    >
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Male">Male</SelectItem>
+                      <SelectItem value="Female">Female</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {touched.gender && errors.gender && (
+                    <p className="text-red-500 text-xs mt-1" role="alert">{errors.gender}</p>
+                  )}
                 </div>
+              )}
+            </div>
+          </section>
 
-                <p className="text-xs text-gray-600 leading-relaxed">
-                  In accordance with the <strong className="text-gray-800">Data Privacy Act of 2012 (RA 10173)</strong>, UNC will use your information solely to process this scholarship application. Your data will not be shared with third parties without consent.
-                </p>
+          {/* SECTION 2: Address */}
+          <section className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-8" aria-labelledby="address-heading">
+            <h2 id="address-heading" className="text-lg font-semibold text-[#7A1E1E] mb-6">Address</h2>
+            
+            <div className="space-y-6">
+              <AddressBlock 
+                prefix="perm" 
+                label="Permanent Address"
+                region={formData.permRegion} 
+                province={formData.permProvince}
+                city={formData.permCity} 
+                barangay={formData.permBarangay} 
+                street={formData.permStreet}
+                errors={errors} 
+                touched={touched}
+                onChange={(field, value) => {
+                  const fieldName = field.replace('perm_', '').charAt(0).toLowerCase() + field.replace('perm_', '').slice(1);
+                  const key = `perm${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}` as keyof typeof formData;
+                  setFormData({...formData, [key]: value});
+                  handleBlur(field);
+                }}
+              />
 
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <Checkbox
-                    id="dataPrivacyConsent"
-                    checked={formData.dataPrivacyConsent}
-                    onCheckedChange={(c) => { update('dataPrivacyConsent', !!c as any); clearError('dataPrivacyConsent'); }}
-                    className="mt-0.5 shrink-0"
-                  />
-                  <span className="text-sm text-gray-700 leading-relaxed">
-                    I consent to the collection and processing of my personal data, and confirm that all information I provided is accurate and complete.
-                  </span>
+              <div className="flex items-center gap-3">
+                <Checkbox 
+                  id="sameAsPermanent"
+                  checked={sameAsPermanent}
+                  onCheckedChange={(c) => setSameAsPermanent(!!c)}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="sameAsPermanent" className="text-sm text-gray-600 cursor-pointer">
+                  Residing address is the same as permanent address
                 </label>
-                {errors.dataPrivacyConsent && <p className="text-red-500 text-xs">{errors.dataPrivacyConsent}</p>}
-
-                <div className="flex justify-end pt-1">
-                  <Button type="submit" disabled={!formData.dataPrivacyConsent}
-                    className="bg-[#7A1E1E] hover:bg-[#6A1919] text-white px-10 h-10 rounded-lg disabled:opacity-50">
-                    <Send className="w-4 h-4 mr-2" />
-                    Submit Application
-                  </Button>
-                </div>
               </div>
 
-            </CardContent>
-          </Card>
+              {!sameAsPermanent && (
+                <AddressBlock 
+                  prefix="resid"
+                  label="Residing Address"
+                  region={formData.residRegion} 
+                  province={formData.residProvince}
+                  city={formData.residCity} 
+                  barangay={formData.residBarangay} 
+                  street={formData.residStreet}
+                  errors={errors} 
+                  touched={touched}
+                  onChange={(field, value) => {
+                    const fieldName = field.replace('resid_', '').charAt(0).toLowerCase() + field.replace('resid_', '').slice(1);
+                    const key = `resid${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}` as keyof typeof formData;
+                    setFormData({...formData, [key]: value});
+                    handleBlur(field);
+                  }}
+                />
+              )}
+            </div>
+          </section>
+
+          {/* SECTION 3: Contact Information */}
+          <section className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-8" aria-labelledby="contact-heading">
+            <div className="flex items-center gap-2 mb-6">
+              <Phone className="w-5 h-5 text-[#7A1E1E]" aria-hidden="true" />
+              <h2 id="contact-heading" className="text-lg font-semibold text-[#7A1E1E]">Contact Information</h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-end">
+              <div>
+                <Label className="text-xs text-gray-600" htmlFor="mobileNo">
+                  Mobile Number <span className="text-red-500">*</span>
+                  <span className="sr-only">(required)</span>
+                </Label>
+                <PhoneInput 
+                  id="mobileNo"
+                  placeholder="(9XX) XXX-XXXX"
+                  value={formData.mobileNo}
+                  onChange={(v) => setFormData({...formData, mobileNo: v})}
+                  countryCode={mobileCC}
+                  onCountryCodeChange={(v) => setMobileCC(v)}
+                  error={errors.mobileNo}
+                  touched={touched.mobileNo}
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs text-gray-600" htmlFor="email">
+                  Email Address <span className="text-red-500">*</span>
+                  <span className="sr-only">(required)</span>
+                </Label>
+                <Input 
+                  id="email"
+                  type="email"
+                  className={`mt-1 h-10 text-sm ${
+                    touched.email && errors.email ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                  }`}
+                  placeholder="juan@unc.edu.ph"
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  onBlur={() => handleBlur('email')}
+                  aria-required="true"
+                />
+                {touched.email && errors.email && (
+                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.email}</p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 4: Academic Information */}
+          <section className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-8" aria-labelledby="academic-heading">
+            <div className="flex items-center gap-2 mb-6">
+              <GraduationCap className="w-5 h-5 text-[#7A1E1E]" aria-hidden="true" />
+              <h2 id="academic-heading" className="text-lg font-semibold text-[#7A1E1E]">Academic Information</h2>
+            </div>
+
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-6">
+              Only fill this section if you are already enrolled or have your academic details available.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div>
+                <Label className="text-xs text-gray-600">Student ID</Label>
+                <Input 
+                  id="studentId"
+                  className="mt-1 h-10 text-sm border-2 border-gray-200"
+                  placeholder="24-12345"
+                  value={formData.studentId}
+                  onChange={(e) => setFormData({...formData, studentId: e.target.value.slice(0, 8)})}
+                  maxLength={8}
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs text-gray-600">Department / School</Label>
+                <Select value={formData.department} onValueChange={(v) => setFormData({...formData, department: v})}>
+                  <SelectTrigger id="department" className="mt-1 h-10 text-sm border-2 border-gray-200">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DEPARTMENTS.map(d => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs text-gray-600">Year Level</Label>
+                <Select value={formData.yearLevel} disabled={!formData.department} onValueChange={(v) => setFormData({...formData, yearLevel: v})}>
+                  <SelectTrigger id="yearLevel" className="mt-1 h-10 text-sm border-2 border-gray-200">
+                    <SelectValue placeholder={formData.department ? 'Select' : 'Select department first'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {['1st Year', '2nd Year', '3rd Year', '4th Year'].map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs text-gray-600">Course / Strand</Label>
+                <Select value={formData.course} disabled={!formData.department} onValueChange={(v) => setFormData({...formData, course: v})}>
+                  <SelectTrigger id="course" className="mt-1 h-10 text-sm border-2 border-gray-200">
+                    <SelectValue placeholder={formData.department ? 'Select' : 'Select department first'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(COURSES[formData.department] || []).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 5: Emergency Contact */}
+          <section className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-8" aria-labelledby="emergency-heading">
+            <div className="flex items-center gap-2 mb-6">
+              <Shield className="w-5 h-5 text-[#7A1E1E]" aria-hidden="true" />
+              <h2 id="emergency-heading" className="text-lg font-semibold text-[#7A1E1E]">Emergency Contact</h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div>
+                <Label className="text-xs text-gray-600">
+                  Guardian Last Name <span className="text-red-500">*</span>
+                  <span className="sr-only">(required)</span>
+                </Label>
+                <Input 
+                  id="guardianLastName"
+                  className={`mt-1 h-10 text-sm ${
+                    touched.guardianLastName && errors.guardianLastName ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                  }`}
+                  placeholder="Dela Cruz"
+                  value={formData.guardianLastName}
+                  onChange={(e) => setFormData({...formData, guardianLastName: e.target.value})}
+                  onBlur={() => handleBlur('guardianLastName')}
+                  aria-required="true"
+                />
+                {touched.guardianLastName && errors.guardianLastName && (
+                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.guardianLastName}</p>
+                )}
+              </div>
+
+              <div>
+                <Label className="text-xs text-gray-600">
+                  Guardian First Name <span className="text-red-500">*</span>
+                  <span className="sr-only">(required)</span>
+                </Label>
+                <Input 
+                  id="guardianFirstName"
+                  className={`mt-1 h-10 text-sm ${
+                    touched.guardianFirstName && errors.guardianFirstName ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                  }`}
+                  placeholder="Juan"
+                  value={formData.guardianFirstName}
+                  onChange={(e) => setFormData({...formData, guardianFirstName: e.target.value})}
+                  onBlur={() => handleBlur('guardianFirstName')}
+                  aria-required="true"
+                />
+                {touched.guardianFirstName && errors.guardianFirstName && (
+                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.guardianFirstName}</p>
+                )}
+              </div>
+
+              <div>
+                <Label className="text-xs text-gray-600">Guardian Middle Name</Label>
+                <Input 
+                  id="guardianMiddleName"
+                  className="mt-1 h-10 text-sm border-2 border-gray-200"
+                  placeholder="Santos"
+                  value={formData.guardianMiddleName}
+                  onChange={(e) => setFormData({...formData, guardianMiddleName: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div>
+                <Label className="text-xs text-gray-600">
+                  Relationship <span className="text-red-500">*</span>
+                  <span className="sr-only">(required)</span>
+                </Label>
+                <Select value={formData.guardianRelationship} onValueChange={(v) => setFormData({...formData, guardianRelationship: v})}>
+                  <SelectTrigger 
+                    id="guardianRelationship"
+                    className={`mt-1 h-10 text-sm ${
+                      touched.guardianRelationship && errors.guardianRelationship ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                    }`}
+                    aria-required="true"
+                    onBlur={() => handleBlur('guardianRelationship')}
+                  >
+                    <SelectValue placeholder="Select relationship" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RELATIONSHIP_OPTIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {touched.guardianRelationship && errors.guardianRelationship && (
+                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.guardianRelationship}</p>
+                )}
+              </div>
+
+              <div>
+                <Label className="text-xs text-gray-600">
+                  Contact Number <span className="text-red-500">*</span>
+                  <span className="sr-only">(required)</span>
+                </Label>
+                <Input 
+                  id="guardianContactNo"
+                  className={`mt-1 h-10 text-sm ${
+                    touched.guardianContactNo && errors.guardianContactNo ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                  }`}
+                  placeholder="+63 (9XX) XXX-XXXX"
+                  value={formData.guardianContactNo}
+                  onChange={(e) => setFormData({...formData, guardianContactNo: e.target.value})}
+                  onBlur={() => handleBlur('guardianContactNo')}
+                  aria-required="true"
+                  maxLength={15}
+                />
+                {touched.guardianContactNo && errors.guardianContactNo && (
+                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.guardianContactNo}</p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 6: Privacy & Consent */}
+          <section className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-8" aria-labelledby="consent-heading">
+            <div className="flex items-center gap-2 mb-6">
+              <Lock className="w-5 h-5 text-[#7A1E1E]" aria-hidden="true" />
+              <h2 id="consent-heading" className="text-lg font-semibold text-[#7A1E1E]">Privacy & Consent</h2>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <Checkbox 
+                  id="dataPrivacyConsent"
+                  checked={formData.dataPrivacyConsent}
+                  onCheckedChange={(c) => setFormData({...formData, dataPrivacyConsent: !!c})}
+                  className="w-4 h-4 mt-1"
+                  aria-required="true"
+                />
+                <label htmlFor="dataPrivacyConsent" className="text-sm text-gray-700">
+                  I agree to the <strong>Data Privacy Policy</strong> and consent to the collection, use, and processing of my personal information for this scholarship application.
+                </label>
+              </div>
+              {touched.dataPrivacyConsent && errors.dataPrivacyConsent && (
+                <p className="text-red-500 text-xs ml-7" role="alert">{errors.dataPrivacyConsent}</p>
+              )}
+
+              <div className="flex items-start gap-3">
+                <Checkbox 
+                  id="confirmedAccuracy"
+                  checked={formData.confirmedAccuracy}
+                  onCheckedChange={(c) => setFormData({...formData, confirmedAccuracy: !!c})}
+                  className="w-4 h-4 mt-1"
+                  aria-required="true"
+                />
+                <label htmlFor="confirmedAccuracy" className="text-sm text-gray-700">
+                  I confirm that all information provided in this application is <strong>accurate and truthful</strong>.
+                </label>
+              </div>
+              {touched.confirmedAccuracy && errors.confirmedAccuracy && (
+                <p className="text-red-500 text-xs ml-7" role="alert">{errors.confirmedAccuracy}</p>
+              )}
+            </div>
+          </section>
+
+          {/* Form Actions */}
+          <div className="flex justify-end pt-4">
+            <Button
+              type="submit"
+              className="w-full sm:w-auto h-12 px-8 text-base bg-[#7A1E1E] hover:bg-[#6a1818] text-white"
+              disabled={isSubmitting}
+              aria-busy={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+                  <span>Submitting...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" aria-hidden="true" />
+                  <span>Submit Application</span>
+                </>
+              )}
+            </Button>
+          </div>
         </form>
       </div>
     </div>

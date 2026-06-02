@@ -11,6 +11,10 @@ final class ApplicationResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        // Determine actual status: if interview is loaded and exists, status is 'scheduled'
+        // Otherwise use the column value
+        $actualStatus = $this->status;
+        if ($this->relationLoaded('interview') && $this->interview !== null) {
         // Determine actual status: 
         // - If already approved/rejected, return that status (don't override)
         // - If interview exists and status is pending, return 'scheduled'

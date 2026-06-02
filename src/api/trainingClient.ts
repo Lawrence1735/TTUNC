@@ -29,7 +29,7 @@ export interface TraineeResponse {
   };
 }
 
-class TrainingClient {
+export class TrainingClient {
   /**
    * Fetch all trainees
    */

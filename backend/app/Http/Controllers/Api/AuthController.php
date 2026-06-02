@@ -67,4 +67,82 @@ final class AuthController extends Controller
             'created_at'   => $user->created_at,
         ]);
     }
+
+    /**
+     * Refresh the authentication token.
+     * Issues a new token with the same abilities as the current token.
+     */
+    public function refresh(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $currentToken = $user->currentAccessToken();
+
+        if (!$currentToken) {
+            return response()->json([
+                'message' => 'No active token found.',
+            ], Response::HTTP_UNAUTHORIZED);
+        }
+
+        // Create new token with same abilities as current token
+        $abilities = $currentToken->abilities;
+
+        // Revoke old token
+        $currentToken->delete();
+
+        // Issue new token
+        $newToken = $user->createToken(
+            name: "api-token-{$user->id}-refreshed",
+            abilities: $abilities,
+        )->plainTextToken;
+
+        return response()->json([
+            'token' => $newToken,
+            'user'  => [
+                'id'           => $user->id,
+                'name'         => $user->name,
+                'email'        => $user->email,
+                'role'         => $user->role,
+                'talent_group' => $user->talent_group,
+                'student_id'   => $user->student_id,
+                'phone'        => $user->phone,
+                'is_active'    => true,
+                'created_at'   => $user->created_at,
+            ],
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Maps roles to Sanctum token abilities.
+     *
+     * @return string[]
+     */
+    private function abilitiesForRole(string $role): array
+    {
+        return match ($role) {
+            'admin'    => ['*'],
+            'director' => [
+                'dashboard:read',
+                'applications:read',
+                'applications:write',
+                'interviews:read',
+                'interviews:write',
+                'trainees:read',
+                'trainees:write',
+                'attendance:read',
+                'attendance:write',
+                'evaluations:read',
+                'evaluations:write',
+            ],
+            'trainee', 'student' => [
+                'dashboard:read',
+                'attendance:read',
+                'evaluations:read',
+            ],
+            'scholar' => [
+                'dashboard:read',
+                'evaluations:read',
+            ],
+            default => ['dashboard:read'],
+        };
+    }
 }

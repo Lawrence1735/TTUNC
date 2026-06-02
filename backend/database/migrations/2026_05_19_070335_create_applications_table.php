@@ -10,6 +10,30 @@ return new class extends Migration
     {
         Schema::create('applications', function (Blueprint $table): void {
             $table->id();
+
+            // Nullable FK — applicant may not have an account yet
+            $table->foreignId('user_id')
+                  ->nullable()
+                  ->constrained('users')
+                  ->nullOnDelete();
+
+            // Talent group the applicant is applying to
+            $table->enum('talent_group', [
+                'marching-band',
+                'glee-club',
+                'dance-club',
+                'majorettes',
+            ])->index();
+
+            // Pipeline status
+            $table->enum('status', [
+                'pending',
+                'scheduled',
+                'approved',
+                'rejected',
+            ])->default('pending')->index();
+
+            // Weekly growth tracker — incremented on creation, reset weekly via scheduler
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->enum('talent_group', ['marching-band','glee-club','dance-club','majorettes'])->index();
             $table->enum('status', ['pending','interview_scheduled','approved','rejected'])->default('pending')->index();

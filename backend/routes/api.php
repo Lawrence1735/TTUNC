@@ -18,21 +18,66 @@ Route::prefix('v1')->group(function (): void {
 
     // ── Authenticated routes ───────────────────────────────────────────────────────
     Route::middleware('auth:sanctum')->group(function (): void {
-
         // Auth
-        Route::post('/auth/logout', [AuthController::class, 'logout']);
-        Route::get('/auth/me', [AuthController::class, 'me']);
+        Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+        Route::post('/refresh', [AuthController::class, 'refresh'])->name('refresh');
+        Route::get('/me', [AuthController::class, 'me'])->name('me');
 
-        // Dashboard
-        Route::get('/dashboard/summary', DashboardSummaryController::class);
+        // ── Dashboard ─────────────────────────────────────────────────────────
+        Route::get(
+            '/dashboard/summary',
+            DashboardSummaryController::class
+        )->name('dashboard.summary')
+         ->middleware('role:director,admin');
 
-        // Recruitment
-        Route::prefix('recruitment')->group(function (): void {
-            Route::get('/applications', [RecruitmentController::class, 'index']);
-            Route::get('/applications/{application}', [RecruitmentController::class, 'show']);
-            Route::post('/applications/{application}/schedule-interview', [RecruitmentController::class, 'scheduleInterview']);
-            Route::post('/applications/{application}/approve', [RecruitmentController::class, 'handleApproveInterview']);
-            Route::post('/applications/{application}/reject', [RecruitmentController::class, 'handleRejectInterview']);
+        // ── Recruitment ───────────────────────────────────────────────────────
+        Route::prefix('recruitment')->name('recruitment.')->group(function (): void {
+
+            // Application listing (director/admin only)
+            Route::get(
+                '/applications',
+                [RecruitmentController::class, 'index']
+            )->name('applications.index')
+             ->middleware('role:director,admin');
+
+            // Interview listing (director/admin only)
+            Route::get(
+                '/interviews',
+                [RecruitmentController::class, 'indexInterviews']
+            )->name('interviews.index')
+             ->middleware('role:director,admin');
+
+            // Single application detail
+            Route::get(
+                '/applications/{application}',
+                [RecruitmentController::class, 'show']
+            )->name('applications.show')
+             ->middleware('role:director,admin');
+
+            // Pipeline state transitions (director/admin only)
+            Route::post(
+                '/applications/{application}/schedule-interview',
+                [RecruitmentController::class, 'scheduleInterview']
+            )->name('applications.schedule-interview')
+             ->middleware('role:director,admin');
+
+            Route::post(
+                '/applications/{application}/reschedule-interview',
+                [RecruitmentController::class, 'rescheduleInterview']
+            )->name('applications.reschedule-interview')
+             ->middleware('role:director,admin');
+
+            Route::post(
+                '/applications/{application}/approve',
+                [RecruitmentController::class, 'handleApproveInterview']
+            )->name('applications.approve')
+             ->middleware('role:director,admin');
+
+            Route::post(
+                '/applications/{application}/reject',
+                [RecruitmentController::class, 'handleRejectInterview']
+            )->name('applications.reject')
+             ->middleware('role:director,admin');
         });
 
         // Training — Trainees
