@@ -1,13 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { TabsContent } from './ui/tabs';
 import { Badge } from './ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Checkbox } from './ui/checkbox';
 import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Calendar, CheckCircle, FileText, Search, ChevronRight, ChevronDown, TrendingUp } from './ui/icons';
+import { Calendar, FileText, Search, ChevronRight, ChevronDown, TrendingUp } from './ui/icons';
 import { toast } from 'sonner';
 
 interface DirectorTrainingTabProps {
@@ -15,7 +13,7 @@ interface DirectorTrainingTabProps {
   trainingCompletionRate: number;
   traineeSearchTerm: string;
   setTraineeSearchTerm: (v: string) => void;
-  traineeStatuses: Record<string, string>;
+  traineeStatuses: Record<string, string>; // reserved for future use
   traineeChapters: Record<string, Record<string, boolean>>;
   traineeInstruments: Record<string, string>;
   traineeVoices: Record<string, string>;
@@ -36,7 +34,7 @@ export function DirectorTrainingTab({
   trainingCompletionRate,
   traineeSearchTerm,
   setTraineeSearchTerm,
-  traineeStatuses,
+  // traineeStatuses unused in current view but kept for API compatibility
   traineeChapters,
   traineeInstruments,
   traineeVoices,
@@ -53,14 +51,10 @@ export function DirectorTrainingTab({
 }: DirectorTrainingTabProps) {
   // State for expandable evaluation details
   const [expandedEvaluations, setExpandedEvaluations] = useState<Set<string>>(new Set());
-  
-  // State for weekly attendance view
-  const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(() => {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    return new Date(today.setDate(diff));
-  });
+
+  // State for attendance date-selection and calendar navigation
+  const [selectedAttendanceDate, setSelectedAttendanceDate] = useState<string>(() => new Date().toLocaleDateString('en-CA'));
+  const [calendarViewDate, setCalendarViewDate] = useState(() => ({ year: new Date().getFullYear(), month: new Date().getMonth() }));
 
   const toggleEvaluationExpanded = (evaluationId: string) => {
     const newSet = new Set(expandedEvaluations);
@@ -91,8 +85,8 @@ export function DirectorTrainingTab({
                 { label: "Completion Rate", val: `${trainingCompletionRate}%` }
               ].map(({ label, val }) => (
                 <div key={label} style={{ background: "#fff", borderRadius: 10, border: "1px solid #E5E7EB", boxShadow: "0 1px 6px rgba(0,0,0,0.06)", padding: "12px 14px", display: "flex", flexDirection: "column", justifyContent: "center", boxSizing: "border-box" }}>
-                  <p style={{ fontSize: 10, color: "#94A3B8", marginBottom: 2, margin: 0 }}>{label}</p>
-                  <p style={{ fontSize: 16, fontWeight: 700, color: val === 0 || val === "0%" ? "#CBD5E1" : "#0F172A", lineHeight: 1, margin: 0 }}>{val}</p>
+                  <p style={{ fontSize: 10, color: "#94A3B8", marginTop: 0, marginBottom: 6, marginLeft: 0, marginRight: 0 }}>{label}</p>
+                  <p style={{ fontSize: 18, fontWeight: 700, color: val === 0 || val === "0%" ? "#94A3B8" : "#0F172A", lineHeight: 1.2, marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0 }}>{val}</p>
                 </div>
               ))}
             </div>
@@ -117,7 +111,7 @@ export function DirectorTrainingTab({
                       placeholder="Search by trainee name..."
                       value={traineeSearchTerm}
                       onChange={(e) => setTraineeSearchTerm(e.target.value)}
-                      className="px-[35px] py-[12px]"
+                      className="pl-10 pr-4 py-2.5"
                     />
                   </div>
                 </div>
@@ -140,13 +134,10 @@ export function DirectorTrainingTab({
                           // Date Joined: trainee.dateJoined from User model in database
                           // Instrument: trainee assigned instrument (from traineeInstruments state or trainee object)
                           
-                          const trainingCompletion = trainee.completionRate !== undefined 
-                            ? trainee.completionRate 
-                            : (() => {
-                                const chapters = traineeChapters[trainee.id!] || {};
-                                const completedCount = Object.values(chapters).filter(Boolean).length;
-                                return Math.round((completedCount / 30) * 100);
-                              })();
+                          const chapterData = traineeChapters[trainee.id!];
+                          const trainingCompletion = chapterData !== undefined
+                            ? Math.round((Object.values(chapterData).filter(Boolean).length / 30) * 100)
+                            : (trainee.completionRate ?? 0);
                           
                           const instrument = trainee.instrument || trainee.assignedInstrument || traineeInstruments[trainee.id!] || traineeVoices[trainee.id!] || '—';
                           
@@ -164,7 +155,7 @@ export function DirectorTrainingTab({
                                 <p className="text-xs text-[#6c757d]">{instrument}</p>
                                 <div className="flex items-center justify-between mt-1">
                                   <span className="text-xs text-[#6c757d]">{dateJoined}</span>
-                                  <span className={`text-xs font-medium ${trainingCompletion >= 90 ? 'text-green-600' : trainingCompletion >= 75 ? 'text-[#7A1E1E]' : trainingCompletion >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                  <span className={`text-xs font-medium ${trainingCompletion >= 90 ? 'text-green-600' : trainingCompletion >= 75 ? 'text-[#7A1E1E]' : trainingCompletion >= 50 ? 'text-yellow-600' : trainingCompletion > 0 ? 'text-orange-500' : 'text-slate-400'}`}>
                                     {trainingCompletion}% complete
                                   </span>
                                 </div>
@@ -194,13 +185,10 @@ export function DirectorTrainingTab({
                           <TableBody>
                             {filtered.map((trainee) => {
                               // IMPORTANT: Use backend data directly when available
-                              const trainingCompletion = trainee.completionRate !== undefined 
-                                ? trainee.completionRate 
-                                : (() => {
-                                    const chapters = traineeChapters[trainee.id!] || {};
-                                    const completedCount = Object.values(chapters).filter(Boolean).length;
-                                    return Math.round((completedCount / 30) * 100);
-                                  })();
+                              const chapterData = traineeChapters[trainee.id!];
+                              const trainingCompletion = chapterData !== undefined
+                                ? Math.round((Object.values(chapterData).filter(Boolean).length / 30) * 100)
+                                : (trainee.completionRate ?? 0);
                               
                               const instrument = trainee.instrument || trainee.assignedInstrument || traineeInstruments[trainee.id!] || traineeVoices[trainee.id!] || '—';
                               
@@ -217,7 +205,7 @@ export function DirectorTrainingTab({
                                   <TableCell className="text-[#6c757d]">{instrument}</TableCell>
                                   <TableCell className="text-[#6c757d]">{dateJoined}</TableCell>
                                   <TableCell>
-                                    <span className={`font-medium ${trainingCompletion >= 90 ? 'text-green-600' : trainingCompletion >= 75 ? 'text-[#7A1E1E]' : trainingCompletion >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                    <span className={`font-medium ${trainingCompletion >= 90 ? 'text-green-600' : trainingCompletion >= 75 ? 'text-[#7A1E1E]' : trainingCompletion >= 50 ? 'text-yellow-600' : trainingCompletion > 0 ? 'text-orange-500' : 'text-slate-400'}`}>
                                       {trainingCompletion}%
                                     </span>
                                   </TableCell>
@@ -240,13 +228,13 @@ export function DirectorTrainingTab({
               </CardContent>
             </Card>
 
-            {/* Training Attendance */}
-            <Card className="border-[1.6px] border-[#e0e0e0] shadow-md">
-              <CardHeader>
+            {/* Training Attendance - Modern 2-column design */}
+            <Card className="border-[1.6px] border-[#e0e0e0] shadow-md overflow-hidden">
+              <CardHeader className="border-b border-[#e0e0e0]">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="min-w-0">
                     <CardTitle>Training Attendance</CardTitle>
-                    <CardDescription>Check the box to mark present. Leave unchecked for absent. Toggle "No Practice" for non-training days.</CardDescription>
+                    <CardDescription>Select a session date on the calendar to mark attendance</CardDescription>
                   </div>
                   <div className="flex gap-3 shrink-0">
                     <Button
@@ -277,165 +265,295 @@ export function DirectorTrainingTab({
               </CardHeader>
               <CardContent className="p-0">
                 {trainingAttendance.length === 0 ? (
-                  <div className="text-center py-8 px-6">
-                    <Calendar className="w-12 h-12 mx-auto text-[#6c757d] mb-3" />
-                    <h3 className="font-medium text-[#7A1E1E] mb-1">No Attendance Matrix Generated</h3>
-                    <p className="text-sm text-[#6c757d]">Click "Generate Dates" to create training dates and start tracking attendance</p>
+                  <div className="text-center py-12 px-6">
+                    <Calendar className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                    <h3 className="font-medium text-[#7A1E1E] mb-1">No Attendance Sessions Yet</h3>
+                    <p className="text-sm text-slate-400">Click "Generate Dates" to create training sessions and start tracking attendance</p>
                   </div>
-                ) : (
-                  <div className="space-y-5">
-                    {/* Week Selector */}
-                    <div className="flex items-center justify-between gap-4 px-2">
-                      <Button
-                        size="lg"
-                        variant="outline"
-                        onClick={() => setSelectedWeekStart(new Date(selectedWeekStart.getTime() - 7 * 24 * 60 * 60 * 1000))}
-                        className="border-[#7A1E1E] text-[#7A1E1E] px-4 py-2"
-                      >
-                        ← Previous Week
-                      </Button>
-                      <div className="text-base font-semibold text-[#1a1a1a] bg-gray-50 px-4 py-2 rounded-lg">
-                        {selectedWeekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(selectedWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </div>
-                      <Button
-                        size="lg"
-                        variant="outline"
-                        onClick={() => setSelectedWeekStart(new Date(selectedWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000))}
-                        className="border-[#7A1E1E] text-[#7A1E1E] px-4 py-2"
-                      >
-                        Next Week →
-                      </Button>
-                    </div>
+                ) : (() => {
+                  const { year: calYear, month: calMonth } = calendarViewDate;
+                  const firstDay = new Date(calYear, calMonth, 1).getDay();
+                  const startOffset = (firstDay + 6) % 7; // Monday-first
+                  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+                  const datesWithRecords = new Set(
+                    trainingAttendance.map(r => new Date(r.date).toLocaleDateString('en-CA'))
+                  );
+                  const todayStr = new Date().toLocaleDateString('en-CA');
+                  const monthName = new Date(calYear, calMonth, 1).toLocaleDateString('en-US', { month: 'long' });
+                  const selectedRecord = trainingAttendance.find(
+                    r => new Date(r.date).toLocaleDateString('en-CA') === selectedAttendanceDate
+                  );
+                  const presentCount = trainees.filter(t => selectedRecord?.attendees?.[t.id!] === 'present').length;
+                  const absentCount = trainees.filter(t => {
+                    const s = selectedRecord?.attendees?.[t.id!];
+                    return s !== 'present' && s !== 'excused';
+                  }).length;
+                  const excusedCount = trainees.filter(t => selectedRecord?.attendees?.[t.id!] === 'excused').length;
+                  const sessionRate = trainees.length > 0 ? Math.round((presentCount / trainees.length) * 100) : 0;
 
-                    {/* Week Days Header */}
-                    <div className="grid grid-cols-8 gap-4 px-2 py-4 bg-gray-50 rounded-lg">
-                      <div className="col-span-1 py-2"></div>
-                      {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
-                        const date = new Date(selectedWeekStart.getTime() + dayOffset * 24 * 60 * 60 * 1000);
-                        const isToday = date.toDateString() === new Date().toDateString();
-                        return (
-                          <div key={dayOffset} className="text-center py-2">
-                            <p className={`text-xs font-medium ${isToday ? 'text-[#7A1E1E] font-semibold' : 'text-[#6c757d]'}`}>
-                              {date.toLocaleDateString('en-US', { weekday: 'short' })}
-                            </p>
-                            <div className="flex justify-center mt-1">
-                              <span className={`text-base font-bold w-8 h-8 flex items-center justify-center rounded-full ${
-                                isToday ? 'bg-[#7A1E1E] text-white' : 'text-[#1a1a1a]'
-                              }`}>
-                                {date.getDate()}
-                              </span>
-                            </div>
-                            {isToday && <div className="text-[10px] text-[#7A1E1E] font-medium mt-0.5">Today</div>}
+                  return (
+                    <div className="flex flex-col lg:flex-row" style={{ minHeight: 480 }}>
+
+                      {/* Left Panel — Mini-calendar + session stats */}
+                      <div className="w-full lg:w-64 xl:w-72 bg-slate-50 border-b lg:border-b-0 lg:border-l border-[#e0e0e0] p-5 flex-shrink-0 space-y-5 lg:order-2">
+
+                        {/* Mini Calendar */}
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <button
+                              onClick={() => setCalendarViewDate((prev: { year: number; month: number }) => {
+                                const d = new Date(prev.year, prev.month - 1, 1);
+                                return { year: d.getFullYear(), month: d.getMonth() };
+                              })}
+                              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-500 font-bold"
+                            >‹</button>
+                            <span className="text-sm font-semibold text-[#1a1a1a]">{monthName} {calYear}</span>
+                            <button
+                              onClick={() => setCalendarViewDate((prev: { year: number; month: number }) => {
+                                const d = new Date(prev.year, prev.month + 1, 1);
+                                return { year: d.getFullYear(), month: d.getMonth() };
+                              })}
+                              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-500 font-bold"
+                            >›</button>
                           </div>
-                        );
-                      })}
-                    </div>
+                          <div className="grid grid-cols-7 mb-1">
+                            {['Mo','Tu','We','Th','Fr','Sa','Su'].map(d => (
+                              <div key={d} className="text-center text-[10px] font-semibold text-slate-400 py-1">{d}</div>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-7 gap-y-1">
+                            {Array.from({ length: startOffset }).map((_, i) => <div key={`e${i}`} />)}
+                            {Array.from({ length: daysInMonth }).map((_, i) => {
+                              const day = i + 1;
+                              const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                              const isToday = dateStr === todayStr;
+                              const isSelected = dateStr === selectedAttendanceDate;
+                              const hasRecord = datesWithRecords.has(dateStr);
+                              return (
+                                <div key={day} className="flex flex-col items-center">
+                                  <button
+                                    onClick={() => { if (hasRecord) setSelectedAttendanceDate(dateStr); }}
+                                    className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium transition-all ${
+                                      isSelected
+                                        ? 'bg-[#7A1E1E] text-white font-bold'
+                                        : isToday && hasRecord
+                                        ? 'bg-amber-100 text-amber-800 font-bold hover:bg-amber-200 cursor-pointer'
+                                        : isToday
+                                        ? 'bg-amber-50 text-amber-600 font-bold'
+                                        : hasRecord
+                                        ? 'text-[#1a1a1a] hover:bg-white cursor-pointer'
+                                        : 'text-slate-300 cursor-default'
+                                    }`}
+                                  >
+                                    {day}
+                                  </button>
+                                  {hasRecord && (
+                                    <div className={`w-1 h-1 rounded-full mt-0.5 ${
+                                      isSelected ? 'bg-[#7A1E1E]' : isToday ? 'bg-amber-400' : 'bg-green-400'
+                                    }`} />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* Legend */}
+                          <div className="mt-4 space-y-1.5">
+                            {[
+                              { dot: 'bg-green-400', label: 'Session recorded' },
+                              { dot: 'bg-amber-400', label: 'Today' },
+                            ].map(({ dot, label }) => (
+                              <div key={label} className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
+                                <span className="text-[10px] text-slate-400">{label}</span>
+                              </div>
+                            ))}
+                            <div className="flex items-center gap-2">
+                              <div className="w-5 h-2.5 rounded bg-[#7A1E1E] flex-shrink-0" />
+                              <span className="text-[10px] text-slate-400">Selected</span>
+                            </div>
+                          </div>
+                        </div>
 
-                    {/* Trainees Attendance */}
-                    <div className="space-y-5 max-h-[500px] overflow-y-auto px-4">
-                      {trainees.map((trainee) => {
-                        const practiceDays = trainingAttendance.filter(record => !record.noPractice);
-                        const presentCount = practiceDays.filter(record => record.attendees[trainee.id!] === 'present').length;
-                        const totalSessions = practiceDays.length;
-                        const attendanceRate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0;
-                        
-                        return (
-                          <div key={trainee.id} className="bg-white rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-                            {/* Trainee Header */}
-                            <div className="flex items-center justify-between mb-5 pb-4">
-                              <p className="font-medium text-[#1a1a1a]">{trainee.name}</p>
-                              <div className={`text-xs font-medium px-2 py-1 rounded-full ${
-                                attendanceRate >= 90 ? 'bg-green-50 text-green-700' :
-                                attendanceRate >= 70 ? 'bg-yellow-50 text-yellow-700' :
-                                'bg-red-50 text-red-700'
-                              }`}>
-                                {attendanceRate}% ({presentCount}/{totalSessions})
+                        {/* Session Stats Card */}
+                        <div className="bg-white rounded-xl border border-[#e0e0e0] p-4">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">
+                            {selectedRecord
+                              ? new Date(selectedAttendanceDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                              : 'No Date Selected'}
+                          </p>
+                          {!selectedRecord ? (
+                            <p className="text-xs text-slate-400">Select a highlighted date to view session stats</p>
+                          ) : selectedRecord.noPractice ? (
+                            <span className="inline-flex items-center bg-slate-100 text-slate-500 text-xs font-medium px-2.5 py-1 rounded-full">No Practice Day</span>
+                          ) : (
+                            <div className="space-y-2.5">
+                              {[
+                                { dot: 'bg-green-400', label: 'Present', val: presentCount, color: 'text-green-700' },
+                                { dot: 'bg-slate-300', label: 'Absent',  val: absentCount,  color: 'text-slate-500' },
+                                { dot: 'bg-amber-400', label: 'Excused', val: excusedCount, color: 'text-amber-600' },
+                              ].map(({ dot, label, val, color }) => (
+                                <div key={label} className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className={`w-2 h-2 rounded-full ${dot}`} />
+                                    <span className="text-sm text-slate-600">{label}</span>
+                                  </div>
+                                  <span className={`text-sm font-bold ${color}`}>{val}</span>
+                                </div>
+                              ))}
+                              <div className="pt-2 border-t border-slate-100">
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span className="text-xs font-semibold text-slate-500">Session Rate</span>
+                                  <span className={`text-sm font-bold ${
+                                    sessionRate >= 75 ? 'text-green-700' : sessionRate >= 50 ? 'text-amber-600' : 'text-slate-400'
+                                  }`}>{sessionRate}%</span>
+                                </div>
+                                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      sessionRate >= 75 ? 'bg-green-400' : sessionRate >= 50 ? 'bg-amber-400' : 'bg-slate-300'
+                                    }`}
+                                    style={{ width: `${sessionRate}%` }}
+                                  />
+                                </div>
                               </div>
                             </div>
+                          )}
+                        </div>
+                      </div>
 
-                            {/* Weekly Attendance Toggles */}
-                            <div className="grid grid-cols-8 gap-4">
-                              <div></div>
-                              {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
-                                const date = new Date(selectedWeekStart.getTime() + dayOffset * 24 * 60 * 60 * 1000);
-                                const attendanceRecord = trainingAttendance.find(r => 
-                                  new Date(r.date).toDateString() === date.toDateString()
-                                );
-                                const isNoPractice = attendanceRecord?.noPractice || false;
-                                const currentStatus = attendanceRecord?.attendees[trainee.id!] || 'absent';
-                                
-                                return (
-                                  <div key={dayOffset} className="flex flex-col gap-2">
-                                    {isNoPractice ? (
-                                      <div className="h-9 flex items-center justify-center text-[#6c757d] text-sm">—</div>
-                                    ) : (
-                                      <div className="flex gap-2">
-                                        <button
-                                          onClick={() => {
-                                            if (attendanceRecord) {
-                                              const updated = [...trainingAttendance];
-                                              const idx = updated.indexOf(attendanceRecord);
-                                              updated[idx].attendees[trainee.id!] = 'present';
-                                              setTrainingAttendance(updated);
-                                            }
-                                          }}
-                                          className={`flex-1 px-2.5 py-2 rounded text-xs font-medium transition-all ${
-                                            currentStatus === 'present'
-                                              ? 'bg-green-500 text-white'
-                                              : 'bg-gray-100 text-[#6c757d] hover:bg-green-100'
-                                          }`}
-                                          title="Present"
-                                        >
-                                          ✓
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            if (attendanceRecord) {
-                                              const updated = [...trainingAttendance];
-                                              const idx = updated.indexOf(attendanceRecord);
-                                              updated[idx].attendees[trainee.id!] = 'absent';
-                                              setTrainingAttendance(updated);
-                                            }
-                                          }}
-                                          className={`flex-1 px-2.5 py-2 rounded text-xs font-medium transition-all ${
-                                            currentStatus === 'absent'
-                                              ? 'bg-red-500 text-white'
-                                              : 'bg-gray-100 text-[#6c757d] hover:bg-red-100'
-                                          }`}
-                                          title="Absent"
-                                        >
-                                          ✗
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            if (attendanceRecord) {
-                                              const updated = [...trainingAttendance];
-                                              const idx = updated.indexOf(attendanceRecord);
-                                              updated[idx].attendees[trainee.id!] = 'excused';
-                                              setTrainingAttendance(updated);
-                                            }
-                                          }}
-                                          className={`flex-1 px-2.5 py-2 rounded text-xs font-medium transition-all ${
-                                            currentStatus === 'excused'
-                                              ? 'bg-yellow-500 text-white'
-                                              : 'bg-gray-100 text-[#6c757d] hover:bg-yellow-100'
-                                          }`}
-                                          title="Excused"
-                                        >
-                                          ~
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                      {/* Right Panel — Attendance Roster */}
+                      <div className="flex-1 overflow-auto lg:order-1">
+                        {!selectedRecord ? (
+                          <div className="flex flex-col items-center justify-center h-full text-center p-10">
+                            <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                              <Calendar className="w-7 h-7 text-slate-300" />
                             </div>
+                            <p className="font-semibold text-slate-500 mb-1">Select a Session Date</p>
+                            <p className="text-xs text-slate-400 max-w-xs">Click any highlighted date on the calendar to view and mark attendance for that session</p>
                           </div>
-                        );
-                      })}
+                        ) : selectedRecord.noPractice ? (
+                          <div className="flex flex-col items-center justify-center h-full text-center p-10">
+                            <p className="text-lg font-semibold text-slate-400">No Practice</p>
+                            <p className="text-xs text-slate-300 mt-1">This date was marked as no practice</p>
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead>
+                                <tr className="bg-slate-50 border-b border-[#e0e0e0]">
+                                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Name</th>
+                                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Session Date</th>
+                                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Today's Accomplishment</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-[#f5f5f5]">
+                                {trainees.map((trainee, idx) => {
+                                  const currentStatus = (selectedRecord.attendees?.[trainee.id!] || 'absent') as 'present' | 'absent' | 'excused';
+                                  const allPracticeDays = trainingAttendance.filter(r => !r.noPractice);
+                                  const totalSessions = allPracticeDays.length;
+                                  const presentTotal = allPracticeDays.filter(r => r.attendees?.[trainee.id!] === 'present').length;
+                                  const overallRate = totalSessions > 0 ? Math.round((presentTotal / totalSessions) * 100) : 0;
+                                  const instrument = trainee.instrument || traineeInstruments[trainee.id!] || traineeVoices[trainee.id!] || '';
+                                  const chapterData = traineeChapters[trainee.id!] || {};
+                                  const completedModules = Object.values(chapterData).filter(Boolean).length;
+                                  const totalModules = 30;
+                                  const modulePercent = Math.round((completedModules / totalModules) * 100);
+
+                                  // Session timestamp display
+                                  const sessionDate = new Date(selectedAttendanceDate);
+                                  const sessionDateStr = sessionDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+                                  return (
+                                    <tr key={trainee.id} className="hover:bg-slate-50/60 transition-colors">
+                                      {/* Name */}
+                                      <td className="px-5 py-4">
+                                        <p className="text-sm font-semibold text-[#1a1a1a] leading-tight">{trainee.name}</p>
+                                        {instrument && <p className="text-xs text-slate-400 mt-0.5">{instrument}</p>}
+                                        <p className="text-xs text-slate-300 mt-0.5">#{idx + 1}</p>
+                                      </td>
+
+                                      {/* Status pills */}
+                                      <td className="px-5 py-4">
+                                        <div className="inline-flex items-center gap-0.5 bg-slate-100 rounded-lg p-1">
+                                          {([
+                                            { status: 'present' as const, label: 'Present', active: 'bg-white text-green-700 shadow-sm ring-1 ring-green-200' },
+                                            { status: 'absent'  as const, label: 'Absent',  active: 'bg-white text-rose-500 shadow-sm ring-1 ring-rose-200'  },
+                                            { status: 'excused' as const, label: 'Excused', active: 'bg-white text-amber-600 shadow-sm ring-1 ring-amber-200' },
+                                          ]).map(({ status, label, active }) => (
+                                            <button
+                                              key={status}
+                                              onClick={() => {
+                                                const updated = trainingAttendance.map(r =>
+                                                  new Date(r.date).toLocaleDateString('en-CA') === selectedAttendanceDate
+                                                    ? { ...r, attendees: { ...r.attendees, [trainee.id!]: status } }
+                                                    : r
+                                                );
+                                                setTrainingAttendance(updated);
+                                              }}
+                                              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                                currentStatus === status
+                                                  ? active
+                                                  : 'text-slate-400 hover:text-slate-600 hover:bg-white/60'
+                                              }`}
+                                            >
+                                              {label}
+                                            </button>
+                                          ))}
+                                        </div>
+                                        <p className={`text-[11px] font-medium mt-1.5 ${
+                                          overallRate >= 75 ? 'text-green-600' : overallRate >= 50 ? 'text-amber-600' : 'text-slate-400'
+                                        }`}>{presentTotal}/{totalSessions} sessions &bull; {overallRate}% overall</p>
+                                      </td>
+
+                                      {/* Session Date / Timestamp */}
+                                      <td className="px-5 py-4">
+                                        <p className="text-sm font-medium text-[#1a1a1a]">{sessionDateStr}</p>
+                                        <p className={`text-[11px] font-semibold mt-1 ${
+                                          currentStatus === 'present' ? 'text-green-600' :
+                                          currentStatus === 'excused' ? 'text-amber-600' : 'text-slate-400'
+                                        }`}>
+                                          {currentStatus === 'present' ? '✓ Marked Present' :
+                                           currentStatus === 'excused' ? '~ Excused Absence' : '✗ Absent'}
+                                        </p>
+                                      </td>
+
+                                      {/* Today's Accomplishment — module progress */}
+                                      <td className="px-5 py-4">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="text-xs font-semibold text-[#1a1a1a]">
+                                            {completedModules}/{totalModules} Modules
+                                          </span>
+                                          <span className={`text-xs font-bold ml-3 ${
+                                            modulePercent === 100 ? 'text-green-600' :
+                                            modulePercent >= 50  ? 'text-[#7A1E1E]' : 'text-slate-400'
+                                          }`}>{modulePercent}%</span>
+                                        </div>
+                                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden w-36">
+                                          <div
+                                            className={`h-full rounded-full transition-all ${
+                                              modulePercent === 100 ? 'bg-green-400' :
+                                              modulePercent >= 50  ? 'bg-[#7A1E1E]' : 'bg-slate-300'
+                                            }`}
+                                            style={{ width: `${modulePercent}%` }}
+                                          />
+                                        </div>
+                                        {modulePercent === 100 && (
+                                          <p className="text-[10px] text-green-600 font-semibold mt-1">All modules complete ✓</p>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </CardContent>
             </Card>
 

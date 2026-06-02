@@ -17,6 +17,7 @@ class Trainee extends Model
         'completion_rate',
         'current_status',
         'chapter',
+        'chapters_completed',
         'instrument',
         'voice',
         'total_expected_sessions',
@@ -24,7 +25,8 @@ class Trainee extends Model
     ];
 
     protected $casts = [
-        'date_joined' => 'date',
+        'date_joined'        => 'date',
+        'chapters_completed' => 'array',
     ];
 
     public function user(): BelongsTo

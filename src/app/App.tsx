@@ -262,7 +262,7 @@ export default function App() {
     | "login"
     | "forgot-password"
     | "dashboard"
-  >("login");
+  >("landing");
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 

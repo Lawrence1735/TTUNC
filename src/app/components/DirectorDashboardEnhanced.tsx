@@ -610,15 +610,31 @@ export function DirectorDashboardEnhanced({
           newVoices[traineeId] = trainee.voice;
         }
         
-        // Initialize chapters (0% completion by default, can be updated from attendance API)
-        newChapters[traineeId] = {
-          1: false, 2: false, 3: false, 4: false, 5: false,
-          6: false, 7: false, 8: false, 9: false, 10: false,
-          11: false, 12: false, 13: false, 14: false, 15: false,
-          16: false, 17: false, 18: false, 19: false, 20: false,
-          21: false, 22: false, 23: false, 24: false, 25: false,
-          26: false, 27: false, 28: false, 29: false, 30: false
-        };
+        // Load chapters from API or derive from completion_rate
+        if (trainee.chapters_completed) {
+          const chaptersData = typeof trainee.chapters_completed === 'string'
+            ? JSON.parse(trainee.chapters_completed)
+            : trainee.chapters_completed;
+          const chapterMap: {[chapter: number]: boolean} = {};
+          for (let i = 1; i <= 30; i++) {
+            chapterMap[i] = Boolean(chaptersData[i] || chaptersData[String(i)]);
+          }
+          newChapters[traineeId] = chapterMap;
+        } else if (trainee.completion_rate === 100) {
+          // All chapters done if completion rate is 100%
+          const allDone: {[chapter: number]: boolean} = {};
+          for (let i = 1; i <= 30; i++) allDone[i] = true;
+          newChapters[traineeId] = allDone;
+        } else {
+          newChapters[traineeId] = {
+            1: false, 2: false, 3: false, 4: false, 5: false,
+            6: false, 7: false, 8: false, 9: false, 10: false,
+            11: false, 12: false, 13: false, 14: false, 15: false,
+            16: false, 17: false, 18: false, 19: false, 20: false,
+            21: false, 22: false, 23: false, 24: false, 25: false,
+            26: false, 27: false, 28: false, 29: false, 30: false
+          };
+        }
       });
       
       setTraineeInstruments(newInstruments);
@@ -2993,8 +3009,10 @@ University of Nueva Caceres`;
                         setSelectedTrainee(selectedTraineePerformance);
                         setShowEvaluationDialog(true);
                       }}
-                      className="bg-[#7A1E1E] hover:bg-[#6A1919]"
+                      className="bg-[#7A1E1E] hover:bg-[#6A1919] disabled:opacity-50 disabled:cursor-not-allowed"
                       size="lg"
+                      disabled={completedChapters < totalChapters}
+                      title={completedChapters < totalChapters ? `Complete all ${totalChapters} modules before evaluating (${completedChapters}/${totalChapters} done)` : 'Proceed to evaluate this trainee'}
                     >
                       <Edit className="w-4 h-4 mr-2" />
                       Proceed to Evaluate
@@ -3026,14 +3044,6 @@ University of Nueva Caceres`;
                             ))}
                           </SelectContent>
                         </Select>
-                        {selectedInstrument && (
-                          <Alert className="mt-4 border-[#7A1E1E] bg-[#7A1E1E]/5">
-                            <Music className="w-4 h-4 text-[#7A1E1E]" />
-                            <AlertDescription className="text-[#7A1E1E]">
-                              Assigned: <span className="font-medium">{selectedInstrument}</span>
-                            </AlertDescription>
-                          </Alert>
-                        )}
                       </div>
                     </div>
                   )}
@@ -3059,14 +3069,6 @@ University of Nueva Caceres`;
                             ))}
                           </SelectContent>
                         </Select>
-                        {selectedVoice && (
-                          <Alert className="mt-4 border-[#7A1E1E] bg-[#7A1E1E]/5">
-                            <Music className="w-4 h-4 text-[#7A1E1E]" />
-                            <AlertDescription className="text-[#7A1E1E]">
-                              Assigned: <span className="font-medium">{selectedVoice}</span>
-                            </AlertDescription>
-                          </Alert>
-                        )}
                       </div>
                     </div>
                   )}
@@ -3618,6 +3620,7 @@ University of Nueva Caceres`;
                       onChange={(e) => setDateGenerationForm({ ...dateGenerationForm, startDate: e.target.value })}
                       className="border-[#D1D5DC] bg-white cursor-pointer mt-1"
                       style={{ colorScheme: 'light' }}
+                      min={new Date().toLocaleDateString('en-CA')}
                     />
                   </div>
                   <div>
@@ -3628,6 +3631,7 @@ University of Nueva Caceres`;
                       onChange={(e) => setDateGenerationForm({ ...dateGenerationForm, endDate: e.target.value })}
                       className="border-[#D1D5DC] bg-white cursor-pointer mt-1"
                       style={{ colorScheme: 'light' }}
+                      min={dateGenerationForm.startDate || new Date().toLocaleDateString('en-CA')}
                     />
                   </div>
                 </div>
@@ -3693,6 +3697,7 @@ University of Nueva Caceres`;
                             }}
                             className="border-[#D1D5DC] bg-white cursor-pointer mt-1"
                             style={{ colorScheme: 'light' }}
+                            min={new Date().toLocaleDateString('en-CA')}
                           />
                         </div>
                       </div>
