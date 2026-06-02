@@ -289,13 +289,7 @@ function AppContent() {
     | "login"
     | "forgot-password"
     | "dashboard"
-<<<<<<< HEAD
-  >("landing");
-
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-=======
   >(user ? "dashboard" : "login");
->>>>>>> origin/main
 
   const [currentView, setCurrentView] = useState<
     | "student"
