@@ -44,30 +44,63 @@ import {
 
 export interface Evaluation {
   id: string;
-  evaluatorId: string;
-  evaluatorName: string;
-  scholarId: string;
-  scholarName: string;
-  talentGroup: string;
-  semester: string;
-  academicYear: string;
-  evaluationDate: Date;
-  performanceMetrics: {
+  traineeId: string;
+  traineeName: string;
+  evaluatorId?: string;
+  evaluatorName?: string;
+  scholarId?: string;
+  scholarName?: string;
+  talentGroup?: string;
+  semester?: string;
+  academicYear?: string;
+  date: Date;
+  evaluationDate?: Date;
+  rating: number;
+  notes: string;
+  status: 'draft' | 'submitted';
+  performanceMetrics?: {
     skillDemonstration: number;
     rehearsalAttendance: number;
     eventParticipation: number;
     teamwork: number;
     leadership: number;
   };
-  strengths: string;
-  areasForImprovement: string;
-  overallRating: number;
-  recommendation: "continue" | "probation" | "discontinue";
+  overallRating?: string;
+  scholarshipPercentage?: number;
+  recommendation?: "continue" | "probation" | "discontinue";
+  strengths?: string;
+  improvements?: string;
   additionalNotes?: string;
+  recommendForRenewal?: boolean;
+  ratedBy?: string;
+  ratedDate?: string;
+  adjectivalRating?: string;
+  sectionA?: {
+    reportsOnTime: number;
+    reportsRegularly: number;
+    practicesOnTime: number;
+    practicesRegularly: number;
+    noUnnecessaryAbsence: number;
+    mastersyTasks: number;
+    maintainsCleanliness: number;
+  };
+  sectionB?: {
+    improvementInterest: number;
+    performanceInterest: number;
+    workEthic: number;
+    initiative: number;
+    efficiency: number;
+  };
+  sectionC?: {
+    teamwork: number;
+    tact: number;
+    courtesy: number;
+    disposition: number;
+  };
 }
 
 export interface User {
-  id?: string;
+  id: string;
   name: string;
   email: string;
   role: "student" | "scholar" | "admin" | "director";
@@ -127,6 +160,7 @@ export interface Application {
     department?: string;
     guardianName?: string;
     guardianContactNo?: string;
+    guardianRelationship?: string;
     // Marching Band specific
     hasBandExperience?: boolean;
     // Glee Club specific
@@ -298,6 +332,8 @@ function AppContent() {
     | "member-profile"
     | "engagement"
     | "scholarship"
+    | "admin"
+    | "director"
     | "settings"
   >("student");
 
@@ -333,6 +369,7 @@ function AppContent() {
     }
   }, [user]);
 
+<<<<<<< HEAD
   // TODO: Replace with API calls in Phase 2
   // Mock data for now - will be replaced with real API calls
   const [users, setUsers] = useState<User[]>([]);
@@ -345,6 +382,21 @@ function AppContent() {
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [benefits] = useState<Benefit[]>([]);
   const [renewals, setRenewals] = useState<ScholarshipRenewal[]>([]);
+=======
+  const [events] = useState<Event[]>(mockEvents);
+  const [announcements] = useState<Announcement[]>(mockAnnouncements);
+
+  const [applications, setApplications] = useState<Application[]>(mockApplications);
+  const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>(mockTrainingRecords);
+
+  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(mockInventoryItems);
+
+  const [benefits] = useState<Benefit[]>(mockBenefits);
+
+  const [renewals, setRenewals] = useState<ScholarshipRenewal[]>(mockRenewals);
+>>>>>>> origin/feature/operations-user-profile
 
 
   // Notification Panel State
@@ -400,6 +452,7 @@ function AppContent() {
 
   const unreadNotificationsCount = userNotifications.filter(n => !n.read).length;
 
+<<<<<<< HEAD
   const handleLogin = async (email: string, password: string, _selectedRole?: string) => {
     const result = await login(email, password);
     if (result.success) {
@@ -430,6 +483,35 @@ function AppContent() {
 
   const handleLogout = async () => {
     await logout();
+=======
+  const handleLogin = async (email: string, password: string, _selectedRole: string): Promise<{ success: boolean; error?: string }> => {
+    const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+    if (!foundUser) {
+      toast.error('Invalid email or password');
+      return { success: false, error: 'Invalid credentials' };
+    }
+
+    setCurrentUser(foundUser);
+    startTransition(() => {
+      setCurrentPage("dashboard");
+      if (foundUser.role === 'admin') {
+        setCurrentView('admin');
+      } else if (foundUser.role === 'director') {
+        setCurrentView('director');
+      } else if (foundUser.role === 'scholar') {
+        setCurrentView('member-profile');
+      } else {
+        setCurrentView('training');
+      }
+    });
+
+    toast.success(`Welcome back, ${foundUser.name}!`);
+    return { success: true };
+  };
+
+  const handleLogout = async () => {
+>>>>>>> origin/feature/operations-user-profile
     setCurrentUser(null);
     startTransition(() => {
       setCurrentPage("landing");
@@ -459,6 +541,10 @@ function AppContent() {
       return { success: false, error: "Current password is incorrect" };
     }
 
+    if (!newPassword) {
+      return { success: false, error: "New password is required" };
+    }
+
     // In production, hash the new password before storing
     // For now, we just acknowledge the change
     return { success: true };
@@ -466,6 +552,7 @@ function AppContent() {
 
   const handlePublicApplicationSubmit = async (formData: ApplicationFormData) => {
     try {
+<<<<<<< HEAD
       // Prepare API request payload with snake_case field names
       const payload = {
         talent_group: formData.talentGroup,
@@ -519,6 +606,36 @@ function AppContent() {
         appliedAt: new Date(),
       };
 
+=======
+      const newApplication: Application = {
+        id: `app_${Date.now()}`,
+        userId: `user_${Date.now()}`,
+        talentGroup: formData.talentGroup,
+        personalInfo: {
+          name: formData.fullName,
+          email: formData.email,
+          studentId: formData.studentId || "",
+          phone: formData.mobileNo,
+          birthdate: formData.birthdate,
+          age: formData.age,
+          address: formData.address,
+          gender: formData.gender,
+          socialMedia: '',
+          yearLevel: formData.yearLevel,
+          course: formData.course,
+          department: formData.department,
+          guardianName: formData.guardianName,
+          guardianContactNo: formData.guardianContactNo,
+          guardianRelationship: formData.guardianRelationship,
+        },
+        experience: formData.experience || "",
+        motivation: formData.motivation || "",
+        documents: [],
+        status: "pending",
+        appliedAt: new Date(),
+      };
+
+>>>>>>> origin/feature/operations-user-profile
       setApplications([...applications, newApplication]);
       
       // Notify the director of the talent group about new application
@@ -539,6 +656,7 @@ function AppContent() {
       startTransition(() => setCurrentPage("landing"));
     } catch (error: any) {
       console.error('Application submission failed:', error);
+<<<<<<< HEAD
       const errorMessage = error.message || 'Failed to submit application. Please try again.';
       toast.error(errorMessage);
     }
@@ -582,6 +700,11 @@ function AppContent() {
     );
     
     toast.success(`Account created successfully for ${newUser.name}. Temporary password sent via email.`);
+=======
+      const errorMessage = error?.message || 'Failed to submit application. Please try again.';
+      toast.error(errorMessage);
+    }
+>>>>>>> origin/feature/operations-user-profile
   };
 
   const renderCurrentPage = () => {
@@ -744,8 +867,6 @@ function AppContent() {
                       onUpdateProfile={(updatedData) => {
                         setUsers(users.map((u) => u.id === currentUser.id ? { ...u, ...updatedData } : u));
                       }}
-                      unreadNotifications={unreadNotificationsCount}
-                      onNotificationsClick={() => setShowNotificationPanel(!showNotificationPanel)}
                     />
                   </Suspense>
                 );
@@ -760,13 +881,15 @@ function AppContent() {
                       onNavigate={(view, tab) => {
                         navigateTo(view as any, tab ?? undefined);
                       }}
+<<<<<<< HEAD
                       events={events.filter((e: any) => e.talentGroups.includes(currentUser?.talentGroup || ""))}
                       notifications={notifications.filter((n) => n.userId === currentUser?.id)}
+=======
+                      notifications={notifications.filter((n) => n.userId === currentUser.id)}
+>>>>>>> origin/feature/operations-user-profile
                       onMarkNotificationRead={(notificationId) => {
                         setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                       }}
-                      unreadNotifications={unreadNotificationsCount}
-                      onNotificationsClick={() => setShowNotificationPanel(!showNotificationPanel)}
                     />
                   </Suspense>
                 );
@@ -788,13 +911,11 @@ function AppContent() {
                       onMarkNotificationRead={(notificationId) => {
                         setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                       }}
-                      unreadNotifications={unreadNotificationsCount}
-                      onNotificationsClick={() => setShowNotificationPanel(!showNotificationPanel)}
                       onSubmitRenewal={(renewalData) => {
                         const newRenewal: ScholarshipRenewal = {
                           ...renewalData,
                           id: Date.now().toString(),
-                          submittedAt: new Date().toISOString(),
+                          submittedAt: new Date(),
                         };
                       setRenewals([...renewals, newRenewal]);
                       toast.success('Renewal application submitted successfully!');
@@ -818,8 +939,6 @@ function AppContent() {
                     onUpdateProfile={(updatedData) => {
                       setUsers(users.map((u) => u.id === currentUser.id ? { ...u, ...updatedData } : u));
                     }}
-                    unreadNotifications={unreadNotificationsCount}
-                    onNotificationsClick={() => setShowNotificationPanel(!showNotificationPanel)}
                   />
                 </Suspense>
               );
@@ -955,7 +1074,7 @@ function AppContent() {
                       
                       // Send notification to the new trainee with login credentials
                       addNotification(
-                        newTrainee.id!,
+                        newTrainee.id,
                         'Welcome to TalentTrackUNC!',
                         `Congratulations! Your application has been approved. Your login credentials: Email: ${newTrainee.email}, Temporary Password: ${tempPassword}. Please change your password after first login.`,
                         'application',

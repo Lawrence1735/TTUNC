@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import uncLogo from 'figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png';
 
 interface AuthPageProps {
-  onLogin: (email: string, password: string, role: string) => { success: boolean; error?: string };
+  onLogin: (email: string, password: string, role: string) => Promise<{ success: boolean; error?: string }>;
   onBack: () => void;
 }
 
@@ -24,7 +24,7 @@ export function AuthPage({ onLogin, onBack }: AuthPageProps) {
   const [errors, setErrors] = useState<string>('');
 
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors('');
     
@@ -39,12 +39,17 @@ export function AuthPage({ onLogin, onBack }: AuthPageProps) {
       return;
     }
 
-    const result = onLogin(loginData.email, loginData.password, loginData.role);
-    if (!result.success) {
-      setErrors(result.error || 'Login failed');
-      toast.error(result.error || 'Invalid email or password');
-    } else {
-      toast.success('Login successful! Welcome to TalentTrackUNC');
+    try {
+      const result = await onLogin(loginData.email, loginData.password, loginData.role);
+      if (!result.success) {
+        setErrors(result.error || 'Login failed');
+        toast.error(result.error || 'Invalid email or password');
+      } else {
+        toast.success('Login successful! Welcome to TalentTrackUNC');
+      }
+    } catch (error) {
+      setErrors('Login failed');
+      toast.error('Login failed');
     }
   };
 

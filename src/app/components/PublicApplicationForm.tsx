@@ -68,6 +68,14 @@ export interface ApplicationFormData {
   previousOrganization: string;
   canPerformBasicRoutines: string;
   willingToAttendRehearsalsMajorettes: string;
+<<<<<<< HEAD
+=======
+
+  experience: string;
+  motivation: string;
+
+  // Consent
+>>>>>>> origin/feature/operations-user-profile
   dataPrivacyConsent: boolean;
   confirmedAccuracy: boolean;
   address: string;

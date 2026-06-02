@@ -18,7 +18,7 @@ interface TalentTrackLoginProps {
     email: string,
     password: string,
     role: string,
-  ) => void;
+  ) => Promise<{ success: boolean; error?: string }> | void;
   onBack?: () => void;
   onNavigate?: (page: string) => void;
 }
