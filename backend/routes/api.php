@@ -1,18 +1,15 @@
 <?php
 
-<<<<<<< HEAD
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\ProductController;
-
-Route::apiResource('products', ProductController::class);
-Route::get('users/{user}/products', [ProductController::class, 'productsByUser']);
-Route::patch('products/{product}/assign', [ProductController::class, 'assign']);<?php
-
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardSummaryController;
+use App\Http\Controllers\Api\DocumentController;
+use App\Http\Controllers\Api\EngagementController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\RecruitmentController;
+use App\Http\Controllers\Api\ScholarshipController;
 use App\Http\Controllers\Api\TrainingController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,6 +17,8 @@ Route::prefix('v1')->group(function (): void {
 
     // ── Public routes ─────────────────────────────────────────────────────────────
     Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 
     // Public application submission (no auth required)
     Route::post('/applications', [RecruitmentController::class, 'store']);
@@ -88,7 +87,7 @@ Route::prefix('v1')->group(function (): void {
              ->middleware('role:director,admin');
         });
 
-        // Training — Trainees
+        // ── Training ──────────────────────────────────────────────────────────
         Route::prefix('training')->group(function (): void {
             Route::get('/trainees', [TrainingController::class, 'indexTrainees']);
             Route::get('/trainees/{trainee}', [TrainingController::class, 'showTrainee']);
@@ -107,42 +106,53 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/evaluations/{evaluation}', [TrainingController::class, 'showEvaluation']);
             Route::patch('/evaluations/{evaluation}', [TrainingController::class, 'updateEvaluation']);
         });
+
+        // ── Scholarship ───────────────────────────────────────────────────────
+        Route::prefix('scholarship')->group(function (): void {
+            Route::get('/benefits', [ScholarshipController::class, 'benefits']);
+            Route::get('/renewals', [ScholarshipController::class, 'indexRenewals']);
+            Route::post('/renewals', [ScholarshipController::class, 'submitRenewal']);
+        });
+
+        // ── Engagements ───────────────────────────────────────────────────────
+        Route::prefix('engagements')->group(function (): void {
+            Route::get('/', [EngagementController::class, 'index']);
+            Route::get('/rehearsals', [EngagementController::class, 'rehearsals']);
+            Route::post('/', [EngagementController::class, 'store'])
+                ->middleware('role:director,admin');
+        });
+
+        // ── Documents ─────────────────────────────────────────────────────────
+        Route::prefix('documents')->group(function (): void {
+            Route::get('/', [DocumentController::class, 'index']);
+            Route::get('/{document}', [DocumentController::class, 'show']);
+            Route::post('/', [DocumentController::class, 'store'])
+                ->middleware('role:director,admin');
+        });
+
+        // ── Notifications ─────────────────────────────────────────────────────
+        Route::prefix('notifications')->group(function (): void {
+            Route::get('/', [NotificationController::class, 'index']);
+            Route::post('/read-all', [NotificationController::class, 'markAllRead']);
+            Route::post('/{id}/read', [NotificationController::class, 'markRead']);
+            Route::delete('/{id}', [NotificationController::class, 'destroy']);
+        });
+
+        // ── Products / Inventory ──────────────────────────────────────────────
+        Route::prefix('products')->group(function (): void {
+            Route::get('/', [ProductController::class, 'index']);
+            Route::get('/{product}', [ProductController::class, 'show']);
+            Route::post('/', [ProductController::class, 'store'])
+                ->middleware('role:director,admin');
+            Route::patch('/{product}', [ProductController::class, 'update'])
+                ->middleware('role:director,admin');
+            Route::delete('/{product}', [ProductController::class, 'destroy'])
+                ->middleware('role:director,admin');
+        });
+
+        // ── Users (listing) ───────────────────────────────────────────────────
+        Route::get('/users', [AuthController::class, 'index'])
+            ->middleware('role:director,admin');
     });
 
 });
-=======
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Route;
-use App\Models\User;
-
-Route::post('/login', function (Request $request) {
-    $credentials = $request->validate([
-        'email' => ['required', 'email'],
-        'password' => ['required', 'string'],
-    ]);
-
-    // Laravel will check the hashed password in the users table.
-    if (Auth::attempt($credentials)) {
-        $request->session()->regenerate();
-
-        /** @var User $user */
-        $user = Auth::user();
-
-        return response()->json([
-            'success' => true,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-            ],
-        ]);
-    }
-
-    return response()->json([
-        'success' => false,
-        'error' => 'Invalid email or password',
-    ], 401);
-});
-
->>>>>>> origin/feature/operations-user-profile

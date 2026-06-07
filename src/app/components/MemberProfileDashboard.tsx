@@ -87,8 +87,11 @@ export function MemberProfileDashboard({
   const isMajorettes = user.talentGroup === 'majorettes';
   const isGleeClub = user.talentGroup === 'glee-club';
 
-  // Filter inventory items assigned to this user
-  const myInventory = inventory.filter(item => item.userId === user.id && item.status === 'assigned');
+  // Filter inventory items assigned to this user or belonging to their talent group
+  const myInventory = inventory.filter(item =>
+    (item.userId === user.id || item.talentGroup === user.talentGroup) &&
+    item.status === 'assigned'
+  );
 
   // Assigned items by type
   const assignedInstruments = myInventory.filter(item => item.type === 'instrument');
@@ -735,7 +738,7 @@ export function MemberProfileDashboard({
                               <div className="space-y-2 text-sm">
                                 <div>
                                   <p className="text-xs text-[#6c757d]">Item ID</p>
-                                  <p className="font-mono text-xs">{instrument.id}</p>
+                                  <p className="text-xs">{instrument.id}</p>
                                 </div>
                                 {instrument.serialNumber && (
                                   <div>
@@ -974,7 +977,7 @@ export function MemberProfileDashboard({
                 {selectedItem.serialNumber && (
                   <div>
                     <Label className="text-muted-foreground">Serial Number</Label>
-                    <p className="mt-1 font-mono text-sm">{selectedItem.serialNumber}</p>
+                    <p className="mt-1 text-sm">{selectedItem.serialNumber}</p>
                   </div>
                 )}
               </div>

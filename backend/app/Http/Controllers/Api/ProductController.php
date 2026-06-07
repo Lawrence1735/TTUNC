@@ -14,11 +14,18 @@ class ProductController extends Controller
      */
     public function index(Request $request)
     {
-        if ($request->filled('assigned_to')) {
-            return Product::assignedTo($request->input('assigned_to'))->get();
+        $user = $request->user();
+        $query = Product::with('assignedTo');
+
+        if ($user && $user->role === 'director') {
+            $query->where('talent_group', $user->talent_group);
         }
 
-        return Product::with('assignedTo')->get();
+        if ($request->filled('assigned_to')) {
+            $query->where('assigned_to', $request->input('assigned_to'));
+        }
+
+        return $query->get();
     }
 
     /**

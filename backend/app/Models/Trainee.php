@@ -20,6 +20,7 @@ class Trainee extends Model
         'chapters_completed',
         'instrument',
         'voice',
+        'deactivation_note',
         'total_expected_sessions',
         'date_joined',
     ];

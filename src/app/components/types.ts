@@ -46,11 +46,7 @@ export interface Evaluation {
   date: Date;
   rating: number;
   notes: string;
-<<<<<<< HEAD
   status: 'draft' | 'submitted' | 'confirmed' | 'finalized';
-  // Auto-assigned fields (no manual entry)
-=======
-  status: 'draft' | 'submitted';
   performanceMetrics?: {
     skillDemonstration: number;
     rehearsalAttendance: number;
@@ -58,7 +54,6 @@ export interface Evaluation {
     teamwork: number;
     leadership: number;
   };
->>>>>>> origin/feature/operations-user-profile
   scholarshipPercentage?: number;
   talentUnit?: string;
   ratingPeriod?: string;

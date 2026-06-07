@@ -463,7 +463,7 @@ export function DirectorMemberProfileTab({
                             <div key={uniform.id} className="p-3 border border-[#e0e0e0] rounded-lg cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
                               onClick={() => { setSelectedUniform(uniform); if (uniform.status === 'assigned') { const s = scholars.find(x => x.name === uniform.assignedTo); setAssignScholarId(s?.id || ''); } else { setAssignScholarId(''); } setShowViewUniformDialog(true); }}>
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-sm text-[#1a1a1a] font-mono truncate">{uniform.serialNumber}</span>
+                                <span className="text-sm text-[#1a1a1a] truncate">{uniform.serialNumber}</span>
                                 <div className="flex items-center gap-1 shrink-0">
                                   <Badge className={uniform.condition === 'good' ? 'bg-[rgb(22,163,74)] text-white text-[10px]' : 'bg-[rgb(192,59,59)] text-white text-[10px]'}>{uniform.condition === 'good' ? 'Good' : 'Bad'}</Badge>
                                   {uniform.status === 'assigned' ? <Badge className="bg-[rgb(0,71,181)] text-white text-[10px]">Assigned</Badge> : <Badge variant="outline" className="border-[#6c757d] text-[#6c757d] text-[10px]">Available</Badge>}
@@ -490,7 +490,7 @@ export function DirectorMemberProfileTab({
                               {filteredUniforms.map(uniform => (
                                 <TableRow key={uniform.id} className="cursor-pointer hover:bg-gray-50"
                                   onClick={() => { setSelectedUniform(uniform); if (uniform.status === 'assigned') { const s = scholars.find(x => x.name === uniform.assignedTo); setAssignScholarId(s?.id || ''); } else { setAssignScholarId(''); } setShowViewUniformDialog(true); }}>
-                                  <TableCell className="font-mono text-sm">{uniform.serialNumber}</TableCell>
+                                  <TableCell className="text-sm">{uniform.serialNumber}</TableCell>
                                   <TableCell>{uniform.uniformSet}</TableCell>
                                   <TableCell><Badge className={uniform.condition === 'good' ? 'bg-[rgb(22,163,74)] text-white' : 'bg-[rgb(192,59,59)] text-white'}>{uniform.condition === 'good' ? 'Good' : 'Bad'}</Badge></TableCell>
                                   <TableCell>{uniform.status === 'assigned' ? <Badge className="bg-[rgb(0,71,181)] text-white">Assigned</Badge> : <Badge variant="outline" className="border-[#6c757d] text-[#6c757d]">Available</Badge>}</TableCell>
@@ -570,7 +570,7 @@ export function DirectorMemberProfileTab({
                             <div key={instrument.id} className="p-3 border border-[#e0e0e0] rounded-lg cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
                               onClick={() => { setSelectedInstrument(instrument); if (instrument.status === 'assigned') { const s = scholars.find(x => x.name === instrument.assignedTo); setAssignScholarId(s?.id || ''); } else { setAssignScholarId(''); } setShowViewInstrumentDialog(true); }}>
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-sm text-[#1a1a1a] font-mono truncate">{instrument.serialNumber}</span>
+                                <span className="text-sm text-[#1a1a1a] truncate">{instrument.serialNumber}</span>
                                 <div className="flex items-center gap-1 shrink-0">
                                   <Badge className={instrument.condition === 'good' ? 'bg-[rgb(22,163,74)] text-white text-[10px]' : 'bg-[rgb(192,59,59)] text-white text-[10px]'}>{instrument.condition === 'good' ? 'Good' : 'Bad'}</Badge>
                                   {instrument.status === 'assigned' ? <Badge className="bg-[rgb(0,71,181)] text-white text-[10px]">Assigned</Badge> : <Badge variant="outline" className="border-[#6c757d] text-[#6c757d] text-[10px]">Available</Badge>}
@@ -599,7 +599,7 @@ export function DirectorMemberProfileTab({
                               {filteredInstruments.map(instrument => (
                                 <TableRow key={instrument.id} className="cursor-pointer hover:bg-gray-50"
                                   onClick={() => { setSelectedInstrument(instrument); if (instrument.status === 'assigned') { const s = scholars.find(x => x.name === instrument.assignedTo); setAssignScholarId(s?.id || ''); } else { setAssignScholarId(''); } setShowViewInstrumentDialog(true); }}>
-                                  <TableCell className="font-mono text-sm">{instrument.serialNumber}</TableCell>
+                                  <TableCell className="text-sm">{instrument.serialNumber}</TableCell>
                                   <TableCell>{instrument.instrumentType}</TableCell>
                                   <TableCell>{instrument.brand} {instrument.model}</TableCell>
                                   <TableCell><Badge className={instrument.condition === 'good' ? 'bg-[rgb(22,163,74)] text-white' : 'bg-[rgb(192,59,59)] text-white'}>{instrument.condition === 'good' ? 'Good' : 'Bad'}</Badge></TableCell>

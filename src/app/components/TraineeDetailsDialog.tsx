@@ -1,9 +1,9 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
+import { ScrollArea } from './ui/scroll-area';
 import { User, X } from './ui/icons';
 import { User as UserType, Application } from '../App';
-import { getTalentGroupName } from './ui/unc-colors';
 
 interface AttendanceRecord {
   date: string;
@@ -24,52 +24,105 @@ interface TraineeDetailsDialogProps {
   closeButtonStyle?: 'default' | 'icon';
 }
 
+function Field({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <p className="text-[#6C757D] text-[12px] font-medium">{label}</p>
+      <p className="text-[#1A1A1A] text-[14px] break-words">{value || '—'}</p>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h4 className="text-[#7A1E1E] text-[15px] font-bold mb-3 pb-1 border-b border-[#F0E0E0]">{title}</h4>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
 export function TraineeDetailsDialog({
   open,
   onOpenChange,
   trainee,
   applications,
-  trainingAttendance,
+  trainingAttendance: _trainingAttendance,
   traineeInstruments,
   isMarchingBand,
   onDeactivateClick,
   onClose,
-  closeButtonStyle = 'default',
+  closeButtonStyle: _closeButtonStyle = 'default',
 }: TraineeDetailsDialogProps) {
+  if (!trainee) return null;
+
+  const traineeApplication = (applications || []).find((app) => {
+    const appStudentId = app.applicant_student_id ?? app.personalInfo?.studentId;
+    const appGroup = app.talent_group ?? app.talentGroup;
+    const sameStudent = String(appStudentId || '') === String(trainee.studentId || '');
+    if (!sameStudent) return false;
+
+    // Prefer same-group match when both sides have values, but do not block fallback.
+    if (!appGroup || !trainee.talentGroup) return true;
+    return String(appGroup) === String(trainee.talentGroup);
+  });
+
+  const p = traineeApplication?.personalInfo ?? {};
+  const name = trainee.name ?? traineeApplication?.applicant_name ?? p.name ?? '—';
+  const studentId = trainee.studentId ?? traineeApplication?.applicant_student_id ?? p.studentId ?? '—';
+  const email = trainee.email ?? traineeApplication?.applicant_email ?? p.email ?? '—';
+  const phone = trainee.phone ?? traineeApplication?.applicant_phone ?? p.phone ?? '—';
+  const gender = trainee.gender ?? traineeApplication?.applicant_gender ?? p.gender ?? '—';
+  const birthdate = trainee.birthdate ?? trainee.dateOfBirth ?? traineeApplication?.applicant_birthdate ?? p.birthdate ?? '—';
+  const age = trainee.age ?? traineeApplication?.applicant_age ?? p.age ?? '—';
+  const address = trainee.address ?? traineeApplication?.applicant_address ?? p.address ?? '—';
+  const yearLevel = trainee.yearLevel ?? traineeApplication?.applicant_year_level ?? p.yearLevel ?? '—';
+  const course = trainee.course ?? traineeApplication?.applicant_course ?? p.course ?? '—';
+  const department = trainee.department ?? traineeApplication?.applicant_department ?? p.department ?? '—';
+  const guardian = trainee.guardianName ?? trainee.emergencyContact ?? traineeApplication?.guardian_name ?? p.guardianName ?? '—';
+  const guardianNo = trainee.guardianContact ?? trainee.emergencyPhone ?? traineeApplication?.guardian_phone ?? p.guardianContactNo ?? '—';
+  const guardianRel = trainee.emergencyContactRelationship ?? traineeApplication?.guardian_relationship ?? p.guardianRelationship ?? '—';
+  const photoPath = traineeApplication?.photo_path ?? null;
+  const photoUrl = photoPath
+    ? `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/storage/${photoPath}`
+    : null;
+  const assignedInstrument = traineeInstruments[trainee.id!] || trainee.assignedInstrument || trainee.assignedVoice || 'Not Assigned';
+
+  const formatBirthdate = (value: string) => {
+    if (!value || value === '—') return '—';
+    const parsed = new Date(value.includes('T') ? value : `${value}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-w-[95vw] sm:max-w-[85vw] h-[90vh] max-h-[900px] flex flex-col p-0 overflow-hidden"
-        hideCloseButton
-      >
-        <DialogHeader className="sr-only">
-          <DialogTitle>Trainee Details - {trainee?.name}</DialogTitle>
-          <DialogDescription>
-            Complete profile information and academic records for {trainee?.name}
-          </DialogDescription>
+      <DialogContent className="max-w-[95vw] sm:max-w-[680px] max-h-[90vh] flex flex-col overflow-hidden" hideCloseButton>
+        <DialogHeader>
+          <DialogTitle className="text-[#7A1E1E] text-[18px] font-bold">Trainee Profile</DialogTitle>
+          <DialogDescription className="text-[#6C757D] text-[13px]">Complete trainee information</DialogDescription>
         </DialogHeader>
 
-        {/* Sticky Header */}
-        <div className="bg-white z-10 border-b border-[#E0E0E0] px-4 sm:px-6 py-4 sm:py-5 shrink-0">
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <div className="flex items-center space-x-3 min-w-0">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#7A1E1E]/10 rounded-full flex items-center justify-center shrink-0">
-                <User className="w-5 h-5 sm:w-6 sm:h-6 text-[#7A1E1E]" />
+        <ScrollArea className="flex-1 overflow-y-auto pr-3">
+          <div className="space-y-6 pb-4">
+            <div className="flex items-center gap-4 pb-4 border-b border-[#E0E0E0]">
+              <div className="w-16 h-16 rounded-lg bg-[#7A1E1E]/10 border-2 border-[#7A1E1E]/30 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {photoUrl
+                  ? <img src={photoUrl} alt="Trainee photo" className="w-full h-full object-cover" />
+                  : <User className="w-8 h-8 text-[#7A1E1E]" />
+                }
               </div>
-              <div className="min-w-0">
-                <h3 className="text-[#7A1E1E] text-[16px] sm:text-[20px] font-bold truncate">{trainee?.name}</h3>
-                <p className="text-[#6C757D] text-[12px] sm:text-[14px]">{trainee?.studentId}</p>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[#1A1A1A] text-[18px] font-bold truncate">{name}</h3>
+                <p className="text-[#6C757D] text-[13px] mt-0.5">{studentId}</p>
               </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
                 className="border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white text-xs sm:text-sm"
                 onClick={onDeactivateClick}
               >
-                <span className="hidden sm:inline">Deactivate Trainee</span>
-                <span className="sm:hidden">Deactivate</span>
+                Deactivate Trainee
               </Button>
               <Button
                 variant="outline"
@@ -80,172 +133,46 @@ export function TraineeDetailsDialog({
                 <X className="h-4 w-4" />
               </Button>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-6">
+              <div className="space-y-6">
+                <Section title="Personal Information">
+                  <Field label="Full Name" value={name} />
+                  <Field label="Gender" value={gender} />
+                  <Field label="Birthdate" value={formatBirthdate(String(birthdate))} />
+                  <Field label="Age" value={age && age !== '—' ? `${age} years old` : '—'} />
+                  <Field label="Address" value={address} />
+                </Section>
+
+                <Section title="Contact Information">
+                  <Field label="Phone Number" value={phone} />
+                  <Field label="Email Address" value={email} />
+                </Section>
+
+                <Section title="In Case of Emergency">
+                  <Field label="Parent / Guardian Name" value={guardian} />
+                  <Field label="Relationship" value={guardianRel} />
+                  <Field label="Contact Number" value={guardianNo} />
+                </Section>
+              </div>
+
+              <div className="space-y-6">
+                <Section title="Academic Information">
+                  <Field label="Student ID" value={studentId} />
+                  <Field label="Year Level" value={yearLevel} />
+                  <Field label="Course / Strand" value={course} />
+                  <Field label="Department / School" value={department} />
+                </Section>
+
+                <Section title="Training Assignment">
+                  {isMarchingBand && (
+                    <Field label="Assigned Instrument" value={assignedInstrument} />
+                  )}
+                </Section>
+              </div>
+            </div>
           </div>
-          <p className="text-[#6C757D] text-[12px] sm:text-[13px] ml-13 sm:ml-16 hidden sm:block">
-            Complete profile information, academic records, and emergency contact details
-          </p>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="px-4 sm:px-6 py-4 sm:py-6">
-            {trainee && (() => {
-              const traineeApplication = (applications || []).find(
-                app =>
-                  app.personalInfo.studentId === trainee.studentId &&
-                  app.talentGroup === trainee.talentGroup,
-              );
-
-              const traineeMarchingBand = trainee.talentGroup === 'marching-band';
-
-              return (
-                <div className="space-y-6 py-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-12">
-                    {/* Left Column */}
-                    <div className="space-y-6">
-                      <div>
-                        <h4 className="text-[#7A1E1E] text-[16px] font-bold mb-3">Personal Information</h4>
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Full Name</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {traineeApplication?.personalInfo.name || trainee.name}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Birthdate</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {traineeApplication?.personalInfo.birthdate || 'January 15, 2003'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Age</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {traineeApplication?.personalInfo.age || '21'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Gender</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {traineeApplication?.personalInfo.gender || 'Female'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Address</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {traineeApplication?.personalInfo.address ||
-                                trainee.address ||
-                                '123 Main Street, Naga City, Camarines Sur'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 className="text-[#7A1E1E] text-[16px] font-bold mb-3">Contact Information</h4>
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Phone Number</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {traineeApplication?.personalInfo.phone || trainee.phone || '+63 912 345 6789'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Email Address</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {traineeApplication?.personalInfo.email || trainee.email}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Social Media / Messenger</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {traineeApplication?.personalInfo.socialMedia ||
-                                `fb.com/${trainee.name.toLowerCase().replace(/\s+/g, '.')}`}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 className="text-[#7A1E1E] text-[16px] font-bold mb-3">In Case of Emergency</h4>
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Parent/Guardian Name</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {traineeApplication?.personalInfo.guardianName ||
-                                trainee.emergencyContact ||
-                                'Juan Dela Cruz Sr.'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Contact Number</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {traineeApplication?.personalInfo.guardianContactNo ||
-                                trainee.emergencyPhone ||
-                                '+63 917 123 4567'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right Column */}
-                    <div className="space-y-6">
-                      <div>
-                        <h4 className="text-[#7A1E1E] text-[16px] font-bold mb-3">Academic Information</h4>
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Student ID</p>
-                            <p className="text-[#1A1A1A] text-[14px]">{trainee.studentId}</p>
-                          </div>
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Course</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {traineeApplication?.personalInfo.course ||
-                                trainee.course ||
-                                'Bachelor of Science in Computer Science'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Year Level</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {traineeApplication?.personalInfo.yearLevel || trainee.yearLevel || '3rd Year'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Department</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {traineeApplication?.personalInfo.department || 'College of Computer Studies'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 className="text-[#7A1E1E] text-[16px] font-bold mb-3">Talent Group</h4>
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-[#6C757D] text-[12px] font-medium">Group</p>
-                            <p className="text-[#1A1A1A] text-[14px]">
-                              {getTalentGroupName(trainee.talentGroup || '')}
-                            </p>
-                          </div>
-                          {traineeMarchingBand && (
-                            <div>
-                              <p className="text-[#6C757D] text-[12px] font-medium">Assigned Instrument</p>
-                              <p className="text-[#1A1A1A] text-[14px]">
-                                {traineeInstruments[trainee.id!] || 'Not Assigned'}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

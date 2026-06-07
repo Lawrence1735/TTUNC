@@ -26,7 +26,8 @@ interface AuthContextValue {
   login: (
     email: string,
     password: string,
-  ) => Promise<{ success: boolean; error?: string }>;
+    selectedRole?: string,
+  ) => Promise<{ success: boolean; user?: AuthUser; error?: string }>;
   /** Call on logout button */
   logout: () => Promise<void>;
 }
@@ -66,12 +67,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (
       email: string,
       password: string,
-    ): Promise<{ success: boolean; error?: string }> => {
+      selectedRole?: string,
+    ): Promise<{ success: boolean; user?: AuthUser; error?: string }> => {
       setIsLoading(true);
       try {
         const { user: loggedInUser } = await authService.login({ email, password });
+
+        const normalizedSelected = selectedRole === 'trainee' ? 'student' : selectedRole;
+        const normalizedActual = loggedInUser.role === 'trainee' ? 'student' : loggedInUser.role;
+        if (normalizedSelected && normalizedActual !== normalizedSelected) {
+          await authService.logout();
+          return {
+            success: false,
+            error: `Login As mismatch: this account is ${loggedInUser.role}, not ${selectedRole}.`,
+          };
+        }
+
         setUser(loggedInUser);
-        return { success: true };
+        return { success: true, user: loggedInUser };
       } catch (err) {
         const axiosErr = err as AxiosError<{ message: string }>;
         const message =

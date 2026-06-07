@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import engagementService from '../services/engagementService';
+import trainingClient from '../../api/trainingClient';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -14,85 +16,7 @@ interface DirectorEngagementRehearsalViewProps {
   talentGroup: string;
 }
 
-// Mock data - would come from props in real implementation
-const MOCK_ENGAGEMENTS = [
-  {
-    id: 'eng1',
-    eventName: 'City Christmas Festival',
-    date: new Date('2026-12-20'),
-    time: '18:00',
-    venue: 'Naga City Plaza',
-    description: 'Community Christmas celebration',
-    status: 'pending' as const,
-    requesterName: 'Naga City Government',
-    requesterOrg: 'Office of the Mayor',
-    createdBy: 'admin',
-    attachments: [
-      { id: 'att1', name: 'invitation-letter.pdf', size: 245000, type: 'application/pdf' }
-    ]
-  },
-  {
-    id: 'eng2',
-    eventName: 'University Foundation Day',
-    date: new Date('2026-06-15'),
-    time: '14:00',
-    venue: 'UNC Main Auditorium',
-    description: 'Annual foundation day celebration performance',
-    status: 'accepted' as const,
-    requesterName: 'UNC Admin',
-    requesterOrg: 'University of Nueva Caceres',
-    createdBy: 'admin',
-    attachments: []
-  },
-  {
-    id: 'eng3',
-    eventName: 'Regional Arts Competition',
-    date: new Date('2026-03-10'),
-    time: '10:00',
-    venue: 'Bicol Convention Center',
-    description: 'Showcase performance at regional competition',
-    status: 'pending_admin_approval' as const,
-    requesterName: 'Director Name',
-    requesterOrg: 'UNC Marching Band',
-    createdBy: 'director',
-    attachments: [
-      { id: 'att2', name: 'competition-details.pdf', size: 180000, type: 'application/pdf' }
-    ]
-  }
-];
 
-const MOCK_REHEARSALS = [
-  {
-    id: 'reh1',
-    title: 'Weekly Practice Session',
-    date: new Date('2026-02-18'),
-    time: '15:00',
-    venue: 'Band Room, Music Building',
-    description: 'Regular weekly rehearsal for marching formations',
-    isRequired: true,
-    createdBy: 'Director',
-    attendanceMarked: false
-  },
-  {
-    id: 'reh2',
-    title: 'Competition Preparation',
-    date: new Date('2026-02-22'),
-    time: '14:00',
-    venue: 'UNC Main Auditorium',
-    description: 'Intensive practice for upcoming regional competition',
-    isRequired: true,
-    createdBy: 'Director',
-    attendanceMarked: true
-  }
-];
-
-// Mock scholars for attendance
-const MOCK_SCHOLARS = [
-  { id: 's1', name: 'Juan Dela Cruz', status: 'pending' },
-  { id: 's2', name: 'Maria Santos', status: 'pending' },
-  { id: 's3', name: 'Pedro Reyes', status: 'pending' },
-  { id: 's4', name: 'Ana Garcia', status: 'pending' },
-];
 
 export function DirectorEngagementRehearsalView({ talentGroup }: DirectorEngagementRehearsalViewProps) {
   const [activeTab, setActiveTab] = useState<'engagements' | 'rehearsals'>('engagements');
@@ -103,9 +27,47 @@ export function DirectorEngagementRehearsalView({ talentGroup }: DirectorEngagem
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [rejectReason, setRejectReason] = useState('');
   
-  const [rehearsals, setRehearsals] = useState(MOCK_REHEARSALS);
-  const [engagements, setEngagements] = useState(MOCK_ENGAGEMENTS);
-  const [attendanceList, setAttendanceList] = useState(MOCK_SCHOLARS);
+  const [rehearsals, setRehearsals] = useState<any[]>([]);
+  const [engagements, setEngagements] = useState<any[]>([]);
+  const [attendanceList, setAttendanceList] = useState<any[]>([]);
+
+  useEffect(() => {
+    engagementService.getEngagements().then((data: any[]) => {
+      setEngagements(data.map((e: any) => ({
+        id: String(e.id),
+        eventName: e.event_name ?? '',
+        date: new Date(e.date),
+        time: e.time ?? '',
+        venue: e.venue ?? '',
+        description: e.description ?? '',
+        status: e.status === 'scheduled' ? 'accepted' : e.status,
+        requesterName: e.requester_name ?? '',
+        requesterOrg: e.requester_org ?? '',
+        createdBy: e.created_by ?? '',
+        attachments: e.attachments ?? [],
+      })));
+    }).catch(() => {});
+    engagementService.getRehearsals().then((data: any[]) => {
+      setRehearsals(data.map((r: any) => ({
+        id: String(r.id),
+        title: r.event_name ?? '',
+        date: new Date(r.date),
+        time: r.time ?? '',
+        venue: r.venue ?? '',
+        description: r.description ?? '',
+        isRequired: r.is_required ?? true,
+        createdBy: r.created_by ?? '',
+        attendanceMarked: r.attendance_marked ?? false,
+      })));
+    }).catch(() => {});
+    trainingClient.getTrainees().then((data: any[]) => {
+      setAttendanceList(data.map((t: any) => ({
+        id: String(t.id),
+        name: t.user?.name ?? t.name ?? `${t.first_name ?? ''} ${t.last_name ?? ''}`.trim(),
+        status: 'pending',
+      })));
+    }).catch(() => {});
+  }, []);
   
   // Form state for creating rehearsal
   const [newRehearsal, setNewRehearsal] = useState({
@@ -310,7 +272,8 @@ export function DirectorEngagementRehearsalView({ talentGroup }: DirectorEngagem
   // Attendance handlers (Process 7.0)
   const handleOpenAttendance = (event: any) => {
     setSelectedEvent(event);
-    setAttendanceList(MOCK_SCHOLARS.map(s => ({ ...s, status: 'pending' })));
+    // Reset all current scholars to pending for this attendance session
+    setAttendanceList(prev => prev.map(s => ({ ...s, status: 'pending' })));
     setShowAttendanceDialog(true);
   };
 

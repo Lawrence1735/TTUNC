@@ -91,7 +91,17 @@ export const recruitmentService = {
    * PUBLIC — submit a scholarship application (no auth required).
    */
   async submitApplication(payload: StoreApplicationPayload): Promise<Application> {
-    const { data } = await api.post<Application>('/applications', payload);
+    const { data } = await api.post<Application>('applications', payload);
+    return data;
+  },
+
+  /**
+   * PUBLIC — submit a scholarship application with photo as multipart/form-data.
+   */
+  async submitApplicationForm(formData: FormData): Promise<Application> {
+    const { data } = await api.post<Application>('applications', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return data;
   },
 
@@ -103,7 +113,7 @@ export const recruitmentService = {
     talent_group?: string;
     page?: number;
   }): Promise<PaginatedApplications> {
-    const { data } = await api.get<PaginatedApplications>('/recruitment/applications', { params });
+    const { data } = await api.get<PaginatedApplications>('recruitment/applications', { params });
     return data;
   },
 
@@ -111,7 +121,7 @@ export const recruitmentService = {
    * Get a single application's full detail.
    */
   async getApplication(id: number): Promise<Application> {
-    const { data } = await api.get<Application>(`/recruitment/applications/${id}`);
+    const { data } = await api.get<Application>(`recruitment/applications/${id}`);
     return data;
   },
 
@@ -120,7 +130,7 @@ export const recruitmentService = {
    */
   async scheduleInterview(id: number, payload: ScheduleInterviewPayload): Promise<Application> {
     const { data } = await api.post<Application>(
-      `/recruitment/applications/${id}/schedule-interview`,
+      `recruitment/applications/${id}/schedule-interview`,
       payload,
     );
     return data;
@@ -130,7 +140,7 @@ export const recruitmentService = {
    * Approve an application (moves it to 'approved' status).
    */
   async approve(id: number, payload?: ApprovePayload): Promise<Application> {
-    const { data } = await api.post<Application>(`/recruitment/applications/${id}/approve`, payload ?? {});
+    const { data } = await api.post<Application>(`recruitment/applications/${id}/approve`, payload ?? {});
     return data;
   },
 
@@ -138,7 +148,7 @@ export const recruitmentService = {
    * Reject an application.
    */
   async reject(id: number, payload: RejectPayload): Promise<Application> {
-    const { data } = await api.post<Application>(`/recruitment/applications/${id}/reject`, payload);
+    const { data } = await api.post<Application>(`recruitment/applications/${id}/reject`, payload);
     return data;
   },
 };

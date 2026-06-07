@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -10,6 +10,7 @@ import {
   MapPin, Lock, ArrowLeft
 } from './ui/icons';
 import { SuccessConfirmation } from './SuccessConfirmation';
+import { MicroFooter } from './MicroFooter';
 import uncLogo from 'figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png';
 import marchingBandImage from 'figma:asset/b242c5c349e0b89983c68f7897a6a917cfadb783.png';
 import majorettesImage from 'figma:asset/720c2c7918c80e99d38a856e37434c03a71dfb51.png';
@@ -68,17 +69,13 @@ export interface ApplicationFormData {
   previousOrganization: string;
   canPerformBasicRoutines: string;
   willingToAttendRehearsalsMajorettes: string;
-<<<<<<< HEAD
-=======
-
-  experience: string;
-  motivation: string;
+  socialMedia: string;
 
   // Consent
->>>>>>> origin/feature/operations-user-profile
   dataPrivacyConsent: boolean;
   confirmedAccuracy: boolean;
   address: string;
+  photo?: File | null;
 }
 
 const TALENT_GROUPS = [
@@ -294,7 +291,7 @@ const COUNTRY_CODES = [
   { value: '+675', label: 'Papua New Guinea (+675)' },
   { value: '+595', label: 'Paraguay (+595)' },
   { value: '+51', label: 'Peru (+51)' },
-  { value: '+63', label: 'Philippines (+63)' },
+  { value: '+63', label: 'PH(+63)' },
   { value: '+48', label: 'Poland (+48)' },
   { value: '+351', label: 'Portugal (+351)' },
   { value: '+974', label: 'Qatar (+974)' },
@@ -358,11 +355,32 @@ const COUNTRY_CODES = [
 const calculateAge = (birthdate: string): string => {
   if (!birthdate) return '';
   const today = new Date();
-  const bd = new Date(birthdate);
+  const bd = new Date(birthdate + 'T00:00:00');
+  if (isNaN(bd.getTime())) return '';
   let age = today.getFullYear() - bd.getFullYear();
   const m = today.getMonth() - bd.getMonth();
   if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
   return age.toString();
+};
+
+const getMaxBirthdate = (): string => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 15);
+  return d.toISOString().slice(0, 10);
+};
+
+const capitalizeWords = (value: string): string =>
+  value.replace(/\b([a-z])/g, (match) => match.toUpperCase());
+
+const getShortCountryLabel = (label: string): string => {
+  const dialCode = label.match(/\(\+[^)]+\)/)?.[0] ?? '';
+  const countryName = label.split('(')[0].trim().replace(/[^A-Za-z\s]/g, ' ');
+  const words = countryName.split(/\s+/).filter(Boolean);
+
+  if (words.length === 0) return dialCode;
+  if (words.length === 1) return `${words[0].slice(0, 2).toUpperCase()} ${dialCode}`.trim();
+
+  return `${(words[0][0] + words[1][0]).toUpperCase()} ${dialCode}`.trim();
 };
 
 function PhoneInput({ 
@@ -382,48 +400,89 @@ function PhoneInput({
   onCountryCodeChange?: (v: string) => void;
   [key: string]: any;
 }) {
+  const [countrySearch, setCountrySearch] = useState('');
   // Safely find the index of the current country code for proper Select value matching
   const activeIndex = COUNTRY_CODES.findIndex(cc => cc.value === countryCode);
   // Build the compound key only if a valid index is found; otherwise default to undefined
   const selectValue = activeIndex >= 0 ? `${countryCode}_${activeIndex}` : undefined;
+  const filteredCountryCodes = COUNTRY_CODES.filter((cc) => {
+    const q = countrySearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      getShortCountryLabel(cc.label).toLowerCase().includes(q) ||
+      cc.value.toLowerCase().includes(q) ||
+      cc.label.toLowerCase().includes(q)
+    );
+  });
 
   return (
-    <div>
-      <div className="flex gap-2">
+    <div className="w-full">
+      <div
+        className={`mt-1 flex h-11 overflow-hidden rounded-md border-2 bg-white focus-within:ring-1 ${
+          touched && error ? 'border-red-600 ring-red-500/30' : 'border-gray-200 focus-within:ring-[#7A1E1E]/20'
+        }`}
+      >
         <Select 
           value={selectValue} 
           onValueChange={(v) => {
             // Extract raw country code by splitting on underscore and taking the first part
             const rawCode = v.split('_')[0];
             onCountryCodeChange?.(rawCode);
+            setCountrySearch('');
           }}
         >
           <SelectTrigger 
-            className="w-32 h-10 text-sm border-2 border-gray-200 mt-1" 
+            className="h-full w-[106px] rounded-none border-0 px-3 text-sm shadow-none focus:ring-0"
             aria-label="Country code"
           >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <div className="p-2 border-b border-gray-100">
+              <Input
+                value={countrySearch}
+                onChange={(e) => setCountrySearch(e.target.value)}
+                placeholder="Search code"
+                className="h-8 text-xs border border-gray-200"
+                onKeyDown={(e) => e.stopPropagation()}
+              />
+            </div>
             {/* Create unique key/value pairs using country code and array index */}
-            {COUNTRY_CODES.map((cc, index) => (
+            {filteredCountryCodes.map((cc, index) => (
               <SelectItem 
                 key={`${cc.value}_${index}`} 
                 value={`${cc.value}_${index}`}
               >
-                {cc.label}
+                {getShortCountryLabel(cc.label)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <div className="h-full w-px bg-gray-200" aria-hidden="true" />
         <Input 
           {...props}
           value={value} 
-          onChange={(e) => onChange(e.target.value)}
-          className={`flex-1 h-10 ${
-            touched && error ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
-          }`}
-          maxLength={15}
+          onChange={(e) => {
+            const digitsOnly = e.target.value.replace(/\D/g, '');
+            let formatted = digitsOnly;
+            
+            // Format Philippine numbers as XXXX-XXX-XXX (display format)
+            if (countryCode === '+63' && digitsOnly.length > 0) {
+              if (digitsOnly.length <= 4) {
+                formatted = digitsOnly;
+              } else if (digitsOnly.length <= 7) {
+                formatted = digitsOnly.slice(0, 4) + '-' + digitsOnly.slice(4);
+              } else {
+                formatted = digitsOnly.slice(0, 4) + '-' + digitsOnly.slice(4, 7) + '-' + digitsOnly.slice(7, 10);
+              }
+            }
+            
+            onChange(formatted.slice(0, countryCode === '+63' ? 12 : 18));
+          }}
+          className="h-full min-w-0 flex-1 rounded-none border-0 px-3 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          inputMode="numeric"
+          autoComplete="tel"
+          maxLength={countryCode === '+63' ? 12 : 18}
         />
       </div>
       {touched && error && (
@@ -456,12 +515,19 @@ function AddressBlock({
   touched?: Record<string, boolean>;
   onChange: (field: string, value: string) => void;
 }) {
+  const [regionSearch, setRegionSearch] = useState('');
+  const [provinceSearch, setProvinceSearch] = useState('');
+  const [citySearch, setCitySearch] = useState('');
+  const [barangaySearch, setBarangaySearch] = useState('');
+
   const field = (f: string) => `${prefix}_${f}`;
   const shouldShowError = (f: string) => {
     if (!touched || !errors) return false;
     const fieldName = field(f);
     return !!(touched[fieldName] && errors[fieldName]);
   };
+
+  const barangayOptions = city ? (PH_BARANGAYS_BY_CITY[city] || []) : [];
 
   return (
     <div className="space-y-4">
@@ -488,7 +554,21 @@ function AddressBlock({
               <SelectValue placeholder="Select region" />
             </SelectTrigger>
             <SelectContent>
-              {PH_REGIONS.map((option) => {
+              <div className="p-2 border-b border-gray-100">
+                <Input
+                  value={regionSearch}
+                  onChange={(e) => setRegionSearch(e.target.value)}
+                  placeholder="Search region"
+                  className="h-8 text-xs border border-gray-200"
+                  onKeyDown={(e) => e.stopPropagation()}
+                />
+              </div>
+              {PH_REGIONS.filter((option) => {
+                const value = typeof option === 'object' ? String((option as any).value) : String(option);
+                const label = typeof option === 'object' ? String((option as any).label) : String(option);
+                const q = regionSearch.trim().toLowerCase();
+                return !q || value.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+              }).map((option) => {
                 const value = typeof option === 'object' ? (option as any).value : option;
                 const label = typeof option === 'object' ? (option as any).label : option;
                 return (
@@ -521,7 +601,21 @@ function AddressBlock({
               <SelectValue placeholder={region ? 'Select province' : 'Select region first'} />
             </SelectTrigger>
             <SelectContent>
-              {region && (PH_PROVINCES_BY_REGION[region] || []).map((option) => {
+              <div className="p-2 border-b border-gray-100">
+                <Input
+                  value={provinceSearch}
+                  onChange={(e) => setProvinceSearch(e.target.value)}
+                  placeholder="Search province"
+                  className="h-8 text-xs border border-gray-200"
+                  onKeyDown={(e) => e.stopPropagation()}
+                />
+              </div>
+              {region && (PH_PROVINCES_BY_REGION[region] || []).filter((option) => {
+                const value = typeof option === 'object' ? String((option as any).value) : String(option);
+                const label = typeof option === 'object' ? String((option as any).label) : String(option);
+                const q = provinceSearch.trim().toLowerCase();
+                return !q || value.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+              }).map((option) => {
                 const value = typeof option === 'object' ? (option as any).value : option;
                 const label = typeof option === 'object' ? (option as any).label : option;
                 return (
@@ -554,7 +648,21 @@ function AddressBlock({
               <SelectValue placeholder={province ? 'Select city' : 'Select province first'} />
             </SelectTrigger>
             <SelectContent>
-              {province && (PH_CITIES_BY_PROVINCE[province] || []).map((option) => {
+              <div className="p-2 border-b border-gray-100">
+                <Input
+                  value={citySearch}
+                  onChange={(e) => setCitySearch(e.target.value)}
+                  placeholder="Search city"
+                  className="h-8 text-xs border border-gray-200"
+                  onKeyDown={(e) => e.stopPropagation()}
+                />
+              </div>
+              {province && (PH_CITIES_BY_PROVINCE[province] || []).filter((option) => {
+                const value = typeof option === 'object' ? String((option as any).value) : String(option);
+                const label = typeof option === 'object' ? String((option as any).label) : String(option);
+                const q = citySearch.trim().toLowerCase();
+                return !q || value.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+              }).map((option) => {
                 const value = typeof option === 'object' ? (option as any).value : option;
                 const label = typeof option === 'object' ? (option as any).label : option;
                 return (
@@ -576,28 +684,58 @@ function AddressBlock({
             Barangay <span className="text-red-500">*</span>
             <span className="sr-only">(required)</span>
           </Label>
-          <Select value={barangay} onValueChange={(v) => onChange(field('Barangay'), v)} disabled={!city}>
-            <SelectTrigger 
+          {barangayOptions.length > 0 ? (
+            <Select value={barangay} onValueChange={(v) => onChange(field('Barangay'), v)} disabled={!city}>
+              <SelectTrigger 
+                id={field('Barangay')}
+                className={`mt-1 h-10 text-sm ${
+                  shouldShowError('Barangay') ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                }`}
+                aria-required="true"
+              >
+                <SelectValue placeholder={city ? 'Select barangay' : 'Select city first'} />
+              </SelectTrigger>
+              <SelectContent>
+                <div className="p-2 border-b border-gray-100">
+                  <Input
+                    value={barangaySearch}
+                    onChange={(e) => setBarangaySearch(e.target.value)}
+                    placeholder="Search barangay"
+                    className="h-8 text-xs border border-gray-200"
+                    onKeyDown={(e) => e.stopPropagation()}
+                  />
+                </div>
+                {barangayOptions
+                  .filter((option) => {
+                    const value = typeof option === 'object' ? String((option as any).value) : String(option);
+                    const label = typeof option === 'object' ? String((option as any).label) : String(option);
+                    const q = barangaySearch.trim().toLowerCase();
+                    return !q || value.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+                  })
+                  .map((option) => {
+                    const value = typeof option === 'object' ? (option as any).value : option;
+                    const label = typeof option === 'object' ? (option as any).label : option;
+                    return (
+                      <SelectItem key={String(value)} value={String(value)}>
+                        {String(label)}
+                      </SelectItem>
+                    );
+                  })}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
               id={field('Barangay')}
               className={`mt-1 h-10 text-sm ${
                 shouldShowError('Barangay') ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
               }`}
+              placeholder={city ? 'Type barangay' : 'Select city first'}
+              value={barangay}
+              onChange={(e) => onChange(field('Barangay'), capitalizeWords(e.target.value))}
               aria-required="true"
-            >
-              <SelectValue placeholder={city ? 'Select barangay' : 'Select city first'} />
-            </SelectTrigger>
-            <SelectContent>
-              {city && (PH_BARANGAYS_BY_CITY[city] || []).map((option) => {
-                const value = typeof option === 'object' ? (option as any).value : option;
-                const label = typeof option === 'object' ? (option as any).label : option;
-                return (
-                  <SelectItem key={String(value)} value={String(value)}>
-                    {String(label)}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
+              disabled={!city}
+            />
+          )}
           {shouldShowError('Barangay') && (
             <p className="text-red-500 text-xs mt-1" role="alert">{errors?.[field('Barangay')]}</p>
           )}
@@ -617,7 +755,7 @@ function AddressBlock({
           }`}
           placeholder="House no., street name, etc." 
           value={street}
-          onChange={(e) => onChange(field('Street'), e.target.value)}
+          onChange={(e) => onChange(field('Street'), capitalizeWords(e.target.value))}
           aria-required="true"
         />
         {shouldShowError('Street') && (
@@ -636,6 +774,11 @@ export function PublicApplicationForm({
   talentGroup,
   onSelectGroup,
 }: PublicApplicationFormProps) {
+  const [departmentSearch, setDepartmentSearch] = useState('');
+  const [yearLevelSearch, setYearLevelSearch] = useState('');
+  const [courseSearch, setCourseSearch] = useState('');
+  const [guardianRelationshipSearch, setGuardianRelationshipSearch] = useState('');
+
   const [formData, setFormData] = useState<ApplicationFormData>({
     fullName: '', lastName: '', firstName: '', middleName: '', birthdate: '', age: '', gender: '',
     permRegion: '', permProvince: '', permCity: '', permBarangay: '', permStreet: '',
@@ -648,8 +791,9 @@ export function PublicApplicationForm({
     musicalBackground: '', primaryDanceGenre: '', yearsOfExperience: '',
     performedOnStage: '', willingToAttendRehearsals: '',
     previousMajoretteTeam: '', previousOrganization: '', canPerformBasicRoutines: '',
-    willingToAttendRehearsalsMajorettes: '', dataPrivacyConsent: false, confirmedAccuracy: false,
-    address: '',
+    willingToAttendRehearsalsMajorettes: '', socialMedia: '',
+    dataPrivacyConsent: false, confirmedAccuracy: false,
+    address: '', photo: null,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -660,6 +804,10 @@ export function PublicApplicationForm({
   const [currentStep, setCurrentStep] = useState(1);
   const [sameAsPermanent, setSameAsPermanent] = useState(false);
   const [mobileCC, setMobileCC] = useState('+63');
+  const [guardianCC, setGuardianCC] = useState('+63');
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [formErrorSummary, setFormErrorSummary] = useState<string>('');
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const update = <K extends keyof ApplicationFormData>(field: K, value: ApplicationFormData[K]) =>
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -703,12 +851,14 @@ export function PublicApplicationForm({
   };
 
   const getYearLevels = () => {
-    return ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+    if (!formData.department) return [];
+    if (formData.department === 'shs' && formData.talentGroup === 'marching-band') return ['Grade 11', 'Grade 12'];
+    return ['1st Year', '2nd Year'];
   };
 
   const getDepartments = () => {
     if (formData.talentGroup === 'marching-band') return DEPARTMENTS;
-    return DEPARTMENTS.filter(d => d.value !== 'Senior High School');
+    return DEPARTMENTS.filter(d => d.value !== 'shs');
   };
 
   const isMajorettes = formData.talentGroup === 'majorettes';
@@ -766,9 +916,15 @@ export function PublicApplicationForm({
     const newErrors: Record<string, string> = {};
 
     // Personal info
+    if (!formData.photo) newErrors.photo = '2x2 photo is required';
     if (!formData.lastName) newErrors.lastName = 'Last name is required';
     if (!formData.firstName) newErrors.firstName = 'First name is required';
-    if (!formData.birthdate) newErrors.birthdate = 'Birthdate is required';
+    if (!formData.birthdate) {
+      newErrors.birthdate = 'Birthdate is required';
+    } else {
+      const age = parseInt(calculateAge(formData.birthdate), 10);
+      if (isNaN(age) || age < 15) newErrors.birthdate = 'You must be at least 15 years old to apply';
+    }
     if (!formData.gender && !isMajorettes) newErrors.gender = 'Gender is required';
 
     // Address
@@ -779,21 +935,46 @@ export function PublicApplicationForm({
     if (!formData.permStreet) newErrors.perm_Street = 'Street address is required';
 
     // Contact
-    if (!formData.mobileNo) newErrors.mobileNo = 'Mobile number is required';
-    if (!formData.email) newErrors.email = 'Email is required';
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Invalid email';
+    if (!formData.mobileNo) {
+      newErrors.mobileNo = 'Mobile number is required';
+    } else if (mobileCC === '+63' && !/^9\d{9}$/.test(formData.mobileNo.replace(/[-\s]/g, ''))) {
+      newErrors.mobileNo = 'Philippine mobile must start with 9 followed by 9 digits (e.g. 9171-234-567)';
+    }
+    if (!formData.email) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@unc\.edu\.ph$/i.test(formData.email)) {
+      newErrors.email = 'Must be a valid UNC email (e.g. juan@unc.edu.ph)';
+    }
+    if (formData.studentId && !/^\d{2}-\d{5}$/.test(formData.studentId)) {
+      newErrors.studentId = 'Student ID must follow YY-XXXXX format (e.g. 23-12345)';
+    }
+    if (!formData.department) newErrors.department = 'Department / School is required';
+    if (!formData.yearLevel) newErrors.yearLevel = 'Year level is required';
+    if (!formData.course) newErrors.course = 'Course / Strand is required';
+    if (formData.yearLevel && !getYearLevels().includes(formData.yearLevel)) {
+      newErrors.yearLevel = 'Only 1st and 2nd Year are eligible. Senior High School (Grade 11/12) is for Marching Band only.';
+    }
+    if (formData.socialMedia && !/^https?:\/\/(www\.)?[\w\-]+(\.[\w\-]+)+([\/?#][^\s]*)?$/.test(formData.socialMedia)) {
+      newErrors.socialMedia = 'Must be a valid URL (e.g. https://facebook.com/yourprofile)';
+    }
 
     // Guardian
     if (!formData.guardianLastName) newErrors.guardianLastName = 'Last name is required';
     if (!formData.guardianFirstName) newErrors.guardianFirstName = 'First name is required';
     if (!formData.guardianRelationship) newErrors.guardianRelationship = 'Relationship is required';
     if (!formData.guardianContactNo) newErrors.guardianContactNo = 'Contact number is required';
+    if (formData.guardianContactNo && !validatePhone(formData.guardianContactNo.replace(/[-\s]/g, ''), guardianCC)) {
+      newErrors.guardianContactNo = guardianCC === '+63'
+        ? 'Guardian contact must start with 9 and have 10 digits (e.g. 9171234567)'
+        : 'Please enter a valid contact number';
+    }
 
     // Consent
     if (!formData.dataPrivacyConsent) newErrors.dataPrivacyConsent = 'You must agree to data privacy';
     if (!formData.confirmedAccuracy) newErrors.confirmedAccuracy = 'You must confirm accuracy';
 
     setErrors(newErrors);
+    setFormErrorSummary(Object.keys(newErrors).length > 0 ? 'Please complete all required fields marked with * and review highlighted errors.' : '');
     return Object.keys(newErrors).length === 0;
   };
 
@@ -805,88 +986,36 @@ export function PublicApplicationForm({
     e.preventDefault();
     
     // Mark all fields as touched
-    const allFields = Object.keys(formData).reduce((acc, key) => ({...acc, [key]: true}), {});
-    setTouched(allFields);
+    const allFields = Object.keys(formData).reduce((acc, key) => ({...acc, [key]: true}), {} as Record<string, boolean>);
+    const addressTouched: Record<string, boolean> = {
+      perm_Region: true,
+      perm_Province: true,
+      perm_City: true,
+      perm_Barangay: true,
+      perm_Street: true,
+      resid_Region: true,
+      resid_Province: true,
+      resid_City: true,
+      resid_Barangay: true,
+      resid_Street: true,
+    };
+    setTouched({ ...allFields, ...addressTouched });
 
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      toast.warning('Please complete all required fields before submitting.');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      // Build submission payload with all relevant application data
-      const submissionPayload = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        middleName: formData.middleName,
-        email: formData.email,
-        birthdate: formData.birthdate,
-        age: formData.age,
-        gender: formData.gender,
-        mobileNumber: `${mobileCC}${formData.mobileNo}`,
-        studentId: formData.studentId,
-        course: formData.course,
-        yearLevel: formData.yearLevel,
-        department: formData.department,
-        permRegion: formData.permRegion,
-        permProvince: formData.permProvince,
-        permCity: formData.permCity,
-        permBarangay: formData.permBarangay,
-        permStreet: formData.permStreet,
-        residRegion: formData.residRegion,
-        residProvince: formData.residProvince,
-        residCity: formData.residCity,
-        residBarangay: formData.residBarangay,
-        residStreet: formData.residStreet,
-        guardianFirstName: formData.guardianFirstName,
-        guardianLastName: formData.guardianLastName,
-        guardianMiddleName: formData.guardianMiddleName,
-        guardianRelationship: formData.guardianRelationship,
-        guardianContactNo: formData.guardianContactNo,
-        talentGroup: formData.talentGroup,
-        submittedAt: new Date().toISOString()
-      };
-
-      // Generate a fallback application ID
-      let assignedId = 'APP-' + Math.floor(100000 + Math.random() * 900000);
-
-      try {
-        // Attempt to save to live backend database
-        const response = await fetch('/api/applications', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(submissionPayload),
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.id) assignedId = result.id;
-          toast.success('Application successfully saved to database!');
-        } else {
-          // Fallback if server responds with error in dev mode
-          console.warn(`Backend endpoint returned ${response.status}. Falling back to local storage.`);
-          const existing = JSON.parse(localStorage.getItem('saved_applications') || '[]');
-          existing.push({ id: assignedId, ...submissionPayload });
-          localStorage.setItem('saved_applications', JSON.stringify(existing));
-          toast.info('Application saved locally for development.');
-        }
-      } catch (netError) {
-        // Fallback if network is unreachable or offline
-        console.warn('Network request failed. Persisting to local storage:', netError);
-        const existing = JSON.parse(localStorage.getItem('saved_applications') || '[]');
-        existing.push({ id: assignedId, ...submissionPayload });
-        localStorage.setItem('saved_applications', JSON.stringify(existing));
-        toast.info('Application saved locally. Will sync when backend is available.');
-      }
-
-      // Update success view states
+      await onSubmit(formData);
+      const assignedId = 'APP-' + Math.floor(100000 + Math.random() * 900000);
       setApplicationId(assignedId);
-      onSubmit(submissionPayload);
       setSubmissionSuccess(true);
-    } catch (error) {
-      console.error('Fatal submission processing error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'An unhandled exception occurred';
-      toast.error(`${errorMessage}. Please try again.`);
+    } catch (error: any) {
+      console.error('Submission failed:', error);
+      const errorMessage = error?.data?.message || error?.message || 'Failed to submit application. Please try again.';
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -898,9 +1027,28 @@ export function PublicApplicationForm({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-dvh overflow-y-auto overscroll-y-contain bg-gray-50 flex flex-col">
+      {/* Global Navigation Bar */}
+      <nav className="fixed top-0 left-0 right-0 h-20 bg-white border-b border-[#E2E8F0] z-50" role="navigation" aria-label="Application page navigation">
+        <div className="max-w-[1440px] mx-auto h-full px-4 md:px-[70px] flex items-center justify-between">
+          <div className="text-xl md:text-2xl">
+            <span className="font-bold text-[#1E293B]">Talent</span>
+            <span className="text-[#1E293B]">Track</span>
+            <span className="font-bold text-[#7A1E1E]">UNC</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-sm font-medium text-[#7A1E1E] border border-[#7A1E1E] rounded px-3 py-1.5 hover:text-[#1E293B] hover:border-[#1E293B] transition-colors"
+          >
+            Back to Talent Groups
+          </button>
+        </div>
+      </nav>
+
       {/* Form Container */}
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
+      <main className="container mx-auto px-4 pt-28 pb-8 max-w-3xl flex-1">
         {/* Form Header with Back Button */}
         <div className="flex items-start justify-between mb-8">
           <div className="flex-1">
@@ -921,7 +1069,20 @@ export function PublicApplicationForm({
           </Button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6 [&_[data-slot=input]]:h-11 [&_[data-slot=select-trigger]]:h-11"
+          noValidate
+        >
+          {formErrorSummary && (
+            <div
+              className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+              role="alert"
+              aria-live="assertive"
+            >
+              {formErrorSummary}
+            </div>
+          )}
           {/* SECTION 1: Personal Information */}
           <section className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-8" aria-labelledby="personal-heading">
             <div className="flex items-center gap-2 mb-6">
@@ -929,127 +1090,193 @@ export function PublicApplicationForm({
               <h2 id="personal-heading" className="text-lg font-semibold text-[#7A1E1E]">Personal Information</h2>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-6 items-start">
+              <div className="sm:col-span-4">
                 <Label className="text-xs text-gray-600">
-                  Last Name <span className="text-red-500">*</span>
-                  <span className="sr-only">(required)</span>
+                  2x2 Photo <span className="text-red-500">*</span>
                 </Label>
-                <Input 
-                  id="lastName"
-                  className={`mt-1 h-10 text-sm ${
-                    touched.lastName && errors.lastName ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
-                  }`}
-                  placeholder="Dela Cruz"
-                  value={formData.lastName}
-                  onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                  onBlur={() => handleBlur('lastName')}
-                  aria-required="true"
-                />
-                {touched.lastName && errors.lastName && (
-                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.lastName}</p>
-                )}
-              </div>
-
-              <div>
-                <Label className="text-xs text-gray-600">
-                  First Name <span className="text-red-500">*</span>
-                  <span className="sr-only">(required)</span>
-                </Label>
-                <Input 
-                  id="firstName"
-                  className={`mt-1 h-10 text-sm ${
-                    touched.firstName && errors.firstName ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
-                  }`}
-                  placeholder="Juan"
-                  value={formData.firstName}
-                  onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                  onBlur={() => handleBlur('firstName')}
-                  aria-required="true"
-                />
-                {touched.firstName && errors.firstName && (
-                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.firstName}</p>
-                )}
-              </div>
-
-              <div>
-                <Label className="text-xs text-gray-600">Middle Name</Label>
-                <Input 
-                  id="middleName"
-                  className="mt-1 h-10 text-sm border-2 border-gray-200"
-                  placeholder="Santos"
-                  value={formData.middleName}
-                  onChange={(e) => setFormData({...formData, middleName: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <div>
-                <Label className="text-xs text-gray-600">
-                  Birthdate <span className="text-red-500">*</span>
-                  <span className="sr-only">(required)</span>
-                </Label>
-                <Input 
-                  id="birthdate"
-                  type="date"
-                  className={`mt-1 h-10 text-sm ${
-                    touched.birthdate && errors.birthdate ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
-                  }`}
-                  value={formData.birthdate}
-                  onChange={(e) => {
-                    const bd = e.target.value;
-                    const age = calculateAge(bd);
-                    setFormData({...formData, birthdate: bd, age});
-                  }}
-                  onBlur={() => handleBlur('birthdate')}
-                  aria-required="true"
-                  style={{ colorScheme: 'light' }}
-                />
-                {touched.birthdate && errors.birthdate && (
-                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.birthdate}</p>
-                )}
-              </div>
-
-              <div>
-                <Label className="text-xs text-gray-600">Age</Label>
-                <Input 
-                  id="age"
-                  className="mt-1 h-10 text-sm bg-gray-50 text-gray-500 border-2 border-gray-200"
-                  value={formData.age ? `${formData.age} years old` : ''}
-                  readOnly
-                  disabled
-                  placeholder="—"
-                />
-              </div>
-
-              {!isMajorettes && (
-                <div>
-                  <Label className="text-xs text-gray-600">
-                    Gender <span className="text-red-500">*</span>
-                    <span className="sr-only">(required)</span>
-                  </Label>
-                  <Select value={formData.gender} onValueChange={(v) => setFormData({...formData, gender: v})}>
-                    <SelectTrigger 
-                      id="gender"
-                      className={`mt-1 h-10 text-sm ${
-                        touched.gender && errors.gender ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
-                      }`}
-                      aria-required="true"
-                      onBlur={() => handleBlur('gender')}
+                <div className="mt-2 flex flex-col items-start gap-2">
+                  <div
+                    onClick={() => photoInputRef.current?.click()}
+                    className="w-36 h-36 rounded-lg border-2 border-dashed border-gray-300 bg-white flex flex-col items-center justify-center cursor-pointer hover:border-[#7A1E1E] hover:bg-[#FEF2F2] transition-colors overflow-hidden flex-shrink-0"
+                  >
+                    {photoPreview ? (
+                      <img src={photoPreview} alt="Photo preview" className="w-full h-full object-contain p-1" />
+                    ) : (
+                      <>
+                        <User className="w-10 h-10 text-gray-300 mb-1" />
+                        <span className="text-[10px] text-gray-400 text-center leading-tight px-1">Click to upload</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1.5 w-36">
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      className="text-xs font-medium text-white bg-[#7A1E1E] hover:bg-[#5C1616] rounded px-3 py-1.5 transition-colors w-full"
                     >
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Male">Male</SelectItem>
-                      <SelectItem value="Female">Female</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {touched.gender && errors.gender && (
-                    <p className="text-red-500 text-xs mt-1" role="alert">{errors.gender}</p>
+                      {photoPreview ? 'Change Photo' : 'Upload Photo'}
+                    </button>
+                    {photoPreview && (
+                      <button
+                        type="button"
+                        onClick={() => { setPhotoPreview(null); setFormData(p => ({ ...p, photo: null })); if (photoInputRef.current) photoInputRef.current.value = ''; }}
+                        className="text-xs font-medium text-gray-500 hover:text-red-600 transition-colors text-center"
+                      >
+                        Remove
+                      </button>
+                    )}
+                    <p className="text-[11px] text-gray-400 leading-snug text-left">JPG, PNG or WEBP<br />Max 5MB · Formal attire</p>
+                  </div>
+                </div>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 5 * 1024 * 1024) { toast.error('Photo must be under 5MB'); return; }
+                    const reader = new FileReader();
+                    reader.onload = (ev) => setPhotoPreview(ev.target?.result as string);
+                    reader.readAsDataURL(file);
+                    setFormData(p => ({ ...p, photo: file }));
+                  }}
+                />
+                {touched.photo && errors.photo && (
+                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.photo}</p>
+                )}
+              </div>
+
+              <div className="sm:col-span-8 space-y-3">
+                <div className="grid grid-cols-1 gap-2">
+                  <div>
+                    <Label className="text-[11px] text-gray-600">
+                      First Name <span className="text-red-500">*</span>
+                      <span className="sr-only">(required)</span>
+                    </Label>
+                    <Input
+                      id="firstName"
+                      className={`mt-1 h-10 text-sm ${
+                        touched.firstName && errors.firstName ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                      }`}
+                      placeholder="Juan"
+                      maxLength={80}
+                      value={formData.firstName}
+                      onChange={(e) => setFormData({...formData, firstName: capitalizeWords(e.target.value)})}
+                      onBlur={() => handleBlur('firstName')}
+                      aria-required="true"
+                    />
+                    {touched.firstName && errors.firstName && (
+                      <p className="text-red-500 text-xs mt-1" role="alert">{errors.firstName}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label className="text-[11px] text-gray-600">Middle Name</Label>
+                    <Input
+                      id="middleName"
+                      className="mt-1 h-10 text-sm border-2 border-gray-200"
+                      placeholder="Santos"
+                      maxLength={80}
+                      value={formData.middleName}
+                      onChange={(e) => setFormData({...formData, middleName: capitalizeWords(e.target.value)})}
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-[11px] text-gray-600">
+                      Last Name <span className="text-red-500">*</span>
+                      <span className="sr-only">(required)</span>
+                    </Label>
+                    <Input
+                      id="lastName"
+                      className={`mt-1 h-10 text-sm ${
+                        touched.lastName && errors.lastName ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                      }`}
+                      placeholder="Dela Cruz"
+                      maxLength={80}
+                      value={formData.lastName}
+                      onChange={(e) => setFormData({...formData, lastName: capitalizeWords(e.target.value)})}
+                      onBlur={() => handleBlur('lastName')}
+                      aria-required="true"
+                    />
+                    {touched.lastName && errors.lastName && (
+                      <p className="text-red-500 text-xs mt-1" role="alert">{errors.lastName}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-xs text-gray-600">
+                      Birthdate <span className="text-red-500">*</span>
+                      <span className="sr-only">(required)</span>
+                    </Label>
+                    <Input
+                      id="birthdate"
+                      type="date"
+                      max={getMaxBirthdate()}
+                      className={`mt-1 h-10 text-sm ${
+                        touched.birthdate && errors.birthdate ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                      }`}
+                      value={formData.birthdate}
+                      onChange={(e) => {
+                        const bd = e.target.value;
+                        const age = calculateAge(bd);
+                        setFormData(prev => ({...prev, birthdate: bd, age}));
+                      }}
+                      onBlur={() => handleBlur('birthdate')}
+                      aria-required="true"
+                      style={{ colorScheme: 'light' }}
+                    />
+                    {touched.birthdate && errors.birthdate && (
+                      <p className="text-red-500 text-xs mt-1" role="alert">{errors.birthdate}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-gray-600">Age</Label>
+                    <Input
+                      id="age"
+                      className="mt-1 h-10 text-sm bg-gray-50 text-gray-500 border-2 border-gray-200"
+                      value={formData.age ? `${formData.age} years old` : ''}
+                      readOnly
+                      disabled
+                      placeholder="—"
+                    />
+                  </div>
+
+                  {!isMajorettes && (
+                    <div>
+                      <Label className="text-xs text-gray-600">
+                        Gender <span className="text-red-500">*</span>
+                        <span className="sr-only">(required)</span>
+                      </Label>
+                      <Select value={formData.gender} onValueChange={(v) => setFormData({...formData, gender: v})}>
+                        <SelectTrigger
+                          id="gender"
+                          className={`mt-1 h-10 text-sm ${
+                            touched.gender && errors.gender ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                          }`}
+                          aria-required="true"
+                          onBlur={() => handleBlur('gender')}
+                        >
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Male">Male</SelectItem>
+                          <SelectItem value="Female">Female</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {touched.gender && errors.gender && (
+                        <p className="text-red-500 text-xs mt-1" role="alert">{errors.gender}</p>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
+              </div>
             </div>
           </section>
 
@@ -1080,7 +1307,7 @@ export function PublicApplicationForm({
                 <Checkbox 
                   id="sameAsPermanent"
                   checked={sameAsPermanent}
-                  onCheckedChange={(c) => setSameAsPermanent(!!c)}
+                  onCheckedChange={(c) => handleSameAsPermanent(!!c)}
                   className="w-4 h-4"
                 />
                 <label htmlFor="sameAsPermanent" className="text-sm text-gray-600 cursor-pointer">
@@ -1117,7 +1344,7 @@ export function PublicApplicationForm({
               <h2 id="contact-heading" className="text-lg font-semibold text-[#7A1E1E]">Contact Information</h2>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
               <div>
                 <Label className="text-xs text-gray-600" htmlFor="mobileNo">
                   Mobile Number <span className="text-red-500">*</span>
@@ -1156,6 +1383,7 @@ export function PublicApplicationForm({
                   <p className="text-red-500 text-xs mt-1" role="alert">{errors.email}</p>
                 )}
               </div>
+
             </div>
           </section>
 
@@ -1169,54 +1397,151 @@ export function PublicApplicationForm({
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-6">
               Only fill this section if you are already enrolled or have your academic details available.
             </p>
+            <p className="text-xs text-[#7A1E1E] bg-[#F9EAEA] border border-[#E9CACA] rounded px-3 py-2 mb-6">
+              {formData.talentGroup === 'marching-band'
+                ? 'Eligibility note: Marching Band accepts 1st Year and 2nd Year college students, and Senior High School (Grade 11 or Grade 12). SHS is exclusive to Marching Band.'
+                : 'Eligibility note: Only 1st Year and 2nd Year college students are allowed for this talent group.'}
+            </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
                 <Label className="text-xs text-gray-600">Student ID</Label>
                 <Input 
                   id="studentId"
-                  className="mt-1 h-10 text-sm border-2 border-gray-200"
-                  placeholder="24-12345"
+                  className={`mt-1 h-10 text-sm ${
+                    touched.studentId && errors.studentId ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                  }`}
+                  placeholder="23-12345"
                   value={formData.studentId}
-                  onChange={(e) => setFormData({...formData, studentId: e.target.value.slice(0, 8)})}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/[^0-9-]/g, '');
+                    if (val.length <= 2) {
+                      val = val;
+                    } else if (val.length === 3 && !val.includes('-')) {
+                      val = val.slice(0, 2) + '-' + val.slice(2);
+                    } else if (val.includes('-') && val.split('-')[1].length > 5) {
+                      val = val.slice(0, 8);
+                    }
+                    setFormData(prev => ({...prev, studentId: val}));
+                  }}
+                  onBlur={() => handleBlur('studentId')}
                   maxLength={8}
                 />
+                {touched.studentId && errors.studentId && (
+                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.studentId}</p>
+                )}
               </div>
 
               <div>
-                <Label className="text-xs text-gray-600">Department / School</Label>
-                <Select value={formData.department} onValueChange={(v) => setFormData({...formData, department: v})}>
-                  <SelectTrigger id="department" className="mt-1 h-10 text-sm border-2 border-gray-200">
+                <Label className="text-xs text-gray-600">
+                  Department / School <span className="text-red-500">*</span>
+                </Label>
+                <Select value={formData.department} onValueChange={(v) => setFormData({...formData, department: v, yearLevel: '', course: ''})}>
+                  <SelectTrigger
+                    id="department"
+                    className={`mt-1 h-10 text-sm ${
+                      touched.department && errors.department ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                    }`}
+                    onBlur={() => handleBlur('department')}
+                    aria-required="true"
+                  >
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent>
-                    {DEPARTMENTS.map(d => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
+                    <div className="p-2 border-b border-gray-100">
+                      <Input
+                        value={departmentSearch}
+                        onChange={(e) => setDepartmentSearch(e.target.value)}
+                        placeholder="Search department"
+                        className="h-8 text-xs border border-gray-200"
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    {getDepartments()
+                      .filter((d) => {
+                        const q = departmentSearch.trim().toLowerCase();
+                        return !q || d.value.toLowerCase().includes(q) || d.label.toLowerCase().includes(q);
+                      })
+                      .map(d => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {touched.department && errors.department && (
+                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.department}</p>
+                )}
               </div>
 
               <div>
-                <Label className="text-xs text-gray-600">Year Level</Label>
+                <Label className="text-xs text-gray-600">
+                  Year Level <span className="text-red-500">*</span>
+                </Label>
                 <Select value={formData.yearLevel} disabled={!formData.department} onValueChange={(v) => setFormData({...formData, yearLevel: v})}>
-                  <SelectTrigger id="yearLevel" className="mt-1 h-10 text-sm border-2 border-gray-200">
+                  <SelectTrigger
+                    id="yearLevel"
+                    className={`mt-1 h-10 text-sm ${touched.yearLevel && errors.yearLevel ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'}`}
+                    onBlur={() => handleBlur('yearLevel')}
+                    aria-required="true"
+                  >
                     <SelectValue placeholder={formData.department ? 'Select' : 'Select department first'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {['1st Year', '2nd Year', '3rd Year', '4th Year'].map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                    <div className="p-2 border-b border-gray-100">
+                      <Input
+                        value={yearLevelSearch}
+                        onChange={(e) => setYearLevelSearch(e.target.value)}
+                        placeholder="Search year level"
+                        className="h-8 text-xs border border-gray-200"
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    {getYearLevels()
+                      .filter((l) => {
+                        const q = yearLevelSearch.trim().toLowerCase();
+                        return !q || l.toLowerCase().includes(q);
+                      })
+                      .map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {touched.yearLevel && errors.yearLevel && (
+                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.yearLevel}</p>
+                )}
               </div>
 
               <div>
-                <Label className="text-xs text-gray-600">Course / Strand</Label>
+                <Label className="text-xs text-gray-600">
+                  Course / Strand <span className="text-red-500">*</span>
+                </Label>
                 <Select value={formData.course} disabled={!formData.department} onValueChange={(v) => setFormData({...formData, course: v})}>
-                  <SelectTrigger id="course" className="mt-1 h-10 text-sm border-2 border-gray-200">
+                  <SelectTrigger
+                    id="course"
+                    className={`mt-1 h-10 text-sm ${
+                      touched.course && errors.course ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
+                    }`}
+                    onBlur={() => handleBlur('course')}
+                    aria-required="true"
+                  >
                     <SelectValue placeholder={formData.department ? 'Select' : 'Select department first'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {(COURSES[formData.department] || []).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    <div className="p-2 border-b border-gray-100">
+                      <Input
+                        value={courseSearch}
+                        onChange={(e) => setCourseSearch(e.target.value)}
+                        placeholder="Search course/strand"
+                        className="h-8 text-xs border border-gray-200"
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    {(COURSES[formData.department] || [])
+                      .filter((c) => {
+                        const q = courseSearch.trim().toLowerCase();
+                        return !q || c.toLowerCase().includes(q);
+                      })
+                      .map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {touched.course && errors.course && (
+                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.course}</p>
+                )}
               </div>
             </div>
           </section>
@@ -1240,8 +1565,9 @@ export function PublicApplicationForm({
                     touched.guardianLastName && errors.guardianLastName ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
                   }`}
                   placeholder="Dela Cruz"
+                  maxLength={80}
                   value={formData.guardianLastName}
-                  onChange={(e) => setFormData({...formData, guardianLastName: e.target.value})}
+                  onChange={(e) => setFormData({...formData, guardianLastName: capitalizeWords(e.target.value)})}
                   onBlur={() => handleBlur('guardianLastName')}
                   aria-required="true"
                 />
@@ -1261,8 +1587,9 @@ export function PublicApplicationForm({
                     touched.guardianFirstName && errors.guardianFirstName ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
                   }`}
                   placeholder="Juan"
+                  maxLength={80}
                   value={formData.guardianFirstName}
-                  onChange={(e) => setFormData({...formData, guardianFirstName: e.target.value})}
+                  onChange={(e) => setFormData({...formData, guardianFirstName: capitalizeWords(e.target.value)})}
                   onBlur={() => handleBlur('guardianFirstName')}
                   aria-required="true"
                 />
@@ -1277,8 +1604,9 @@ export function PublicApplicationForm({
                   id="guardianMiddleName"
                   className="mt-1 h-10 text-sm border-2 border-gray-200"
                   placeholder="Santos"
+                  maxLength={80}
                   value={formData.guardianMiddleName}
-                  onChange={(e) => setFormData({...formData, guardianMiddleName: e.target.value})}
+                  onChange={(e) => setFormData({...formData, guardianMiddleName: capitalizeWords(e.target.value)})}
                 />
               </div>
             </div>
@@ -1301,7 +1629,21 @@ export function PublicApplicationForm({
                     <SelectValue placeholder="Select relationship" />
                   </SelectTrigger>
                   <SelectContent>
-                    {RELATIONSHIP_OPTIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                    <div className="p-2 border-b border-gray-100">
+                      <Input
+                        value={guardianRelationshipSearch}
+                        onChange={(e) => setGuardianRelationshipSearch(e.target.value)}
+                        placeholder="Search relationship"
+                        className="h-8 text-xs border border-gray-200"
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    {RELATIONSHIP_OPTIONS
+                      .filter((r) => {
+                        const q = guardianRelationshipSearch.trim().toLowerCase();
+                        return !q || r.toLowerCase().includes(q);
+                      })
+                      .map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 {touched.guardianRelationship && errors.guardianRelationship && (
@@ -1314,21 +1656,15 @@ export function PublicApplicationForm({
                   Contact Number <span className="text-red-500">*</span>
                   <span className="sr-only">(required)</span>
                 </Label>
-                <Input 
+                <PhoneInput
                   id="guardianContactNo"
-                  className={`mt-1 h-10 text-sm ${
-                    touched.guardianContactNo && errors.guardianContactNo ? 'border-2 border-red-600 ring-1 ring-red-500/30' : 'border-2 border-gray-200'
-                  }`}
-                  placeholder="+63 (9XX) XXX-XXXX"
                   value={formData.guardianContactNo}
-                  onChange={(e) => setFormData({...formData, guardianContactNo: e.target.value})}
-                  onBlur={() => handleBlur('guardianContactNo')}
-                  aria-required="true"
-                  maxLength={15}
+                  onChange={(v) => setFormData({...formData, guardianContactNo: v})}
+                  countryCode={guardianCC}
+                  onCountryCodeChange={(v) => setGuardianCC(v)}
+                  error={errors.guardianContactNo}
+                  touched={touched.guardianContactNo}
                 />
-                {touched.guardianContactNo && errors.guardianContactNo && (
-                  <p className="text-red-500 text-xs mt-1" role="alert">{errors.guardianContactNo}</p>
-                )}
               </div>
             </div>
           </section>
@@ -1385,7 +1721,7 @@ export function PublicApplicationForm({
             >
               {isSubmitting ? (
                 <>
-                  <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+                  <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin [animation-duration:700ms]" aria-hidden="true" />
                   <span>Submitting...</span>
                 </>
               ) : (
@@ -1397,7 +1733,9 @@ export function PublicApplicationForm({
             </Button>
           </div>
         </form>
-      </div>
+      </main>
+
+      <MicroFooter />
     </div>
   );
 }

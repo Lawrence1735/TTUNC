@@ -29,11 +29,32 @@ const TALENT_GROUP_LABELS: Record<string, string> = {
 
 const STATUS_MAP: Record<string, { bg: string; text: string; border: string; label: string }> = {
   pending:       { bg: "#FFFBEB", text: "#92400E", border: "#FDE68A", label: "Pending"       },
+  not_scheduled: { bg: "#FFFBEB", text: "#92400E", border: "#FDE68A", label: "Pending"       },
   scheduled:     { bg: "#EFF6FF", text: "#1E40AF", border: "#BFDBFE", label: "Scheduled"     },
+  interview_scheduled: { bg: "#EFF6FF", text: "#1E40AF", border: "#BFDBFE", label: "Scheduled" },
   approved:      { bg: "#F0FDF4", text: "#14532D", border: "#BBF7D0", label: "Approved"      },
-  qualified:     { bg: "#F0FDF4", text: "#14532D", border: "#BBF7D0", label: "Qualified"     },
+  accepted:      { bg: "#F0FDF4", text: "#14532D", border: "#BBF7D0", label: "Approved"      },
+  qualified:     { bg: "#F0FDF4", text: "#14532D", border: "#BBF7D0", label: "Approved"      },
+  rejected:      { bg: "#FEF2F2", text: "#7F1D1D", border: "#FECACA", label: "Disapproved"   },
   not_qualified: { bg: "#FEF2F2", text: "#7F1D1D", border: "#FECACA", label: "Not Qualified" },
   disapproved:   { bg: "#FEF2F2", text: "#7F1D1D", border: "#FECACA", label: "Disapproved"   },
+};
+
+const hasValidInterviewSchedule = (app: any) => {
+  const scheduledAt = app?.interview?.scheduled_at;
+  if (!scheduledAt) return false;
+  return !Number.isNaN(new Date(scheduledAt).getTime());
+};
+
+const normalizeApplicationStatus = (app: any) => {
+  const appStatus = (app?.status || "pending").toLowerCase();
+  if (appStatus === "not_scheduled") return "pending";
+  if (appStatus === "interview_scheduled" || appStatus === "scheduled") {
+    return hasValidInterviewSchedule(app) ? "scheduled" : "pending";
+  }
+  if (appStatus === "qualified" || appStatus === "accepted") return "approved";
+  if (appStatus === "rejected" || appStatus === "not_qualified") return "disapproved";
+  return appStatus;
 };
 
 const DENIAL_REASONS = [
@@ -44,6 +65,73 @@ const DENIAL_REASONS = [
   "Slot already filled",
   "Other",
 ];
+
+const buildScheduleEmailTemplate = (app: any, date: string, time: string, venue: string, isReschedule: boolean) => {
+  const applicantName = getApplicantName(app);
+  const talentGroup = TALENT_GROUP_LABELS[app?.talent_group ?? app?.talentGroup] ?? (app?.talent_group ?? app?.talentGroup ?? 'your selected talent group');
+  const when = date && time
+    ? new Date(`${date}T${time}`).toLocaleString('en-PH', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '[Set interview date and time]';
+
+  return [
+    `Dear ${applicantName},`,
+    '',
+    `Thank you for your application to ${talentGroup}.`,
+    `Your interview has been ${isReschedule ? 'rescheduled' : 'scheduled'} for ${when}.`,
+    `Venue: ${venue || '[Set venue]'}`,
+    '',
+    'Please arrive at least 15 minutes before your schedule.',
+    '',
+    'Regards,',
+    'TalentTrackUNC Recruitment Team',
+  ].filter(Boolean).join('\n');
+};
+
+const buildApprovalEmailTemplate = (app: any) => {
+  const applicantName = getApplicantName(app);
+  const talentGroup = TALENT_GROUP_LABELS[app?.talent_group ?? app?.talentGroup] ?? (app?.talent_group ?? app?.talentGroup ?? 'your selected talent group');
+
+  return [
+    `Dear ${applicantName},`,
+    '',
+    `Congratulations. We are pleased to inform you that your application to ${talentGroup} has been approved.`,
+    'Your trainee account has been created.',
+    'Your login credentials are below:',
+    'Email: {{email}}',
+    'Temporary Password: {{temporary_password}}',
+    'Please change your password immediately after your first login.',
+    '',
+    'Welcome to TalentTrackUNC.',
+    '',
+    'Regards,',
+    'TalentTrackUNC Recruitment Team',
+  ].join('\n');
+};
+
+const buildRejectionEmailTemplate = (app: any, reason: string, feedback: string) => {
+  const applicantName = getApplicantName(app);
+  const talentGroup = TALENT_GROUP_LABELS[app?.talent_group ?? app?.talentGroup] ?? (app?.talent_group ?? app?.talentGroup ?? 'your selected talent group');
+
+  return [
+    `Dear ${applicantName},`,
+    '',
+    `Thank you for your application to ${talentGroup}.`,
+    'After careful review, we regret to inform you that your application was not accepted at this time.',
+    reason ? `Reason: ${reason}` : '',
+    feedback ? `Feedback: ${feedback}` : '',
+    '',
+    'We appreciate your interest and encourage you to apply again in the future.',
+    '',
+    'Regards,',
+    'TalentTrackUNC Recruitment Team',
+  ].filter(Boolean).join('\n');
+};
 
 function getDaysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
 function getFirstDayOfMonth(y: number, m: number) { return new Date(y, m, 1).getDay(); }
@@ -83,12 +171,13 @@ function Modal({
         <div
           onClick={(e) => e.stopPropagation()}
           style={{
-            width, maxWidth: "100%", background: "#fff",
+            width, maxWidth: "100%", maxHeight: "90vh", background: "#fff",
             borderRadius: 12, boxShadow: "0 20px 60px -10px rgba(0,0,0,0.25)",
             pointerEvents: "auto", overflow: "hidden",
+            display: "flex", flexDirection: "column",
           }}
         >
-          <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+          <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0 }}>
             <div>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0 }}>{title}</h3>
               {subtitle && <p style={{ fontSize: 13, color: "#64748B", marginTop: 4 }}>{subtitle}</p>}
@@ -97,8 +186,8 @@ function Modal({
               <X style={{ width: 16, height: 16 }} />
             </button>
           </div>
-          <div style={{ padding: "20px 24px" }}>{children}</div>
-          <div style={{ padding: "12px 24px 20px", display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid #F1F5F9" }}>
+          <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>{children}</div>
+          <div style={{ padding: "12px 24px 20px", display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid #F1F5F9", flexShrink: 0 }}>
             {footer}
           </div>
         </div>
@@ -134,8 +223,38 @@ function CancelBtn({ onClick }: { onClick: () => void }) {
 }
 
 function ScheduleModal({ app, onClose, onConfirm, isLoading = false, isReschedule = false }: { app: any; onClose: () => void; onConfirm: (data: any) => void; isLoading?: boolean; isReschedule?: boolean }) {
-  const [form, setForm] = useState({ date: "", time: "", venue: "Music Building Room 201", notes: "" });
+  const existingInterview = app?.interview;
+  const defaultDate = isReschedule && existingInterview?.scheduled_at
+    ? new Date(existingInterview.scheduled_at).toISOString().slice(0, 10)
+    : "";
+  const defaultTime = isReschedule && existingInterview?.scheduled_at
+    ? new Date(existingInterview.scheduled_at).toTimeString().slice(0, 5)
+    : "";
+  const defaultVenue = existingInterview?.venue || "Music Building Room 201";
+  const [form, setForm] = useState({
+    date: defaultDate,
+    time: defaultTime,
+    venue: defaultVenue,
+    emailSubject: `${isReschedule ? 'Interview Rescheduled' : 'Interview Scheduled'} - TalentTrackUNC`,
+    emailBody: "",
+  });
+  const [isLetterEdited, setIsLetterEdited] = useState(false);
+
+  const generatedLetter = useMemo(
+    () => buildScheduleEmailTemplate(app, form.date, form.time, form.venue, isReschedule),
+    [app, form.date, form.time, form.venue, isReschedule]
+  );
+
+  useEffect(() => {
+    if (!isLetterEdited) {
+      setForm((prev) => (prev.emailBody === generatedLetter ? prev : { ...prev, emailBody: generatedLetter }));
+    }
+  }, [generatedLetter, isLetterEdited]);
+
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const oldDateLabel = isReschedule && existingInterview?.scheduled_at
+    ? new Date(existingInterview.scheduled_at).toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : null;
   return (
     <Modal
       title={isReschedule ? "Reschedule Interview" : "Schedule Interview"}
@@ -161,6 +280,11 @@ function ScheduleModal({ app, onClose, onConfirm, isLoading = false, isReschedul
         </button>
       </>}
     >
+      {oldDateLabel && (
+        <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#92400E" }}>
+          <span style={{ fontWeight: 600 }}>Current schedule:</span> {oldDateLabel}{defaultVenue ? ` · ${defaultVenue}` : ""}
+        </div>
+      )}
       <div style={fieldWrap}>
         <label style={labelStyle}>Interview Date <span style={{ color: "#DC2626" }}>*</span></label>
         <input type="date" value={form.date} onChange={set("date")} style={inputStyle} required />
@@ -175,12 +299,36 @@ function ScheduleModal({ app, onClose, onConfirm, isLoading = false, isReschedul
           <input type="text" value={form.venue} onChange={set("venue")} placeholder="Room / Location" style={inputStyle} />
         </div>
       </div>
+      <div style={{ ...fieldWrap, marginTop: 16 }}>
+        <label style={labelStyle}>Email Subject</label>
+        <input
+          type="text"
+          value={form.emailSubject}
+          onChange={set("emailSubject")}
+          style={inputStyle}
+        />
+      </div>
       <div>
-        <label style={labelStyle}>Notes <span style={{ color: "#94A3B8", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(Optional)</span></label>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <label style={{ ...labelStyle, marginBottom: 0 }}>Interview Letter (Editable)</label>
+          <button
+            type="button"
+            onClick={() => {
+              setForm((prev) => ({ ...prev, emailBody: generatedLetter }));
+              setIsLetterEdited(false);
+            }}
+            style={{ border: "none", background: "transparent", color: "#7A1E1E", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
+          >
+            Reset Template
+          </button>
+        </div>
         <textarea
-          value={form.notes} onChange={set("notes")}
-          placeholder="Any additional notes for this interview..."
-          rows={3}
+          value={form.emailBody}
+          onChange={(e) => {
+            setIsLetterEdited(true);
+            setForm((prev) => ({ ...prev, emailBody: e.target.value }));
+          }}
+          rows={9}
           style={{ ...inputStyle, height: "auto", padding: "10px 12px", resize: "vertical", lineHeight: 1.5 }}
         />
       </div>
@@ -188,8 +336,10 @@ function ScheduleModal({ app, onClose, onConfirm, isLoading = false, isReschedul
   );
 }
 
-function ApproveModal({ app, onClose, onConfirm, isLoading = false }: { app: any; onClose: () => void; onConfirm: (notes: string) => void; isLoading?: boolean }) {
+function ApproveModal({ app, onClose, onConfirm, isLoading = false }: { app: any; onClose: () => void; onConfirm: (data: { notes: string; emailSubject: string; emailBody: string }) => void; isLoading?: boolean }) {
   const [notes, setNotes] = useState("");
+  const [emailSubject, setEmailSubject] = useState("Application Approved - TalentTrackUNC");
+  const [emailBody, setEmailBody] = useState(() => buildApprovalEmailTemplate(app));
   return (
     <Modal
       title="Approve Application"
@@ -199,7 +349,7 @@ function ApproveModal({ app, onClose, onConfirm, isLoading = false }: { app: any
       footer={<>
         <CancelBtn onClick={onClose} />
         <button
-          onClick={() => { if (!isLoading) onConfirm(notes); }}
+          onClick={() => { if (!isLoading) onConfirm({ notes, emailSubject, emailBody }); }}
           disabled={isLoading}
           style={{
             padding: "9px 20px", borderRadius: 8,
@@ -231,15 +381,43 @@ function ApproveModal({ app, onClose, onConfirm, isLoading = false }: { app: any
           style={{ ...inputStyle, height: "auto", padding: "10px 12px", resize: "vertical", lineHeight: 1.5 }}
         />
       </div>
+      <div style={{ ...fieldWrap, marginTop: 16 }}>
+        <label style={labelStyle}>Email Subject</label>
+        <input type="text" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} style={inputStyle} />
+      </div>
+      <div>
+        <label style={labelStyle}>Acceptance Letter (Editable)</label>
+        <textarea
+          value={emailBody}
+          onChange={(e) => setEmailBody(e.target.value)}
+          rows={9}
+          style={{ ...inputStyle, height: "auto", padding: "10px 12px", resize: "vertical", lineHeight: 1.5 }}
+        />
+      </div>
     </Modal>
   );
 }
 
-function DenyModal({ app, onClose, onConfirm, isLoading = false }: { app: any; onClose: () => void; onConfirm: (reason: string, feedback: string) => void; isLoading?: boolean }) {
+function DenyModal({ app, onClose, onConfirm, isLoading = false }: { app: any; onClose: () => void; onConfirm: (data: { reason: string; feedback: string; emailSubject: string; emailBody: string }) => void; isLoading?: boolean }) {
   const [reason, setReason] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [emailSubject, setEmailSubject] = useState('Application Result - TalentTrackUNC');
+  const [emailBody, setEmailBody] = useState(() => buildRejectionEmailTemplate(app, '', ''));
+  const [isLetterEdited, setIsLetterEdited] = useState(false);
   const feedbackLength = feedback.length;
   const isValidFeedback = feedbackLength >= 10;
+
+  const generatedLetter = useMemo(
+    () => buildRejectionEmailTemplate(app, reason, feedback),
+    [app, reason, feedback]
+  );
+
+  useEffect(() => {
+    if (!isLetterEdited) {
+      setEmailBody((prev) => (prev === generatedLetter ? prev : generatedLetter));
+    }
+  }, [generatedLetter, isLetterEdited]);
+
   return (
     <Modal
       title="Deny Application"
@@ -249,7 +427,11 @@ function DenyModal({ app, onClose, onConfirm, isLoading = false }: { app: any; o
       footer={<>
         <CancelBtn onClick={onClose} />
         <button
-          onClick={() => { if (reason && isValidFeedback && !isLoading) onConfirm(reason, feedback); }}
+          onClick={() => {
+            if (reason && isValidFeedback && !isLoading) {
+              onConfirm({ reason, feedback, emailSubject, emailBody });
+            }
+          }}
           disabled={!reason || !isValidFeedback || isLoading}
           style={{
             padding: "9px 20px", borderRadius: 8,
@@ -301,88 +483,178 @@ function DenyModal({ app, onClose, onConfirm, isLoading = false }: { app: any; o
         />
         {feedbackLength > 0 && feedbackLength < 10 && <p style={{ fontSize: 12, color: "#DC2626", margin: "4px 0 0 0" }}>Feedback must be at least 10 characters</p>}
       </div>
+      <div style={{ ...fieldWrap, marginTop: 16 }}>
+        <label style={labelStyle}>Email Subject</label>
+        <input type="text" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} style={inputStyle} />
+      </div>
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <label style={{ ...labelStyle, marginBottom: 0 }}>Rejection Letter (Editable)</label>
+          <button
+            type="button"
+            onClick={() => {
+              setEmailBody(generatedLetter);
+              setIsLetterEdited(false);
+            }}
+            style={{ border: "none", background: "transparent", color: "#7A1E1E", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
+          >
+            Reset Template
+          </button>
+        </div>
+        <textarea
+          value={emailBody}
+          onChange={(e) => {
+            setIsLetterEdited(true);
+            setEmailBody(e.target.value);
+          }}
+          rows={9}
+          style={{ ...inputStyle, height: "auto", padding: "10px 12px", resize: "vertical", lineHeight: 1.5 }}
+        />
+      </div>
     </Modal>
   );
 }
 
 function ProfileModal({ app, onClose }: { app: any; onClose: () => void }) {
-  const info = app.personalInfo ?? {};
-  const group = TALENT_GROUP_LABELS[app.talentGroup] ?? app.talentGroup ?? "—";
+  const group = TALENT_GROUP_LABELS[app.talent_group ?? app.talentGroup] ?? app.talent_group ?? app.talentGroup ?? "—";
   const status = app.status ?? "pending";
   const badge = STATUS_MAP[status] ?? STATUS_MAP.pending;
+  const personalInfo = app.personalInfo ?? app.personal_info ?? {};
 
-  const Section = ({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) => (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <Icon style={{ width: 14, height: 14, color: "#7A1E1E" }} />
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#7A1E1E", textTransform: "uppercase", letterSpacing: "0.08em" }}>{title}</span>
-      </div>
-      <div style={{ background: "#F8FAFC", borderRadius: 8, padding: "12px 14px" }}>{children}</div>
-    </div>
-  );
+  const composeAddress = (source: any): string => {
+    if (!source || typeof source !== "object") return "";
+    const street = source.residStreet ?? source.resid_street ?? source.permStreet ?? source.perm_street ?? source.street;
+    const barangay = source.residBarangay ?? source.resid_barangay ?? source.permBarangay ?? source.perm_barangay ?? source.barangay;
+    const city = source.residCity ?? source.resid_city ?? source.permCity ?? source.perm_city ?? source.city;
+    const province = source.residProvince ?? source.resid_province ?? source.permProvince ?? source.perm_province ?? source.province;
+    const region = source.residRegion ?? source.resid_region ?? source.permRegion ?? source.perm_region ?? source.region;
+
+    return [street, barangay, city, province, region]
+      .map((part) => (typeof part === "string" ? part.trim() : ""))
+      .filter(Boolean)
+      .join(", ");
+  };
+
+  const composeAddressByPrefix = (source: any, prefix: "perm" | "resid"): string => {
+    if (!source || typeof source !== "object") return "";
+    const street = source[`${prefix}Street`] ?? source[`${prefix}_street`];
+    const barangay = source[`${prefix}Barangay`] ?? source[`${prefix}_barangay`];
+    const city = source[`${prefix}City`] ?? source[`${prefix}_city`];
+    const province = source[`${prefix}Province`] ?? source[`${prefix}_province`];
+    const region = source[`${prefix}Region`] ?? source[`${prefix}_region`];
+
+    return [street, barangay, city, province, region]
+      .map((part) => (typeof part === "string" ? part.trim() : ""))
+      .filter(Boolean)
+      .join(", ");
+  };
+
+  const parseCombinedAddress = (raw: string): { perm?: string; resid?: string } => {
+    if (!raw) return {};
+    const permanentMatch = raw.match(/Permanent:\s*([^|]+)/i);
+    const residingMatch = raw.match(/Residing:\s*(.+)$/i);
+    return {
+      perm: permanentMatch?.[1]?.trim(),
+      resid: residingMatch?.[1]?.trim(),
+    };
+  };
+
+  // Resolve flat API fields (from backend) with fallbacks to legacy nested shape
+  const name            = app.applicant_name ?? app.applicantName ?? personalInfo.name ?? "—";
+  const studentId       = app.applicant_student_id ?? app.applicantStudentId ?? personalInfo.studentId ?? personalInfo.student_id ?? "—";
+  const email           = app.applicant_email ?? app.applicantEmail ?? personalInfo.email ?? "—";
+  const phone           = app.applicant_phone ?? app.applicantPhone ?? personalInfo.phone ?? "—";
+  const gender          = app.applicant_gender ?? app.applicantGender ?? personalInfo.gender ?? "—";
+  const birthdate       = app.applicant_birthdate ?? app.applicantBirthdate ?? personalInfo.birthdate ?? "—";
+  const age             = app.applicant_age ?? app.applicantAge ?? personalInfo.age ?? "—";
+  const yearLevel       = app.applicant_year_level ?? app.applicantYearLevel ?? personalInfo.yearLevel ?? personalInfo.year_level ?? "—";
+  const course          = app.applicant_course ?? app.applicantCourse ?? personalInfo.course ?? "—";
+  const department      = app.applicant_department ?? app.applicantDepartment ?? personalInfo.department ?? "—";
+  const departmentDisplay = typeof department === "string" && department !== "—" ? department.toUpperCase() : department;
+  const address         = app.applicant_address
+    ?? app.applicantAddress
+    ?? personalInfo.address
+    ?? personalInfo.applicant_address
+    ?? composeAddress(personalInfo)
+    ?? app.address
+    ?? app.user?.address
+    ?? "—";
+  const combinedAddress = parseCombinedAddress(typeof address === "string" ? address : "");
+  const permanentAddress = app.permanent_address
+    ?? app.permanentAddress
+    ?? personalInfo.permanentAddress
+    ?? personalInfo.permanent_address
+    ?? composeAddressByPrefix(personalInfo, "perm")
+    ?? combinedAddress.perm
+    ?? address;
+  const residingAddress = app.residing_address
+    ?? app.residingAddress
+    ?? personalInfo.residingAddress
+    ?? personalInfo.residing_address
+    ?? composeAddressByPrefix(personalInfo, "resid")
+    ?? combinedAddress.resid
+    ?? address;
+  const guardianName    = app.guardian_name ?? app.guardianName ?? personalInfo.guardianName ?? personalInfo.guardian_name ?? "—";
+  const guardianPhone   = app.guardian_phone ?? app.guardianPhone ?? personalInfo.guardianContactNo ?? personalInfo.guardian_phone ?? "—";
+  const guardianRel     = app.guardian_relationship ?? app.guardianRelationship ?? personalInfo.guardianRelationship ?? personalInfo.guardian_relationship ?? "—";
+  const photoPath       = app.photo_path ?? null;
+  const photoUrl        = photoPath ? `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/storage/${photoPath}` : null;
 
   const Row = ({ label, value }: { label: string; value: string }) => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8, gap: 16 }}>
-      <span style={{ fontSize: 12, color: "#64748B", flexShrink: 0 }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", textAlign: "right" }}>{value || "—"}</span>
+    <div style={{ marginBottom: 6 }}>
+      <span style={{ fontSize: 10, color: "#94A3B8", display: "block", marginBottom: 1, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
+      <span style={{ fontSize: 12, fontWeight: 500, color: "#0F172A", wordBreak: "break-word" }}>{value || "—"}</span>
     </div>
   );
 
   return (
     <Modal
-      title="Student Profile"
-      subtitle={`Comprehensive application details for ${info.name ?? "applicant"}`}
+      title="Applicant Profile"
+      subtitle={`${group} · ${badge.label}`}
       onClose={onClose}
-      width={560}
+      width={580}
       footer={
         <button onClick={onClose} style={{ padding: "9px 24px", borderRadius: 8, background: "#7A1E1E", border: "none", fontSize: 14, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
           Close
         </button>
       }
     >
-      <div style={{
-        display: "flex", alignItems: "center", gap: 16,
-        padding: "14px 16px", background: "#F8FAFC",
-        borderRadius: 10, marginBottom: 20,
-        border: "1px solid #E2E8F0",
-      }}>
-        <div style={{
-          width: 48, height: 48, borderRadius: "50%",
-          background: "#F9EAEA", border: "2px solid #7A1E1E",
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        }}>
-          <User style={{ width: 20, height: 20, color: "#7A1E1E" }} />
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#F8FAFC", borderRadius: 8, marginBottom: 14, border: "1px solid #E2E8F0" }}>
+        <div style={{ width: 56, height: 56, borderRadius: 8, background: "#F9EAEA", border: "2px solid #7A1E1E", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+          {photoUrl
+            ? <img src={photoUrl} alt="Applicant" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : <User style={{ width: 24, height: 24, color: "#7A1E1E" }} />
+          }
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>{info.name ?? "—"}</p>
-          <p style={{ fontSize: 12, color: "#94A3B8", margin: "2px 0 0", fontFamily: "monospace" }}>{info.studentId ?? "—"}</p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", margin: 0 }}>{name}</p>
+          <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>{studentId}</p>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 500, background: "#EFF6FF", color: "#1D4ED8", borderRadius: 999, padding: "3px 10px" }}>
-            {group}
-          </span>
-          <span style={{ fontSize: 11, fontWeight: 500, background: badge.bg, color: badge.text, borderRadius: 999, padding: "3px 10px", border: `1px solid ${badge.border}` }}>
-            {badge.label}
-          </span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+          <span style={{ fontSize: 10, fontWeight: 600, background: "#EFF6FF", color: "#1D4ED8", borderRadius: 999, padding: "2px 8px" }}>{group}</span>
+          <span style={{ fontSize: 10, fontWeight: 600, background: badge.bg, color: badge.text, borderRadius: 999, padding: "2px 8px", border: `1px solid ${badge.border}` }}>{badge.label}</span>
         </div>
       </div>
 
-      <Section icon={User} title="Personal Information">
-        <Row label="Full Name"     value={info.name} />
-        <Row label="Student ID"    value={info.studentId} />
-        <Row label="Email Address" value={info.email} />
-        <Row label="Phone Number"  value={info.phone} />
-        <Row label="Year Level"    value={info.yearLevel} />
-        <Row label="Course"        value={info.course} />
-        <Row label="Address"       value={info.address} />
-      </Section>
-
-      {(info.emergencyContact || info.emergencyPhone) && (
-        <Section icon={Phone} title="Emergency Contact">
-          <Row label="Contact Name"  value={info.emergencyContact} />
-          <Row label="Contact Phone" value={info.emergencyPhone} />
-        </Section>
-      )}
+      {/* Two-column grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 20px" }}>
+        <Row label="Full Name"        value={name} />
+        <Row label="Student ID"       value={studentId} />
+        <Row label="Email"            value={email} />
+        <Row label="Phone"            value={phone} />
+        <Row label="Gender"           value={gender} />
+        <Row label="Age / Birthdate"  value={age && birthdate ? `${age} yrs · ${new Date(birthdate).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })}` : age || (birthdate ? new Date(birthdate).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—")} />
+        <Row label="Year Level"       value={yearLevel} />
+        <Row label="Course"           value={course} />
+        <Row label="Department"       value={departmentDisplay} />
+        <Row label="Permanent Address" value={permanentAddress} />
+        <Row label="Residing Address"  value={residingAddress} />
+        <Row label="Guardian"         value={guardianName} />
+        <Row label="Guardian Phone"   value={guardianPhone} />
+        <Row label="Relationship"     value={guardianRel} />
+        <Row label="Applied On"       value={app.applied_at ? new Date(app.applied_at).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—"} />
+      </div>
     </Modal>
   );
 }
@@ -393,9 +665,6 @@ const getApplicantName = (app: any): string =>
 
 const getApplicantEmail = (app: any): string =>
   app.applicant_email || app.applicantEmail || app.email || app.personalInfo?.email || app.user?.email || "—";
-
-const getApplicantStudentId = (app: any): string =>
-  app.applicant_student_id || app.applicantStudentId || app.personalInfo?.studentId || "—";
 
 function LoadingSkeleton() {
   return (
@@ -474,7 +743,7 @@ function InterviewDetailsModal({ interview, onClose }: { interview: any; onClose
 }
 
 export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules = [] }: DirectorRecruitmentTabProps) {
-  const today = new Date(2026, 4, 20);  // May 20, 2026 - TODAY's date
+  const today = new Date();
 
   // Data state
   const [applications, setApplications] = useState<any[]>([]);
@@ -485,7 +754,7 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
   // Modal state
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
-  const [selectedDay, setSelectedDay] = useState(today.getDate());  // Defaults to today (20)
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [scheduleApp, setScheduleApp] = useState<any | null>(null);
@@ -526,11 +795,15 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
     fetchData();
   }, []);
 
-  const handleApprove = async (applicationId: number, notes: string) => {
+  const handleApprove = async (applicationId: number, data: { notes: string; emailSubject: string; emailBody: string }) => {
     try {
       setActionLoading(true);
-      const response = await apiClient.post(`/recruitment/applications/${applicationId}/approve`, { approval_notes: notes });
-      toast.success('Application approved');
+      const response = await apiClient.post(`/recruitment/applications/${applicationId}/approve`, {
+        approval_notes: data.notes,
+        email_subject: data.emailSubject,
+        email_body: data.emailBody,
+      });
+      toast.success(response.data?.message || 'Application approved');
       setApproveApp(null);
       
       // PRESERVE DATA: Update local state using .map() to preserve ALL properties
@@ -539,7 +812,7 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
           return {
             ...app,  // Spread ALL existing properties (applicant_name, email, etc.)
             status: 'approved',
-            approval_notes: notes,
+            approval_notes: data.notes,
             // Preserve interview data if it exists
             interview: app.interview || response.data?.interview,
           };
@@ -585,12 +858,14 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
     }
   };
 
-  const handleReject = async (applicationId: number, reason: string, feedback: string) => {
+  const handleReject = async (applicationId: number, data: { reason: string; feedback: string; emailSubject: string; emailBody: string }) => {
     try {
       setActionLoading(true);
       const response = await apiClient.post(`/recruitment/applications/${applicationId}/reject`, {
-        denial_reason: reason,
-        denial_feedback: feedback
+        denial_reason: data.reason,
+        denial_feedback: data.feedback,
+        email_subject: data.emailSubject,
+        email_body: data.emailBody,
       });
       toast.success('Application rejected');
       setDenyApp(null);
@@ -601,8 +876,8 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
           return {
             ...app,  // Spread ALL existing properties (applicant_name, email, etc.)
             status: 'rejected',
-            denial_reason: reason,
-            denial_feedback: feedback,
+            denial_reason: data.reason,
+            denial_feedback: data.feedback,
             // Preserve interview data if it exists
             interview: app.interview || response.data?.interview,
           };
@@ -654,7 +929,8 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
       const payload = {
         scheduled_at: isoDateTime,
         venue: data.venue || '',
-        notes: data.notes || '',
+        email_subject: data.emailSubject || '',
+        email_body: data.emailBody || '',
       };
       
       // Find the application to check if it has an existing interview
@@ -683,7 +959,6 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
               id: interviewId,  // Preserve existing interview ID if updating
               scheduled_at: isoDateTime,
               venue: payload.venue,
-              notes: payload.notes,
               ...app.interview,
             },
           };
@@ -716,12 +991,16 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
 
   // Calculate stats
   const pendingApplications = applications.filter(app => 
-    ['pending', 'not_scheduled'].includes((app.status || 'pending').toLowerCase())
+    normalizeApplicationStatus(app) === 'pending'
+  ).length;
+
+  const scheduledApplications = applications.filter(app =>
+    normalizeApplicationStatus(app) === 'scheduled'
   ).length;
   
   const applicationsThisWeek = applications.filter(app => {
     const createdAt = new Date(app.createdAt);
-    // Use hardcoded today (May 20, 2026) instead of system date
+    // Use real today for week calculation
     const sevenDaysAgo = new Date(today);
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     return createdAt >= sevenDaysAgo && createdAt <= today;
@@ -771,26 +1050,15 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
       const searchQuery = search.toLowerCase().trim();
       const matchesSearch = !searchQuery || name.includes(searchQuery) || email.includes(searchQuery) || studentId.includes(searchQuery);
       const appStatus = (app.status || 'pending').toLowerCase();
-      let normalizedStatus = appStatus;
-      if (appStatus === 'not_scheduled') normalizedStatus = 'pending';
-      if (appStatus === 'rejected' || appStatus === 'not_qualified') normalizedStatus = 'disapproved';
-      if (appStatus === 'qualified' || appStatus === 'accepted') normalizedStatus = 'approved';
-      if (appStatus === 'interview_scheduled') normalizedStatus = 'scheduled';
+      const normalizedStatus = normalizeApplicationStatus(app);
       const matchesStatus = statusFilter === "all" || normalizedStatus === statusFilter.toLowerCase() || appStatus === statusFilter.toLowerCase();
       return matchesSearch && matchesStatus;
     });
 
     return finalFilteredData.sort((a, b) => {
       const todayStart = new Date(2026, 4, 20);
-      const norm = (s: string) => {
-        s = s.toLowerCase();
-        if (s === 'not_scheduled' || s === 'pending') return 'pending';
-        if (s === 'rejected' || s === 'disapproved') return 'rejected';
-        if (s === 'approved' || s === 'accepted') return 'approved';
-        return s;
-      };
-      const sa = norm(a.status || 'pending');
-      const sb = norm(b.status || 'pending');
+      const sa = normalizeApplicationStatus(a);
+      const sb = normalizeApplicationStatus(b);
       const aToday = sa === 'scheduled' && a.interview?.scheduled_at && new Date(a.interview.scheduled_at).toDateString() === todayStart.toDateString();
       const bToday = sb === 'scheduled' && b.interview?.scheduled_at && new Date(b.interview.scheduled_at).toDateString() === todayStart.toDateString();
       if (aToday && !bToday) return -1;
@@ -816,7 +1084,7 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
         gridTemplateColumns: "7fr 3fr", 
         gap: "24px", 
         width: "100%", 
-        alignItems: "start", 
+        alignItems: "stretch", 
         boxSizing: "border-box" 
       }}>
 
@@ -833,7 +1101,7 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", width: "100%", boxSizing: "border-box" }}>
               {[
                 { label: "Pending Applications", val: pendingApplications, filterValue: "pending" },
-                { label: "Scheduled Interviews", val: applications.filter(a => a.status === 'interview_scheduled' || a.status === 'scheduled').length, filterValue: "scheduled" },
+                { label: "Scheduled Interviews", val: scheduledApplications, filterValue: "scheduled" },
                 { label: "Applications This Week", val: applicationsThisWeek, filterValue: "all" },
               ].map(({ label, val, filterValue }) => (
                 <div
@@ -856,7 +1124,7 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
             {/* Status Filter and Search Bar */}
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24, flexWrap: "wrap", flexShrink: 0 }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center", whiteSpace: "nowrap" }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>Filter by Status:</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", whiteSpace: "nowrap" }}>Filter by Status:</label>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
@@ -899,7 +1167,7 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
               <thead>
                 <tr style={{ borderBottom: "2px solid #F1F5F9" }}>
                   {["Applicant", "Applied", "Status", "Actions"].map((col) => (
-                    <th key={col} style={{ paddingBottom: 10, textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: "#94A3B8", paddingRight: col === "Actions" ? 0 : 16 }}>
+                    <th key={col} style={{ paddingBottom: 10, textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: "#9CA3AF", paddingRight: col === "Actions" ? 0 : 16 }}>
                       {col}
                     </th>
                   ))}
@@ -907,7 +1175,7 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
               </thead>
               <tbody>
                 {displayedApps.length > 0 ? displayedApps.map((app) => {
-                  const status = app.status ?? "pending";
+                  const status = normalizeApplicationStatus(app);
                   const badge  = STATUS_MAP[status] ?? STATUS_MAP.pending;
                   const appliedDate = (app.applied_at || app.appliedAt)
                     ? new Date(app.applied_at || app.appliedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
@@ -920,16 +1188,13 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
                     >
                       <td style={{ padding: "16px 16px 16px 0" }}>
                         <button onClick={() => setDetailApp(app)}
-                          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
-                          <p style={{ fontSize: 14, fontWeight: 600, color: "#7A1E1E", margin: 0, lineHeight: 1.3, textDecoration: "underline", textDecorationColor: "rgba(122,30,30,0.3)" }}>
+                          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left", fontFamily: "inherit" }}>
+                          <p style={{ fontSize: 14, fontWeight: 500, color: "#8B1E1E", margin: 0, lineHeight: 1.35, textDecoration: "none" }}>
                             {getApplicantName(app)}
                           </p>
                         </button>
-                        <p style={{ fontSize: 11, color: "#94A3B8", margin: "3px 0 0", fontFamily: "monospace" }}>
-                          {getApplicantStudentId(app)}
-                        </p>
                       </td>
-                      <td style={{ padding: "16px 16px 16px 0", fontSize: 13, color: "#64748B", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "16px 16px 16px 0", fontSize: 13, color: "#6B7280", whiteSpace: "nowrap" }}>
                         {appliedDate}
                       </td>
                       <td style={{ padding: "16px 16px 16px 0" }}>
@@ -982,7 +1247,7 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
         </div>
 
         {/* Right side: Calendar/Events - flex-1 stretches to parent height, min-h-[620px] matches table card */}
-        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "24px", boxSizing: "border-box", minWidth: "320px", minHeight: "620px" }}>
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "24px", boxSizing: "border-box", minWidth: "320px", minHeight: "620px", height: "100%", display: "flex", flexDirection: "column" }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", margin: "0 0 16px 0" }}>Interview Schedule</h3>
 
           {loading ? (
@@ -1063,8 +1328,8 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
       </div>
 
       {scheduleApp && <ScheduleModal app={scheduleApp} onClose={() => { setScheduleApp(null); setIsRescheduling(false); }} onConfirm={(data) => handleScheduleInterview(scheduleApp.id, data, isRescheduling)} isLoading={actionLoading} isReschedule={isRescheduling} />}
-      {approveApp && <ApproveModal app={approveApp} onClose={() => setApproveApp(null)} onConfirm={(notes) => handleApprove(approveApp.id, notes)} isLoading={actionLoading} />}
-      {denyApp && <DenyModal app={denyApp} onClose={() => setDenyApp(null)} onConfirm={(reason, feedback) => handleReject(denyApp.id, reason, feedback)} isLoading={actionLoading} />}
+      {approveApp && <ApproveModal app={approveApp} onClose={() => setApproveApp(null)} onConfirm={(data) => handleApprove(approveApp.id, data)} isLoading={actionLoading} />}
+      {denyApp && <DenyModal app={denyApp} onClose={() => setDenyApp(null)} onConfirm={(data) => handleReject(denyApp.id, data)} isLoading={actionLoading} />}
       {detailApp && <ProfileModal app={detailApp} onClose={() => setDetailApp(null)} />}
       {interviewDetailsModal && <InterviewDetailsModal interview={interviewDetailsModal} onClose={() => setInterviewDetailsModal(null)} />}
     </TabsContent>

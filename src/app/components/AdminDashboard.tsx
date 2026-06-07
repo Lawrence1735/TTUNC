@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import engagementService from '../services/engagementService';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -173,43 +174,31 @@ export function AdminDashboard({
     setEngagementFormErrors(prev => ({ ...prev, [fieldName]: error }));
   };
 
-  // Mock created events
-  const [createdEvents, setCreatedEvents] = useState([
-    { id: 'e1', eventName: 'University Foundation Day', date: '11/15/2024', venue: 'UNC Campus', groups: ['marching-band', 'majorettes', 'glee-club', 'dance-club'], description: 'Annual celebration of university founding', status: 'completed' as const, attachment: 'UNC_Foundation_Day_Contract.pdf' },
-    { id: 'e2', eventName: 'UNC Intramurals Opening Ceremony', date: '10/25/2024', venue: 'UNC Sports Complex', groups: ['marching-band', 'dance-club'], description: 'Grand opening of annual intramural sports competition', status: 'completed' as const, attachment: 'Intramurals_Performance_Agreement.pdf' },
-    { id: 'e3', eventName: 'Teacher Recognition Day Program', date: '10/05/2024', venue: 'UNC Main Auditorium', groups: ['glee-club'], description: 'Special tribute performance for UNC educators', status: 'completed' as const },
-    { id: 'e4', eventName: 'Bicol Regional Science Fair', date: '09/18/2024', venue: 'Naga Convention Center', groups: ['marching-band', 'majorettes'], description: 'Opening ceremony performance for regional science competition', status: 'completed' as const },
-    { id: 'e5', eventName: 'Peñafrancia Festival Street Parade', date: '09/08/2024', venue: 'Naga City Streets', groups: ['marching-band', 'majorettes', 'dance-club'], description: 'Traditional parade performance for Naga\'s biggest festival', status: 'completed' as const },
-    { id: 'e6', eventName: 'UNC Alumni Gathering Concert', date: '08/30/2024', venue: 'UNC Gymnasium', groups: ['glee-club', 'dance-club'], description: 'Entertainment for alumni reunion event', status: 'completed' as const },
-    { id: 'e7', eventName: 'Regional Sports Festival Opening', date: '12/25/2024', venue: 'Naga City Sports Complex', groups: ['marching-band', 'majorettes'], description: 'Opening ceremony performance for regional sports competition', status: 'upcoming' as const, attachment: 'Sports_Festival_MOA.pdf' },
-    { id: 'e8', eventName: 'Christmas Charity Concert', date: '12/18/2024', venue: 'Naga Metropolitan Cathedral', groups: ['glee-club'], description: 'Fundraising concert for local charities', status: 'upcoming' as const },
-    { id: 'e9', eventName: 'UNC Scholarship Donors Appreciation Night', date: '12/22/2024', venue: 'UNC Convention Hall', groups: ['glee-club', 'dance-club'], description: 'Special performance to honor scholarship benefactors', status: 'upcoming' as const, attachment: 'Donors_Night_Details.pdf' },
-    { id: 'e10', eventName: 'New Year Countdown Festival', date: '12/31/2024', venue: 'Naga City Plaza', groups: ['marching-band', 'majorettes', 'dance-club'], description: 'City-wide New Year celebration performance', status: 'upcoming' as const },
-    { id: 'e11', eventName: 'Provincial Youth Leadership Summit', date: '01/08/2025', venue: 'Camarines Sur Capitol', groups: ['glee-club'], description: 'Opening number for youth development conference', status: 'upcoming' as const },
-    { id: 'e12', eventName: 'Bicol Cultural Festival', date: '01/15/2025', venue: 'Naga Convention Center', groups: ['marching-band', 'majorettes', 'glee-club', 'dance-club'], description: 'Regional cultural showcase and competition', status: 'upcoming' as const },
-    { id: 'e13', eventName: 'UNC Graduation Ceremony', date: '03/28/2025', venue: 'UNC Main Campus', groups: ['marching-band', 'glee-club'], description: 'Processional and recessional music for commencement exercises', status: 'upcoming' as const },
-    { id: 'e14', eventName: 'Naga City Tourism Week Opening', date: '02/10/2025', venue: 'Naga City Hall', groups: ['glee-club', 'dance-club'], description: 'Launch event for city tourism promotion campaign', status: 'upcoming' as const },
-    { id: 'e15', eventName: 'Corporate Partnership Signing Ceremony', date: '01/20/2025', venue: 'UNC Administration Building', groups: ['glee-club'], description: 'Performance during UNC industry partnership contract signing', status: 'upcoming' as const },
-    { id: 'e16', eventName: 'Bicol Medical Conference', date: '02/05/2025', venue: 'Naga Regent Hotel', groups: ['glee-club'], description: 'Cultural entertainment for regional medical professionals gathering', status: 'upcoming' as const },
-    { id: 'e17', eventName: 'Public Schools Division Athletic Meet', date: '01/30/2025', venue: 'Penafrancia Sports Complex', groups: ['marching-band', 'majorettes'], description: 'Halftime show for regional school sports competition', status: 'upcoming' as const },
-    { id: 'e18', eventName: 'Camarines Sur Foundation Day', date: '02/28/2025', venue: 'Provincial Capitol Grounds', groups: ['marching-band', 'majorettes', 'glee-club', 'dance-club'], description: 'Grand celebration of provincial founding anniversary', status: 'upcoming' as const },
-    { id: 'e19', eventName: 'UNC Research Symposium', date: '03/15/2025', venue: 'UNC Science Building', groups: ['glee-club'], description: 'Opening performance for annual academic research presentations', status: 'upcoming' as const },
-    { id: 'e20', eventName: 'Naga Youth Week Celebration', date: '03/08/2025', venue: 'Naga City Plaza', groups: ['dance-club', 'majorettes'], description: 'Street dance competition and youth cultural showcase', status: 'upcoming' as const },
-    { id: 'e21', eventName: 'University Week Culmination Program', date: '04/05/2025', venue: 'UNC Covered Court', groups: ['marching-band', 'majorettes', 'glee-club', 'dance-club'], description: 'Grand finale of university week celebrations', status: 'upcoming' as const },
-    { id: 'e22', eventName: 'Naga River Festival', date: '03/22/2025', venue: 'Naga River Park', groups: ['glee-club', 'dance-club'], description: 'Environmental awareness cultural program along Naga River', status: 'upcoming' as const }
-  ]);
+  // Events and engagement requests loaded from API
+  const [createdEvents, setCreatedEvents] = useState<any[]>([]);
 
-  // Mock engagement requests from directors
-  const [engagementRequests, setEngagementRequests] = useState([
-    { id: '1', eventName: 'City Christmas Festival Performance', requestedBy: 'City Cultural Office', date: '12/20/2024', venue: 'Naga City Plaza', groups: ['glee-club', 'dance-club'], description: 'Christmas celebration with musical and dance performances for the community.', status: 'pending' as const, attachment: 'Christmas_Festival_Invitation.pdf' },
-    { id: '2', eventName: 'Alumni Homecoming Show', requestedBy: 'Alumni Association', date: '11/30/2024', venue: 'UNC Gymnasium', groups: ['marching-band', 'majorettes'], description: 'Welcome performance for returning alumni during homecoming weekend.', status: 'pending' as const },
-    { id: '3', eventName: 'Rotary Club Charity Gala', requestedBy: 'Rotary Club of Naga', date: '01/12/2025', venue: 'Villa Caceres Hotel', groups: ['glee-club'], description: 'Evening entertainment for fundraising gala dinner supporting education programs.', status: 'pending' as const, attachment: 'Rotary_Gala_Contract.pdf' },
-    { id: '4', eventName: 'SM City Naga Grand Opening Anniversary', requestedBy: 'SM Supermalls Management', date: '12/28/2024', venue: 'SM City Naga Events Center', groups: ['marching-band', 'majorettes', 'dance-club'], description: 'Special anniversary celebration performance for mall patrons and community.', status: 'pending' as const },
-    { id: '5', eventName: 'Camarines Sur Medical Society Convention', requestedBy: 'Medical Society President', date: '02/18/2025', venue: 'Naga Regent Hotel', groups: ['glee-club'], description: 'Opening ceremony performance for annual medical professionals convention.', status: 'pending' as const },
-    { id: '6', eventName: 'Barangay Fiesta Grand Parade', requestedBy: 'Barangay Sta. Cruz', date: '01/25/2025', venue: 'Barangay Sta. Cruz Streets', groups: ['marching-band', 'majorettes'], description: 'Street parade performance for annual barangay patron saint celebration.', status: 'pending' as const },
-    { id: '7', eventName: 'Philippine Independence Day Commemoration', requestedBy: 'City Mayor\'s Office', date: '06/12/2025', venue: 'Naga City Plaza', groups: ['marching-band', 'majorettes', 'glee-club'], description: 'Official city ceremony honoring Philippine independence with musical tributes.', status: 'pending' as const },
-    { id: '8', eventName: 'Bicol IT Summit 2025', requestedBy: 'DICT Bicol Regional Office', date: '04/15/2025', venue: 'Naga Convention Center', groups: ['glee-club', 'dance-club'], description: 'Cultural presentation blending technology and arts for regional IT professionals.', status: 'pending' as const }
-  ]);
+  // Engagement requests from directors
+  const [engagementRequests, setEngagementRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    engagementService.getEngagements().then((data: any[]) => {
+      const events = data.map((e: any) => ({
+        id: String(e.id),
+        eventName: e.event_name ?? e.title ?? '',
+        date: e.date ? new Date(e.date).toLocaleDateString() : '',
+        venue: e.venue ?? '',
+        groups: e.talent_groups ?? [],
+        description: e.description ?? '',
+        status: e.status ?? 'upcoming',
+        attachment: e.attachment ?? undefined,
+      }));
+      setCreatedEvents(events.filter((e: any) => e.status !== 'pending'));
+      setEngagementRequests(events.filter((e: any) => e.status === 'pending').map((e: any) => ({
+        ...e,
+        requestedBy: e.requester_name ?? '',
+      })));
+    }).catch(() => {});
+  }, []);
 
   // Map evaluations to scholarship renewal requests
   const scholarshipRenewals = evaluations.map((evaluation) => {

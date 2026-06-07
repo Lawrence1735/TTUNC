@@ -33,10 +33,15 @@ api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid — clear and redirect to login
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      window.location.reload();
+      const requestUrl = error.config?.url ?? '';
+      const isAuthLoginRequest = requestUrl.includes('auth/login');
+
+      // Keep login failures local to the login form. Only clear stale auth state
+      // for protected endpoint 401 responses.
+      if (!isAuthLoginRequest) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+      }
     }
     return Promise.reject(error);
   },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle, Download, Home } from './ui/icons';
 import { Button } from './ui/button';
 import uncLogo from 'figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png';
@@ -121,7 +121,7 @@ For inquiries, contact: talenttrack@unc.edu.ph
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-gray-600 mb-1">Application Reference ID</p>
-                  <p className="text-lg font-mono font-bold text-blue-600">{applicationId}</p>
+                  <p className="text-lg font-bold text-blue-600">{applicationId}</p>
                 </div>
               </div>
 

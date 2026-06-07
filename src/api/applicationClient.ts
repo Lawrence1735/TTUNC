@@ -1,4 +1,4 @@
-import apiClient from './client';
+import { api as apiClient } from '../app/services/api';
 
 export interface ApplicationResponse {
   id: string;
@@ -68,7 +68,7 @@ class ApplicationClient {
    */
   async submitApplication(applicationData: any): Promise<{ message: string; data: ApplicationResponse }> {
     try {
-      const response = await apiClient.post('/applications', applicationData);
+      const response = await apiClient.post('applications', applicationData);
       return response.data;
     } catch (err: any) {
       console.error('Failed to submit application:', err);
@@ -97,7 +97,7 @@ class ApplicationClient {
       if (filters?.page) params.append('page', filters.page.toString());
 
       const queryString = params.toString();
-      const url = `/recruitment/applications${queryString ? '?' + queryString : ''}`;
+      const url = `recruitment/applications${queryString ? '?' + queryString : ''}`;
       const response = await apiClient.get(url);
 
       return response.data || { data: [], current_page: 1, per_page: 20, total: 0, last_page: 1 };
@@ -116,7 +116,7 @@ class ApplicationClient {
    */
   async getApplication(applicationId: string): Promise<ApplicationResponse> {
     try {
-      const response = await apiClient.get(`/recruitment/applications/${applicationId}`);
+      const response = await apiClient.get(`recruitment/applications/${applicationId}`);
       return response.data?.data || response.data;
     } catch (err: any) {
       console.error(`Failed to fetch application ${applicationId}:`, err);
@@ -140,7 +140,7 @@ class ApplicationClient {
     }
   ): Promise<{ message: string; interview: any }> {
     try {
-      const response = await apiClient.post(`/recruitment/applications/${applicationId}/schedule-interview`, data);
+      const response = await apiClient.post(`recruitment/applications/${applicationId}/schedule-interview`, data);
       return response.data;
     } catch (err: any) {
       console.error(`Failed to schedule interview for ${applicationId}:`, err);
@@ -160,7 +160,7 @@ class ApplicationClient {
     approvalNotes?: string
   ): Promise<{ message: string; data: ApplicationResponse }> {
     try {
-      const response = await apiClient.post(`/recruitment/applications/${applicationId}/approve`, {
+      const response = await apiClient.post(`recruitment/applications/${applicationId}/approve`, {
         approval_notes: approvalNotes,
       });
       return response.data;
@@ -183,7 +183,7 @@ class ApplicationClient {
     denialFeedback?: string
   ): Promise<{ message: string; data: ApplicationResponse }> {
     try {
-      const response = await apiClient.post(`/recruitment/applications/${applicationId}/reject`, {
+      const response = await apiClient.post(`recruitment/applications/${applicationId}/reject`, {
         denial_reason: denialReason,
         denial_feedback: denialFeedback,
       });

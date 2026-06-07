@@ -101,26 +101,26 @@ export const trainingService = {
     status?: string;
     page?: number;
   }): Promise<{ data: Trainee[]; meta: Record<string, unknown> }> {
-    const { data } = await api.get('/training/trainees', { params });
+    const { data } = await api.get('training/trainees', { params });
     return data;
   },
 
   async getTrainee(id: number): Promise<Trainee> {
-    const { data } = await api.get<Trainee>(`/training/trainees/${id}`);
+    const { data } = await api.get<Trainee>(`training/trainees/${id}`);
     return data;
   },
 
   async updateTrainee(id: number, payload: UpdateTraineePayload): Promise<Trainee> {
-    const { data } = await api.patch<Trainee>(`/training/trainees/${id}`, payload);
+    const { data } = await api.patch<Trainee>(`training/trainees/${id}`, payload);
     return data;
   },
 
   async deleteTrainee(id: number): Promise<void> {
-    await api.delete(`/training/trainees/${id}`);
+    await api.delete(`training/trainees/${id}`);
   },
 
   async getTraineeStats(id: number): Promise<TraineeStats> {
-    const { data } = await api.get<TraineeStats>(`/training/trainees/${id}/stats`);
+    const { data } = await api.get<TraineeStats>(`training/trainees/${id}/stats`);
     return data;
   },
 
@@ -130,18 +130,18 @@ export const trainingService = {
     from?: string;
     to?: string;
   }): Promise<AttendanceRecord[]> {
-    const { data } = await api.get<AttendanceRecord[]>('/training/attendance', { params });
+    const { data } = await api.get<AttendanceRecord[]>('training/attendance', { params });
     return data;
   },
 
   async batchUpsertAttendance(payload: BatchAttendancePayload): Promise<AttendanceRecord[]> {
-    const { data } = await api.post<AttendanceRecord[]>('/training/attendance/batch', payload);
+    const { data } = await api.post<AttendanceRecord[]>('training/attendance/batch', payload);
     return data;
   },
 
   async toggleNoPractice(recordId: number): Promise<AttendanceRecord> {
     const { data } = await api.patch<AttendanceRecord>(
-      `/training/attendance/${recordId}/toggle-no-practice`,
+      `training/attendance/${recordId}/toggle-no-practice`,
     );
     return data;
   },
@@ -152,17 +152,17 @@ export const trainingService = {
     semester?: string;
     academic_year?: string;
   }): Promise<Evaluation[]> {
-    const { data } = await api.get<Evaluation[]>('/training/evaluations', { params });
+    const { data } = await api.get<Evaluation[]>('training/evaluations', { params });
     return data;
   },
 
   async storeEvaluation(payload: StoreEvaluationPayload): Promise<Evaluation> {
-    const { data } = await api.post<Evaluation>('/training/evaluations', payload);
+    const { data } = await api.post<Evaluation>('training/evaluations', payload);
     return data;
   },
 
   async getEvaluation(id: number): Promise<Evaluation> {
-    const { data } = await api.get<Evaluation>(`/training/evaluations/${id}`);
+    const { data } = await api.get<Evaluation>(`training/evaluations/${id}`);
     return data;
   },
 
@@ -170,7 +170,7 @@ export const trainingService = {
     id: number,
     payload: Partial<StoreEvaluationPayload>,
   ): Promise<Evaluation> {
-    const { data } = await api.patch<Evaluation>(`/training/evaluations/${id}`, payload);
+    const { data } = await api.patch<Evaluation>(`training/evaluations/${id}`, payload);
     return data;
   },
 };

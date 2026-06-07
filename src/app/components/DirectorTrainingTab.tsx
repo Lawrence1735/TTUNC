@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { TabsContent } from './ui/tabs';
@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 
 interface DirectorTrainingTabProps {
   trainees: any[];
+  droppedTrainees?: any[];
   trainingCompletionRate: number;
   traineeSearchTerm: string;
   setTraineeSearchTerm: (v: string) => void;
@@ -25,12 +26,15 @@ interface DirectorTrainingTabProps {
   setShowTraineePerformanceDialog: (v: boolean) => void;
   setShowAddDateDialog: (v: boolean) => void;
   setShowSummaryReportDialog: (v: boolean) => void;
+  onSyncAttendanceSession?: (sessionDate: string, attendees: Record<string, any>, noPractice?: boolean) => void;
   evaluations: any[];
   getScoreColor: (score: number) => string;
+  onReactivateTrainee?: (trainee: any) => void;
 }
 
 export function DirectorTrainingTab({
   trainees,
+  droppedTrainees = [],
   trainingCompletionRate,
   traineeSearchTerm,
   setTraineeSearchTerm,
@@ -46,8 +50,10 @@ export function DirectorTrainingTab({
   setShowTraineePerformanceDialog,
   setShowAddDateDialog,
   setShowSummaryReportDialog,
+  onSyncAttendanceSession,
   evaluations,
   getScoreColor,
+  onReactivateTrainee,
 }: DirectorTrainingTabProps) {
   // State for expandable evaluation details
   const [expandedEvaluations, setExpandedEvaluations] = useState<Set<string>>(new Set());
@@ -66,6 +72,8 @@ export function DirectorTrainingTab({
     setExpandedEvaluations(newSet);
   };
 
+  const getAttendanceKey = (trainee: any): string => String(trainee?._rawTrainee?.id || trainee?.id || '');
+
   // Debug logging
   useEffect(() => {
     console.log('DirectorTrainingTab received trainees:', {
@@ -76,13 +84,41 @@ export function DirectorTrainingTab({
       voices: traineeVoices
     });
   }, [trainees, traineeInstruments, traineeChapters, traineeVoices]);
+
+  const getTraineeCompletion = (trainee: any): number => {
+    const chapterData = traineeChapters[trainee.id!];
+    if (chapterData !== undefined) {
+      return Math.round((Object.values(chapterData).filter(Boolean).length / 30) * 100);
+    }
+    return Number(trainee?.completionRate ?? 0);
+  };
+
+  const quickStats = useMemo(() => {
+    const statusOf = (t: any) => String(t?.currentStatus ?? t?.trainingStatus ?? t?._rawTrainee?.current_status ?? '').toLowerCase();
+    const activeCount = trainees.filter((t) => {
+      const s = statusOf(t);
+      if (!s) return true;
+      return s === 'active' || s === 'in_progress' || s === 'in-training' || s === 'in training';
+    }).length;
+
+    const completionValues = trainees.map(getTraineeCompletion).filter((v) => Number.isFinite(v));
+    const avgCompletion = completionValues.length > 0
+      ? Math.round(completionValues.reduce((sum, v) => sum + v, 0) / completionValues.length)
+      : Number(trainingCompletionRate || 0);
+
+    return {
+      activeTrainees: activeCount,
+      completionRate: avgCompletion,
+    };
+  }, [trainees, traineeChapters, trainingCompletionRate]);
+
   return (
           <TabsContent value="training" id="tab-panel-training" role="tabpanel" aria-label="Training" className="space-y-6">
             {/* Quick Stats - Compact inline design matching DirectorRecruitment */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", width: "55%", maxWidth: "500px" }}>
               {[
-                { label: "Active Trainees", val: trainees.length },
-                { label: "Completion Rate", val: `${trainingCompletionRate}%` }
+                { label: "Active Trainees", val: quickStats.activeTrainees },
+                { label: "Completion Rate", val: `${quickStats.completionRate}%` }
               ].map(({ label, val }) => (
                 <div key={label} style={{ background: "#fff", borderRadius: 10, border: "1px solid #E5E7EB", boxShadow: "0 1px 6px rgba(0,0,0,0.06)", padding: "12px 14px", display: "flex", flexDirection: "column", justifyContent: "center", boxSizing: "border-box" }}>
                   <p style={{ fontSize: 10, color: "#94A3B8", marginTop: 0, marginBottom: 6, marginLeft: 0, marginRight: 0 }}>{label}</p>
@@ -90,6 +126,36 @@ export function DirectorTrainingTab({
                 </div>
               ))}
             </div>
+
+            {droppedTrainees.length > 0 && (
+              <Card className="border border-[#e0e0e0] shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-[16px] text-[#7A1E1E]">Deactivated Trainees</CardTitle>
+                  <CardDescription>Reactivate trainees to return them to the active roster.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {droppedTrainees.map((trainee) => (
+                    <div key={trainee.id} className="flex items-center justify-between border border-[#e0e0e0] rounded-md px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium text-[#1a1a1a]">{trainee.name}</p>
+                        <p className="text-xs text-[#6c757d]">{trainee.studentId || trainee.email || 'No ID'}</p>
+                        {trainee.deactivationNote && (
+                          <p className="text-xs text-[#7A1E1E] mt-1">Reason: {trainee.deactivationNote}</p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white"
+                        onClick={() => onReactivateTrainee?.(trainee)}
+                      >
+                        Reactivate
+                      </Button>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Trainee Management Table */}
             <Card className="border-[1.6px] border-[#e0e0e0] shadow-md">
@@ -283,12 +349,12 @@ export function DirectorTrainingTab({
                   const selectedRecord = trainingAttendance.find(
                     r => new Date(r.date).toLocaleDateString('en-CA') === selectedAttendanceDate
                   );
-                  const presentCount = trainees.filter(t => selectedRecord?.attendees?.[t.id!] === 'present').length;
+                  const presentCount = trainees.filter(t => selectedRecord?.attendees?.[getAttendanceKey(t)] === 'present').length;
                   const absentCount = trainees.filter(t => {
-                    const s = selectedRecord?.attendees?.[t.id!];
+                    const s = selectedRecord?.attendees?.[getAttendanceKey(t)];
                     return s !== 'present' && s !== 'excused';
                   }).length;
-                  const excusedCount = trainees.filter(t => selectedRecord?.attendees?.[t.id!] === 'excused').length;
+                  const excusedCount = trainees.filter(t => selectedRecord?.attendees?.[getAttendanceKey(t)] === 'excused').length;
                   const sessionRate = trainees.length > 0 ? Math.round((presentCount / trainees.length) * 100) : 0;
 
                   return (
@@ -449,10 +515,11 @@ export function DirectorTrainingTab({
                               </thead>
                               <tbody className="divide-y divide-[#f5f5f5]">
                                 {trainees.map((trainee, idx) => {
-                                  const currentStatus = (selectedRecord.attendees?.[trainee.id!] || 'absent') as 'present' | 'absent' | 'excused';
+                                  const attendanceKey = getAttendanceKey(trainee);
+                                  const currentStatus = (selectedRecord.attendees?.[attendanceKey] || 'absent') as 'present' | 'absent' | 'excused';
                                   const allPracticeDays = trainingAttendance.filter(r => !r.noPractice);
                                   const totalSessions = allPracticeDays.length;
-                                  const presentTotal = allPracticeDays.filter(r => r.attendees?.[trainee.id!] === 'present').length;
+                                  const presentTotal = allPracticeDays.filter(r => r.attendees?.[attendanceKey] === 'present').length;
                                   const overallRate = totalSessions > 0 ? Math.round((presentTotal / totalSessions) * 100) : 0;
                                   const instrument = trainee.instrument || traineeInstruments[trainee.id!] || traineeVoices[trainee.id!] || '';
                                   const chapterData = traineeChapters[trainee.id!] || {};
@@ -486,10 +553,16 @@ export function DirectorTrainingTab({
                                               onClick={() => {
                                                 const updated = trainingAttendance.map(r =>
                                                   new Date(r.date).toLocaleDateString('en-CA') === selectedAttendanceDate
-                                                    ? { ...r, attendees: { ...r.attendees, [trainee.id!]: status } }
+                                                    ? { ...r, attendees: { ...r.attendees, [attendanceKey]: status } }
                                                     : r
                                                 );
                                                 setTrainingAttendance(updated);
+                                                const selectedUpdated = updated.find(
+                                                  (r) => new Date(r.date).toLocaleDateString('en-CA') === selectedAttendanceDate
+                                                );
+                                                if (selectedUpdated && onSyncAttendanceSession) {
+                                                  onSyncAttendanceSession(selectedAttendanceDate, selectedUpdated.attendees, Boolean(selectedUpdated.noPractice));
+                                                }
                                               }}
                                               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                                                 currentStatus === status

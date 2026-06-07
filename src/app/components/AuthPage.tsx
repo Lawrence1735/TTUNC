@@ -77,7 +77,6 @@ export function AuthPage({ onLogin, onBack }: AuthPageProps) {
               width="56"
               height="56"
               loading="eager"
-              fetchPriority="high"
             />
           </div>
           <h1 className="text-2xl unc-burgundy-text mb-1">TalentTrackUNC</h1>

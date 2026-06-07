@@ -14,6 +14,15 @@ class Product extends Model
         'quantity',
         'price',
         'assigned_to',
+        'type',
+        'condition',
+        'status',
+        'talent_group',
+        'serial_number',
+        'property_type',
+        'instrument_type',
+        'accessory_type',
+        'uniform_set',
     ];
 
     protected $casts = [

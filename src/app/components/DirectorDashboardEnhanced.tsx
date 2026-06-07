@@ -75,6 +75,7 @@ import { TraineeDetailsDialog } from './TraineeDetailsDialog';
 import type { Evaluation } from './types';
 import trainingClient from '../../api/trainingClient';
 import { applicationClient, ApplicationResponse } from '../../api/applicationClient';
+import engagementService from '../services/engagementService';
 
 interface DirectorDashboardProps {
   user: UserType;
@@ -175,28 +176,7 @@ export function DirectorDashboardEnhanced({
   const [fetchedApplications, setFetchedApplications] = useState<ApplicationResponse[]>([]);
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   
-  const [interviewSchedules, setInterviewSchedules] = useState<InterviewSchedule[]>([
-    {
-      id: 'int1',
-      applicationId: 'app1',
-      applicantName: 'Juan Dela Cruz',
-      applicantEmail: 'juan.delacruz@student.unc.edu.ph',
-      date: '2024-11-15',
-      time: '10:00 AM',
-      venue: 'Music Building Room 201',
-      status: 'scheduled'
-    },
-    {
-      id: 'int2',
-      applicationId: 'app2',
-      applicantName: 'Maria Santos',
-      applicantEmail: 'maria.santos@student.unc.edu.ph',
-      date: '2024-11-15',
-      time: '11:00 AM',
-      venue: 'Music Building Room 201',
-      status: 'scheduled'
-    }
-  ]);
+  const [interviewSchedules, setInterviewSchedules] = useState<InterviewSchedule[]>([]);
 
   const [interviewForm, setInterviewForm] = useState({
     date: '',
@@ -292,30 +272,10 @@ export function DirectorDashboardEnhanced({
   const [editingUpdate, setEditingUpdate] = useState<LatestUpdate | null>(null);
   
   // Instrument assignment and training chapters
-  const [traineeInstruments, setTraineeInstruments] = useState<{[traineeId: string]: string}>({
-    'trainee1': 'Trumpet',
-    'trainee2': 'Clarinet'
-  });
+  const [traineeInstruments, setTraineeInstruments] = useState<{[traineeId: string]: string}>({});
   // Voice assignment for Glee Club
   const [traineeVoices, setTraineeVoices] = useState<{[traineeId: string]: string}>({});
-  const [traineeChapters, setTraineeChapters] = useState<{[traineeId: string]: {[chapter: number]: boolean}}>({
-    'trainee1': {
-      1: true, 2: true, 3: true, 4: true, 5: true, 
-      6: true, 7: true, 8: true, 9: true, 10: true,
-      11: true, 12: true, 13: true, 14: true, 15: true,
-      16: true, 17: true, 18: true, 19: true, 20: false,
-      21: false, 22: false, 23: false, 24: false, 25: false,
-      26: false, 27: false, 28: false, 29: false, 30: false
-    },
-    'trainee2': {
-      1: true, 2: true, 3: true, 4: true, 5: true,
-      6: true, 7: true, 8: false, 9: false, 10: false,
-      11: false, 12: false, 13: false, 14: false, 15: false,
-      16: false, 17: false, 18: false, 19: false, 20: false,
-      21: false, 22: false, 23: false, 24: false, 25: false,
-      26: false, 27: false, 28: false, 29: false, 30: false
-    }
-  });
+  const [traineeChapters, setTraineeChapters] = useState<{[traineeId: string]: {[chapter: number]: boolean}}>({});
 
   // Chapter evaluation tracking: { traineeId: { chapterNum: { passed: boolean, score: number, date?: Date } } }
   const [chapterEvaluations, setChapterEvaluations] = useState<{
@@ -343,9 +303,9 @@ export function DirectorDashboardEnhanced({
   
   // Trainee status tracking (in_training or deactivated)
   const [traineeStatuses, setTraineeStatuses] = useState<{ [userId: string]: 'in_training' | 'deactivated' }>({});
-  const [deactivatedTrainees, setDeactivatedTrainees] = useState<UserType[]>([]);
   const [showDeactivateWarning, setShowDeactivateWarning] = useState(false);
   const [traineeToDeactivate, setTraineeToDeactivate] = useState<UserType | null>(null);
+  const [deactivationReason, setDeactivationReason] = useState('');
 
   // Attendance tracking for training
   const [trainingAttendance, setTrainingAttendance] = useState<AttendanceRecord[]>([]);
@@ -403,30 +363,8 @@ export function DirectorDashboardEnhanced({
     scholarSignatureDate: ''
   });
 
-  // Engagement requests
-  const [engagementRequests, setEngagementRequests] = useState<EngagementRequest[]>([
-    {
-      id: 'eng1',
-      eventName: 'University Foundation Day',
-      date: new Date('2024-12-15'),
-      time: '14:00',
-      venue: 'UNC Main Auditorium',
-      description: 'Annual foundation day celebration performance',
-      status: 'pending',
-      attachment: 'Foundation_Day_Event_Details.pdf'
-    },
-    {
-      id: 'eng2',
-      eventName: 'City Christmas Festival',
-      date: new Date('2024-12-20'),
-      time: '18:00',
-      venue: 'Naga City Plaza',
-      description: 'Community Christmas celebration',
-      status: 'accepted',
-      attendanceRecords: [{ date: '2024-12-20', attendees: {} }],
-      attachment: 'Christmas_Festival_MOA.pdf'
-    }
-  ]);
+  // Engagement requests — loaded from API
+  const [engagementRequests, setEngagementRequests] = useState<EngagementRequest[]>([]);
 
   // Assignment forms
   const [uniformForm, setUniformForm] = useState({
@@ -479,91 +417,7 @@ export function DirectorDashboardEnhanced({
     instruments: Array<{name: string; serialNumber: string; condition: string; assignedDate: Date}>;
     accessories: Array<{name: string; quantity: number; assignedDate: Date}>;
     status: 'active' | 'inactive';
-  }}>({
-    'trainee1': {
-      status: 'active',
-      uniforms: [
-        { item: 'Marching Band Jacket', size: 'M', assignedDate: new Date('2024-09-01') },
-        { item: 'Uniform Pants', size: '32', assignedDate: new Date('2024-09-01') },
-        { item: 'White Gloves', size: 'L', assignedDate: new Date('2024-09-01') },
-        { item: 'Marching Shoes', size: '10', assignedDate: new Date('2024-09-01') }
-      ],
-      instruments: [
-        { name: 'Trumpet', serialNumber: 'TRP-2024-005', condition: 'Excellent', assignedDate: new Date('2024-09-05') },
-        { name: 'Music Stand', serialNumber: 'MS-089', condition: 'Good', assignedDate: new Date('2024-09-05') }
-      ],
-      accessories: [
-        { name: 'Valve Oil', quantity: 2, assignedDate: new Date('2024-09-10') },
-        { name: 'Cleaning Kit', quantity: 1, assignedDate: new Date('2024-09-10') }
-      ]
-    },
-    'trainee2': {
-      status: 'active',
-      uniforms: [
-        { item: 'Marching Band Jacket', size: 'L', assignedDate: new Date('2024-09-01') },
-        { item: 'Uniform Pants', size: '34', assignedDate: new Date('2024-09-01') },
-        { item: 'White Gloves', size: 'M', assignedDate: new Date('2024-09-01') }
-      ],
-      instruments: [
-        { name: 'Clarinet', serialNumber: 'CLR-2024-012', condition: 'Good', assignedDate: new Date('2024-09-05') }
-      ],
-      accessories: [
-        { name: 'Reed Case', quantity: 1, assignedDate: new Date('2024-09-10') },
-        { name: 'Cork Grease', quantity: 1, assignedDate: new Date('2024-09-10') }
-      ]
-    },
-    'trainee3': {
-      status: 'inactive',
-      uniforms: [
-        { item: 'Marching Band Jacket', size: 'S', assignedDate: new Date('2024-08-15') },
-        { item: 'Uniform Pants', size: '30', assignedDate: new Date('2024-08-15') }
-      ],
-      instruments: [
-        { name: 'Snare Drum', serialNumber: 'SD-2024-003', condition: 'Fair', assignedDate: new Date('2024-08-20') }
-      ],
-      accessories: []
-    },
-    // Majorettes Scholars
-    'scholar-maj-1': {
-      status: 'active',
-      uniforms: [
-        { item: 'Performance Dress', size: 'S', assignedDate: new Date('2024-09-01') },
-        { item: 'Headdress', size: 'One Size', assignedDate: new Date('2024-09-01') },
-        { item: 'Performance Shoes', size: '7', assignedDate: new Date('2024-09-01') }
-      ],
-      instruments: [],
-      accessories: [
-        { name: 'Baton (Primary)', quantity: 1, assignedDate: new Date('2024-09-05') },
-        { name: 'Baton (Backup)', quantity: 1, assignedDate: new Date('2024-09-05') }
-      ]
-    },
-    'scholar-maj-2': {
-      status: 'active',
-      uniforms: [
-        { item: 'Performance Dress', size: 'M', assignedDate: new Date('2024-09-01') },
-        { item: 'Headdress', size: 'One Size', assignedDate: new Date('2024-09-01') },
-        { item: 'Performance Shoes', size: '8', assignedDate: new Date('2024-09-01') }
-      ],
-      instruments: [],
-      accessories: [
-        { name: 'Baton (Primary)', quantity: 1, assignedDate: new Date('2024-09-05') },
-        { name: 'Baton (Backup)', quantity: 1, assignedDate: new Date('2024-09-05') }
-      ]
-    },
-    'scholar-maj-3': {
-      status: 'active',
-      uniforms: [
-        { item: 'Performance Dress', size: 'S', assignedDate: new Date('2024-09-01') },
-        { item: 'Headdress', size: 'One Size', assignedDate: new Date('2024-09-01') },
-        { item: 'Performance Shoes', size: '7', assignedDate: new Date('2024-09-01') }
-      ],
-      instruments: [],
-      accessories: [
-        { name: 'Baton (Primary)', quantity: 1, assignedDate: new Date('2024-09-05') },
-        { name: 'Baton (Backup)', quantity: 1, assignedDate: new Date('2024-09-05') }
-      ]
-    }
-  });
+  }}>({});
 
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [scholarSearchTerm, setScholarSearchTerm] = useState('');
@@ -588,6 +442,74 @@ export function DirectorDashboardEnhanced({
   // Trainee API state
   const [traineesList, setTraineesList] = useState<any[]>([]);
   const [traineesLoading, setTraineesLoading] = useState(true);
+
+  const normalizeAttendanceStatus = (value: any): 'present' | 'absent' | 'excused' => {
+    if (value === 'present' || value === true) return 'present';
+    if (value === 'excused') return 'excused';
+    return 'absent';
+  };
+
+  const resolveAttendanceTraineeId = (traineeKey: string | number, sourceList?: any[]): number | null => {
+    const list = sourceList || traineesList;
+    const matched = list.find((t: any) => String(t?.id) === String(traineeKey) || String(t?.user_id) === String(traineeKey));
+    if (!matched) return null;
+    const id = Number(matched.id);
+    return Number.isFinite(id) ? id : null;
+  };
+
+  const loadTrainingAttendanceFromBackend = async () => {
+    try {
+      const rows = await trainingClient.getAttendance();
+      const grouped: Record<string, AttendanceRecord> = {};
+
+      rows.forEach((row: any) => {
+        const dateKey = String(row.session_date || '').slice(0, 10);
+        if (!dateKey) return;
+
+        if (!grouped[dateKey]) {
+          grouped[dateKey] = {
+            date: dateKey,
+            attendees: {},
+            noPractice: Boolean(row.no_practice),
+          };
+        }
+
+        grouped[dateKey].noPractice = Boolean(grouped[dateKey].noPractice || row.no_practice);
+        grouped[dateKey].attendees[String(row.trainee_id)] = normalizeAttendanceStatus(row.status);
+      });
+
+      const mapped = Object.values(grouped).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      setTrainingAttendance(mapped);
+    } catch (err: any) {
+      console.error('Failed to load attendance from backend:', err);
+      toast.error(err.message || 'Failed to load attendance records');
+    }
+  };
+
+  const syncAttendanceSessionToBackend = async (
+    sessionDate: string,
+    attendees: Record<string, any>,
+    noPractice = false
+  ) => {
+    const records = Object.entries(attendees)
+      .map(([traineeKey, status]) => {
+        const backendTraineeId = resolveAttendanceTraineeId(traineeKey);
+        if (!backendTraineeId) return null;
+        return {
+          trainee_id: backendTraineeId,
+          attended: normalizeAttendanceStatus(status) === 'present',
+        };
+      })
+      .filter(Boolean) as Array<{ trainee_id: number; attended: boolean }>;
+
+    if (records.length === 0) return;
+
+    await trainingClient.upsertAttendanceSession({
+      session_date: sessionDate,
+      no_practice: noPractice,
+      records,
+    });
+  };
 
   // Function to fetch trainees from API
   const refetchTrainees = async () => {
@@ -643,6 +565,7 @@ export function DirectorDashboardEnhanced({
       setTraineeInstruments(newInstruments);
       setTraineeVoices(newVoices);
       setTraineeChapters(newChapters);
+      await loadTrainingAttendanceFromBackend();
       
     } catch (err: any) {
       console.error('Failed to fetch trainees:', err);
@@ -672,10 +595,26 @@ export function DirectorDashboardEnhanced({
     refetchTrainees();
     refetchApplications();
     console.log('[DirectorDashboardEnhanced] Fetching trainees and applications on mount...');
+    engagementService.getEngagements().then((data: any[]) => {
+      setEngagementRequests(data.map((e: any) => ({
+        id: String(e.id),
+        eventName: e.event_name ?? e.title ?? '',
+        date: new Date(e.date),
+        time: e.time ?? '',
+        venue: e.venue ?? '',
+        description: e.description ?? '',
+        status: 'accepted' as const,
+      })));
+    }).catch(() => {});
   }, []);
 
   // Talent group flags for conditional rendering (must be defined before inventory data)
   const directorTalentGroup = user.talentGroup || '';
+
+  useEffect(() => {
+    console.log(`%c[Director] users updated: total=${users?.length}, scholars=${users?.filter(u=>u.role==='scholar').length}, directorGroup="${directorTalentGroup}", user.talentGroup="${user?.talentGroup}"`, 'color:#1E7A3E;font-weight:bold');
+  }, [users, directorTalentGroup]);
+
   const isMarchingBand = directorTalentGroup === 'marching-band';
   const isMajorettes = directorTalentGroup === 'majorettes';
   const isGleeClub = directorTalentGroup === 'glee-club';
@@ -718,9 +657,9 @@ export function DirectorDashboardEnhanced({
   );
 
   const pendingApps = filteredApplications.length;
-  const activeTrainees = (users || []).filter(u => 
-    u.talentGroup === directorTalentGroup && 
-    u.trainingStatus === 'in_progress'
+  // activeTrainees is derived from traineesList (fetched via trainingClient) — not from users
+  const activeTrainees = traineesList.filter((t: any) =>
+    (t.current_status === 'active' || t.current_status === 'in_progress')
   ).length;
   const totalScholars = (users || []).filter(u => 
     u.talentGroup === directorTalentGroup && 
@@ -737,18 +676,30 @@ export function DirectorDashboardEnhanced({
     new Date(app.appliedAt) >= oneWeekAgo
   ).length;
 
-  // Filter users for different modules
-  // Use API-fetched traineesList if available, otherwise fall back to users prop
-  const allTrainees = traineesList.length > 0 
-    ? traineesList.map((trainee: any) => ({
+  // Use API-fetched traineesList (from trainingClient) as the sole source for trainees
+  const allTrainees = traineesList.map((trainee: any) => ({
         // UserType fields
         id: trainee.user_id || trainee.id,
         name: trainee.user?.name || trainee.name || '',
         email: trainee.user?.email || trainee.email || '',
         role: 'student' as const,
-        applicationStatus: 'approved' as const,
+        studentId: trainee.user?.student_id || trainee.student_id || '',
+        phone: trainee.user?.phone || trainee.phone || '',
+      gender: trainee.user?.gender || trainee.gender || '',
+      age: trainee.user?.age || trainee.age || '',
+      birthdate: trainee.user?.birthdate || trainee.user?.date_of_birth || trainee.birthdate || trainee.date_of_birth || '',
+        yearLevel: trainee.user?.year_level || trainee.year_level || '',
+        course: trainee.user?.course || trainee.course || '',
+        department: trainee.user?.department || trainee.department || '',
+        address: trainee.user?.address || trainee.address || '',
+      emergencyContact: trainee.user?.emergency_contact || trainee.user?.guardian_name || trainee.emergency_contact || trainee.guardian_name || '',
+      emergencyPhone: trainee.user?.emergency_phone || trainee.user?.guardian_phone || trainee.emergency_phone || trainee.guardian_phone || '',
+      emergencyContactRelationship: trainee.user?.guardian_relationship || trainee.guardian_relationship || '',
+      guardianName: trainee.user?.guardian_name || trainee.guardian_name || '',
+      guardianContact: trainee.user?.guardian_phone || trainee.guardian_phone || '',
+        applicationStatus: (trainee.user?.application_status || 'approved') as any,
         trainingStatus: trainee.current_status === 'active' ? 'in_progress' : trainee.current_status,
-        talentGroup: directorTalentGroup,
+        talentGroup: trainee.user?.talent_group || trainee.talent_group || directorTalentGroup,
         assignedInstrument: trainee.instrument,
         assignedVoice: trainee.voice,
         dateJoined: trainee.date_joined || trainee.dateJoined,
@@ -757,27 +708,23 @@ export function DirectorDashboardEnhanced({
         currentStatus: trainee.current_status || 'inactive',
         instrument: trainee.instrument || '',
         voice: trainee.voice || '',
+        deactivationNote: trainee.deactivation_note || '',
         chapter: trainee.chapter || '',
         totalExpectedSessions: trainee.total_expected_sessions || 0,
         // Store full trainee object for reference
         _rawTrainee: trainee,
-      } as any))
-    : (users || []).filter(u => 
-        u.role === 'student' && 
-        u.applicationStatus === 'approved' && 
-        u.trainingStatus !== 'completed' &&
-        u.talentGroup === directorTalentGroup
-      );
+      } as any));
   
-  // Filter out deactivated trainees from active list
-  const trainees = allTrainees.filter(t => 
-    !deactivatedTrainees.find(dt => dt.id === t.id)
-  );
+  // Keep active and in-progress trainees in the roster so assignments can be made.
+  const trainees = allTrainees.filter((t: any) => {
+    const status = String(t.currentStatus || '').toLowerCase();
+    return status === 'active' || status === 'inactive' || status === 'in_progress' || status === 'in-progress' || status === 'in training' || status === 'in_training';
+  });
+  const droppedTrainees = allTrainees.filter((t: any) => String(t.currentStatus || '').toLowerCase() === 'dropped');
   
-  // Training stats calculations
-  const completedTrainees = (users || []).filter(u => 
-    u.talentGroup === directorTalentGroup && 
-    u.trainingStatus === 'completed'
+  // Training stats calculations — use traineesList from trainingClient, not users prop
+  const completedTrainees = traineesList.filter((t: any) =>
+    t.current_status === 'completed' || t.current_status === 'qualified'
   ).length;
   
   const totalTrainedCount = trainees.length + completedTrainees;
@@ -828,6 +775,22 @@ export function DirectorDashboardEnhanced({
   };
   
   const avgAttendanceRate = calculateAttendanceRate();
+
+  const handleReactivateTrainee = async (trainee: any) => {
+    const backendTraineeId = resolveBackendTraineeId(String(trainee?.id || ''));
+    if (!backendTraineeId) {
+      toast.error('Unable to resolve trainee record. Please refresh and try again.');
+      return;
+    }
+
+    try {
+      await trainingClient.updateTrainee(backendTraineeId, { current_status: 'active' } as any);
+      await refetchTrainees();
+      toast.success(`${trainee.name} has been reactivated`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to reactivate trainee');
+    }
+  };
   
   const scholars = users
     .filter(u => 
@@ -1182,12 +1145,9 @@ University of Nueva Caceres`
   };
 
   // Check if scholar is ready for evaluation
-  const isReadyForEvaluation = (scholarId: string) => {
-    // Mock performance data - in real app, this would check actual attendance and grade submissions
-    // For demo purposes, we'll say scholars with ID containing '1' or '2' are ready
-    const hasGoodAttendance = Math.random() > 0.3; // 70% have good attendance
-    const hasSubmittedGrades = Math.random() > 0.4; // 60% have submitted grades
-    return hasGoodAttendance && hasSubmittedGrades;
+  const isReadyForEvaluation = (_scholarId: string) => {
+    // Evaluation readiness is determined by the director
+    return true;
   };
 
   // Helper functions for new evaluation form
@@ -1407,18 +1367,28 @@ University of Nueva Caceres`;
       return;
     }
 
-    const newRecord: AttendanceRecord = {
-      date: newAttendanceDate,
-      attendees: {}
+    const saveDate = async () => {
+      try {
+        const defaultAttendees = Object.fromEntries(
+          trainees
+            .map((t) => {
+              const id = resolveAttendanceTraineeId(String(t._rawTrainee?.id || t.id));
+              return id ? [String(id), 'absent'] : null;
+            })
+            .filter(Boolean) as Array<[string, 'absent']>
+        );
+
+        await syncAttendanceSessionToBackend(newAttendanceDate, defaultAttendees, false);
+        await loadTrainingAttendanceFromBackend();
+        toast.success('Attendance date added successfully');
+        setShowAddDateDialog(false);
+        setNewAttendanceDate('');
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to save attendance date');
+      }
     };
 
-    setTrainingAttendance([...trainingAttendance, newRecord].sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    ));
-
-    toast.success('Attendance date added successfully');
-    setShowAddDateDialog(false);
-    setNewAttendanceDate('');
+    void saveDate();
   };
 
   const handleGenerateAttendanceDates = () => {
@@ -1464,59 +1434,74 @@ University of Nueva Caceres`;
       return;
     }
 
-    // Create attendance records for generated dates
-    const newRecords: AttendanceRecord[] = generatedDates.map(date => ({
-      date,
-      attendees: {}
-    }));
+    const saveGeneratedDates = async () => {
+      try {
+        const defaultAttendees = Object.fromEntries(
+          trainees
+            .map((t) => {
+              const id = resolveAttendanceTraineeId(String(t._rawTrainee?.id || t.id));
+              return id ? [String(id), 'absent'] : null;
+            })
+            .filter(Boolean) as Array<[string, 'absent']>
+        );
 
-    setTrainingAttendance([...trainingAttendance, ...newRecords].sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    ));
+        for (const date of generatedDates) {
+          await syncAttendanceSessionToBackend(date, defaultAttendees, false);
+        }
 
-    toast.success(`Successfully generated ${generatedDates.length} attendance date(s)`);
-    setShowAddDateDialog(false);
-    setDateGenerationForm({
-      startDate: '',
-      endDate: '',
-      frequency: 'weekly',
-      trainingDays: []
-    });
+        await loadTrainingAttendanceFromBackend();
+        toast.success(`Successfully generated ${generatedDates.length} attendance date(s)`);
+        setShowAddDateDialog(false);
+        setDateGenerationForm({
+          startDate: '',
+          endDate: '',
+          frequency: 'weekly',
+          trainingDays: []
+        });
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to generate attendance dates');
+      }
+    };
+
+    void saveGeneratedDates();
   };
 
   const toggleAttendance = (dateIndex: number, traineeId: string) => {
-    setTrainingAttendance(prev => {
-      const updated = [...prev];
-      updated[dateIndex] = {
-        ...updated[dateIndex],
-        attendees: {
-          ...updated[dateIndex].attendees,
-          [traineeId]: !updated[dateIndex].attendees[traineeId]
-        }
-      };
-      return updated;
-    });
+    const updated = [...trainingAttendance];
+    const current = normalizeAttendanceStatus(updated[dateIndex].attendees[traineeId]);
+    const next = current === 'present' ? 'absent' : 'present';
+
+    updated[dateIndex] = {
+      ...updated[dateIndex],
+      attendees: {
+        ...updated[dateIndex].attendees,
+        [traineeId]: next
+      }
+    };
+
+    setTrainingAttendance(updated);
+    void syncAttendanceSessionToBackend(updated[dateIndex].date, updated[dateIndex].attendees, Boolean(updated[dateIndex].noPractice));
   };
 
   const markAllForDate = (dateIndex: number, present: boolean) => {
-    setTrainingAttendance(prev => {
-      const updated = [...prev];
-      const attendees: { [key: string]: boolean } = {};
-      
-      trainees.forEach(trainee => {
-        if (trainee.id) {
-          attendees[trainee.id] = present;
-        }
-      });
-      
-      updated[dateIndex] = {
-        ...updated[dateIndex],
-        attendees
-      };
-      
-      toast.success(`All trainees marked as ${present ? 'present' : 'absent'} for ${new Date(updated[dateIndex].date).toLocaleDateString()}`);
-      return updated;
+    const updated = [...trainingAttendance];
+    const attendees: { [key: string]: 'present' | 'absent' } = {};
+
+    trainees.forEach((trainee) => {
+      const id = resolveAttendanceTraineeId(String(trainee._rawTrainee?.id || trainee.id));
+      if (id) {
+        attendees[String(id)] = present ? 'present' : 'absent';
+      }
     });
+
+    updated[dateIndex] = {
+      ...updated[dateIndex],
+      attendees
+    };
+
+    setTrainingAttendance(updated);
+    void syncAttendanceSessionToBackend(updated[dateIndex].date, attendees, Boolean(updated[dateIndex].noPractice));
+    toast.success(`All trainees marked as ${present ? 'present' : 'absent'} for ${new Date(updated[dateIndex].date).toLocaleDateString()}`);
   };
 
   // Chapter Locking System Helper Functions
@@ -1545,6 +1530,60 @@ University of Nueva Caceres`;
       }
     }
     return false;
+  };
+
+  const resolveBackendTraineeId = (traineeId: string): number | null => {
+    const matched = traineesList.find((t: any) =>
+      String(t?.id) === String(traineeId) || String(t?.user_id) === String(traineeId)
+    );
+
+    if (!matched) return null;
+
+    const id = Number(matched.id);
+    return Number.isFinite(id) ? id : null;
+  };
+
+  const buildNormalizedChapterMap = (chapters?: Record<string | number, boolean>): Record<string, boolean> => {
+    const normalized: Record<string, boolean> = {};
+    for (let i = 1; i <= 30; i++) {
+      normalized[String(i)] = Boolean(chapters?.[i] ?? chapters?.[String(i)]);
+    }
+    return normalized;
+  };
+
+  const persistTraineeTrainingState = async (
+    traineeUserId: string,
+    updates: {
+      instrument?: string;
+      voice?: string;
+      chapters?: Record<string | number, boolean>;
+    }
+  ) => {
+    const backendTraineeId = resolveBackendTraineeId(traineeUserId);
+    if (!backendTraineeId) {
+      toast.error('Unable to resolve trainee record. Please refresh and try again.');
+      return;
+    }
+
+    const currentInstrument = updates.instrument ?? traineeInstruments[traineeUserId] ?? undefined;
+    const currentVoice = updates.voice ?? traineeVoices[traineeUserId] ?? undefined;
+    const normalizedChapters = buildNormalizedChapterMap(updates.chapters ?? traineeChapters[traineeUserId]);
+    const completedCount = Object.values(normalizedChapters).filter(Boolean).length;
+    const latestCompletedChapter = Math.max(
+      0,
+      ...Object.entries(normalizedChapters)
+        .filter(([, done]) => Boolean(done))
+        .map(([chapter]) => Number(chapter))
+        .filter((num) => Number.isFinite(num))
+    );
+
+    await trainingClient.updateTrainee(backendTraineeId, {
+      instrument: currentInstrument,
+      voice: currentVoice,
+      chapters_completed: normalizedChapters,
+      completion_rate: Math.round((completedCount / 30) * 100),
+      chapter: latestCompletedChapter > 0 ? `Chapter ${latestCompletedChapter}` : undefined,
+    } as any);
   };
 
   const handleChapterEvalSubmit = () => {
@@ -1581,18 +1620,34 @@ University of Nueva Caceres`;
     
     try {
       const { traineeId } = selectedChapterForEval;
+      const backendTraineeId = resolveBackendTraineeId(traineeId);
+      if (!backendTraineeId) {
+        toast.error('Unable to resolve trainee record. Please refresh and try again.');
+        return;
+      }
+
       const scoreValues = Object.values(scores);
       const average = scoreValues.length > 0 ? scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length : 0;
       const passed = average >= 3.0; // Pass threshold
+      const ratingOutOf100 = Math.max(1, Math.min(100, Math.round((average / 5) * 100)));
+      const recommendation = passed ? 'continue' : 'probation';
+      const evaluationDate = new Date().toISOString().slice(0, 10);
+
+      const criteriaSummary = Object.entries(scores)
+        .map(([criterion, value]) => `${criterion}: ${value}`)
+        .join(', ');
+      const chapterSummary = `Chapter ${chapterNum} | Avg: ${average.toFixed(2)}/5 | ${passed ? 'PASSED' : 'NEEDS IMPROVEMENT'} | Criteria: ${criteriaSummary}`;
+      const combinedNotes = notes?.trim() ? `${notes.trim()}\n\n${chapterSummary}` : chapterSummary;
       
-      // Prepare chapter evaluation data for backend
+      // TrainingController@storeEvaluation requires rating/recommendation/evaluation_date fields.
       const chapterEvalData = {
-        trainee_id: traineeId,
-        chapter_number: chapterNum,
-        criteria_scores: scores,
-        average_score: Math.round(average * 100) / 100,
-        passed,
-        notes,
+        trainee_id: backendTraineeId,
+        rating: ratingOutOf100,
+        recommendation,
+        evaluation_date: evaluationDate,
+        notes: combinedNotes,
+        strengths: passed ? `Passed chapter ${chapterNum} evaluation.` : undefined,
+        improvements: passed ? undefined : `Review chapter ${chapterNum} and re-evaluate after additional practice.`,
         status: 'submitted'
       };
 
@@ -2275,6 +2330,7 @@ University of Nueva Caceres`;
           {/* TRAINING TAB */}
           <DirectorTrainingTab
             trainees={trainees}
+            droppedTrainees={droppedTrainees}
             trainingCompletionRate={trainingCompletionRate}
             traineeSearchTerm={traineeSearchTerm}
             setTraineeSearchTerm={setTraineeSearchTerm}
@@ -2290,8 +2346,12 @@ University of Nueva Caceres`;
             setShowTraineePerformanceDialog={setShowTraineePerformanceDialog}
             setShowAddDateDialog={setShowAddDateDialog}
             setShowSummaryReportDialog={setShowSummaryReportDialog}
+            onSyncAttendanceSession={(sessionDate, attendees, noPractice) => {
+              void syncAttendanceSessionToBackend(sessionDate, attendees, noPractice);
+            }}
             evaluations={evaluations}
             getScoreColor={getScoreColor}
+            onReactivateTrainee={handleReactivateTrainee}
           />
 
           {/* MEMBER-PROFILE TAB */}
@@ -2438,24 +2498,15 @@ University of Nueva Caceres`;
         trainingAttendance={trainingAttendance}
         traineeInstruments={traineeInstruments}
         isMarchingBand={isMarchingBand}
-        onDeactivateClick={() => { setTraineeToDeactivate(selectedTrainee); setShowDeactivateWarning(true); }}
+        onDeactivateClick={() => {
+          setTraineeToDeactivate(selectedTrainee);
+          setDeactivationReason('');
+          setShowTraineeDialog(false);
+          setShowDeactivateWarning(true);
+        }}
         onClose={() => setShowTraineeDialog(false)}
       />
 
-
-      {/* Deactivate Warning Dialog - trainee profile backdrop */}
-      <TraineeDetailsDialog
-        open={showDeactivateWarning}
-        onOpenChange={setShowDeactivateWarning}
-        trainee={selectedTrainee}
-        applications={applications}
-        trainingAttendance={trainingAttendance}
-        traineeInstruments={traineeInstruments}
-        isMarchingBand={isMarchingBand}
-        onDeactivateClick={() => { setTraineeToDeactivate(selectedTrainee); setShowDeactivateWarning(true); }}
-        onClose={() => setShowTraineeDialog(false)}
-        closeButtonStyle="icon"
-      />
 
       {/* Deactivate Warning Dialog */}
       <Dialog open={showDeactivateWarning} onOpenChange={setShowDeactivateWarning}>
@@ -2484,6 +2535,16 @@ University of Nueva Caceres`;
           <p className="text-sm text-[#6c757d]">
             You can reactivate them later from the Settings → Administration → Deactivated Members section if needed.
           </p>
+          <div>
+            <Label htmlFor="deactivation-reason" className="text-[#6c757d] text-xs">Reason / Notes</Label>
+            <Textarea
+              id="deactivation-reason"
+              placeholder="Add reason for deactivation..."
+              value={deactivationReason}
+              onChange={(e) => setDeactivationReason(e.target.value)}
+              className="mt-1"
+            />
+          </div>
           <DialogFooter>
             <Button
               variant="outline"
@@ -2491,6 +2552,7 @@ University of Nueva Caceres`;
               onClick={() => {
                 setShowDeactivateWarning(false);
                 setTraineeToDeactivate(null);
+                setDeactivationReason('');
               }}
             >
               Cancel
@@ -2498,15 +2560,31 @@ University of Nueva Caceres`;
             <Button
               className="bg-[#7A1E1E] hover:bg-[#6A1919] text-white"
               onClick={() => {
-                if (traineeToDeactivate && onUpdateUser) {
-                  // Update user's training status to 'failed' so they appear in Settings deactivated list
-                  onUpdateUser(traineeToDeactivate.id!, { trainingStatus: 'failed' });
-                  setDeactivatedTrainees(prev => [...prev, traineeToDeactivate]);
+                const deactivateTrainee = async () => {
+                  if (!traineeToDeactivate) return;
+
+                  const backendTraineeId = resolveBackendTraineeId(String(traineeToDeactivate.id));
+                  if (!backendTraineeId) {
+                    toast.error('Unable to resolve trainee record. Please refresh and try again.');
+                    return;
+                  }
+
+                  await trainingClient.updateTrainee(backendTraineeId, {
+                    current_status: 'dropped',
+                    deactivation_note: deactivationReason.trim() || null,
+                  } as any);
+
+                  await refetchTrainees();
                   toast.success(`${traineeToDeactivate.name} has been deactivated`);
                   setShowDeactivateWarning(false);
                   setTraineeToDeactivate(null);
+                  setDeactivationReason('');
                   setShowTraineeDialog(false);
-                }
+                };
+
+                void deactivateTrainee().catch((err: any) => {
+                  toast.error(err?.message || 'Failed to deactivate trainee');
+                });
               }}
             >
               Deactivate Trainee
@@ -2937,6 +3015,7 @@ University of Nueva Caceres`;
             const selectedVoice = traineeVoices[traineeId] || '';
 
             const handleInstrumentChange = (instrument: string) => {
+              const currentChapters = traineeChapters[traineeId] || {};
               setTraineeInstruments(prev => ({
                 ...prev,
                 [traineeId]: instrument
@@ -2948,10 +3027,18 @@ University of Nueva Caceres`;
                   [traineeId]: {}
                 }));
               }
-              toast.success(`Instrument assigned: ${instrument}`);
+              void persistTraineeTrainingState(traineeId, {
+                instrument,
+                chapters: currentChapters,
+              }).then(() => {
+                toast.success(`Instrument assigned: ${instrument}`);
+              }).catch((err: any) => {
+                toast.error(err?.message || 'Failed to save instrument assignment');
+              });
             };
 
             const handleVoiceChange = (voice: string) => {
+              const currentChapters = traineeChapters[traineeId] || {};
               setTraineeVoices(prev => ({
                 ...prev,
                 [traineeId]: voice
@@ -2963,17 +3050,36 @@ University of Nueva Caceres`;
                   [traineeId]: {}
                 }));
               }
-              toast.success(`Voice assigned: ${voice}`);
+              void persistTraineeTrainingState(traineeId, {
+                voice,
+                chapters: currentChapters,
+              }).then(() => {
+                toast.success(`Voice assigned: ${voice}`);
+              }).catch((err: any) => {
+                toast.error(err?.message || 'Failed to save voice assignment');
+              });
             };
 
             const handleChapterToggle = (chapterNum: number) => {
+              const nextChapterState = !Boolean(traineeChapters[traineeId]?.[chapterNum]);
+              const nextChapters = {
+                ...(traineeChapters[traineeId] || {}),
+                [chapterNum]: nextChapterState,
+              };
+
               setTraineeChapters(prev => ({
                 ...prev,
                 [traineeId]: {
                   ...(prev[traineeId] || {}),
-                  [chapterNum]: !prev[traineeId]?.[chapterNum]
+                  [chapterNum]: nextChapterState
                 }
               }));
+
+              void persistTraineeTrainingState(traineeId, {
+                chapters: nextChapters,
+              }).catch((err: any) => {
+                toast.error(err?.message || 'Failed to save module progress');
+              });
             };
 
             return (
@@ -3734,22 +3840,37 @@ University of Nueva Caceres`;
                           <div className="flex gap-2">
                             <Button
                               onClick={() => {
-                                // Filter out dates that already exist
-                                const newDates = selectedDatesToAdd.filter(date => 
-                                  !trainingAttendance.some(r => r.date === date)
-                                );
-                                
-                                if (newDates.length === 0) {
-                                  toast.error('All selected dates already exist');
-                                  return;
-                                }
-                                
-                                const newRecords = newDates.map(date => ({ date, attendees: {} }));
-                                setTrainingAttendance([...trainingAttendance, ...newRecords].sort((a, b) => 
-                                  new Date(a.date).getTime() - new Date(b.date).getTime()
-                                ));
-                                toast.success(`${newDates.length} training date(s) added`);
-                                setSelectedDatesToAdd([]);
+                                const saveSelectedDates = async () => {
+                                  const newDates = selectedDatesToAdd.filter(date =>
+                                    !trainingAttendance.some(r => r.date === date)
+                                  );
+
+                                  if (newDates.length === 0) {
+                                    toast.error('All selected dates already exist');
+                                    return;
+                                  }
+
+                                  const defaultAttendees = Object.fromEntries(
+                                    trainees
+                                      .map((t) => {
+                                        const id = resolveAttendanceTraineeId(String(t._rawTrainee?.id || t.id));
+                                        return id ? [String(id), 'absent'] : null;
+                                      })
+                                      .filter(Boolean) as Array<[string, 'absent']>
+                                  );
+
+                                  for (const date of newDates) {
+                                    await syncAttendanceSessionToBackend(date, defaultAttendees, false);
+                                  }
+
+                                  await loadTrainingAttendanceFromBackend();
+                                  toast.success(`${newDates.length} training date(s) added`);
+                                  setSelectedDatesToAdd([]);
+                                };
+
+                                void saveSelectedDates().catch((err: any) => {
+                                  toast.error(err?.message || 'Failed to add selected dates');
+                                });
                               }}
                               className="bg-[#7A1E1E] hover:bg-[#6A1919]"
                             >
@@ -4347,7 +4468,7 @@ University of Nueva Caceres`;
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Student ID</Label>
-                      <p className="font-medium font-mono">{selectedScholar.studentId}</p>
+                      <p className="font-medium">{selectedScholar.studentId}</p>
                     </div>
                     <div className="col-span-2">
                       <Label className="text-sm text-[#6c757d]">Email Address</Label>
@@ -4692,7 +4813,7 @@ University of Nueva Caceres`;
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm text-[#6c757d]">Serial Number</Label>
-                  <p className="font-medium font-mono">{selectedUniform.serialNumber}</p>
+                  <p className="font-medium">{selectedUniform.serialNumber}</p>
                 </div>
                 <div>
                   <Label className="text-sm text-[#6c757d]">Uniform Set</Label>
@@ -4780,7 +4901,7 @@ University of Nueva Caceres`;
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm text-[#6c757d]">Serial Number</Label>
-                  <p className="font-medium font-mono">{selectedInstrument.serialNumber}</p>
+                  <p className="font-medium">{selectedInstrument.serialNumber}</p>
                 </div>
                 <div>
                   <Label className="text-sm text-[#6c757d]">Instrument Type</Label>

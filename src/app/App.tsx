@@ -1,20 +1,22 @@
-import React, { useState, useEffect, lazy, Suspense, useTransition } from "react";
+import { useState, useEffect, lazy, Suspense, useTransition } from "react";
 import { useAuth } from './context/AuthContext';
 import { TalentTrackLanding } from "./components/TalentTrackLanding";
 import { TalentTrackLogin } from "./components/TalentTrackLogin";
 import { AccountRecovery } from "./components/AccountRecovery";
+import { ResetPassword } from "./components/ResetPassword";
 import { RequirementsPage } from "./components/RequirementsPage";
 import { AuthPage } from "./components/AuthPage";
 import {
   PublicApplicationForm,
   ApplicationFormData,
 } from "./components/PublicApplicationForm";
-import { AuthUser } from "../context/AuthContext";
+import { AuthUser } from "./services/authService";
 import { toast } from "sonner";
 
 // Lazy load heavy dashboard components for better performance
 const StudentDashboard = lazy(() => import("./components/StudentDashboard").then(module => ({ default: module.StudentDashboard })));
 const TrainingDashboard = lazy(() => import("./components/TrainingDashboard").then(module => ({ default: module.TrainingDashboard })));
+const TraineeProgressDashboard = lazy(() => import("./components/TraineeProgressDashboard").then(module => ({ default: module.TraineeProgressDashboard })));
 const MemberProfileDashboard = lazy(() => import("./components/MemberProfileDashboard").then(module => ({ default: module.MemberProfileDashboard })));
 const EngagementDashboard = lazy(() => import("./components/EngagementDashboard").then(module => ({ default: module.EngagementDashboard })));
 const ScholarshipDashboard = lazy(() => import("./components/ScholarshipDashboard").then(module => ({ default: module.ScholarshipDashboard })));
@@ -23,24 +25,13 @@ const DirectorDashboard = lazy(() => import("./components/DirectorDashboardEnhan
 const Settings = lazy(() => import("./components/Settings").then(module => ({ default: module.Settings })));
 import { NotificationPanel } from "./components/NotificationPanel";
 import { Toaster } from "./components/ui/sonner";
-import { applicationClient } from "../api/applicationClient";
 import { initKeyboardNavigation } from "./utils/keyboardNavigation";
 import { SkipToContent } from "./components/accessibility/SkipToContent";
 import { recruitmentService } from "./services/recruitmentService";
-
-// Mock data imports for dashboard initialization
-import {
-  users as mockUsers,
-  evaluations as mockEvaluations,
-  events as mockEvents,
-  announcements as mockAnnouncements,
-  applications as mockApplications,
-  trainingRecords as mockTrainingRecords,
-  notifications as mockNotifications,
-  inventoryItems as mockInventoryItems,
-  benefits as mockBenefits,
-  renewals as mockRenewals,
-} from "./data/mockData";
+import scholarshipService from "./services/scholarshipService";
+import notificationService from "./services/notificationService";
+import productService from "./services/productService";
+import { api } from "./services/api";
 
 export interface Evaluation {
   id: string;
@@ -57,7 +48,7 @@ export interface Evaluation {
   evaluationDate?: Date;
   rating: number;
   notes: string;
-  status: 'draft' | 'submitted';
+  status: 'draft' | 'submitted' | 'confirmed' | 'finalized';
   performanceMetrics?: {
     skillDemonstration: number;
     rehearsalAttendance: number;
@@ -103,7 +94,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: "student" | "scholar" | "admin" | "director";
+  role: "student" | "trainee" | "scholar" | "admin" | "director";
   studentId?: string;
   phone?: string;
   talentGroup?: string;
@@ -118,6 +109,7 @@ export interface User {
   trainingStatus?:
     | "not_started"
     | "in_progress"
+    | "active"
     | "completed"
     | "failed";
   address?: string;
@@ -143,13 +135,47 @@ export interface User {
 
 export interface Application {
   id: string;
-  userId: string;
-  talentGroup: string;
-  personalInfo: {
-    name: string;
-    email: string;
-    studentId: string;
-    phone: string;
+  // Flat API fields (from backend)
+  talent_group?: string;
+  applicant_name?: string;
+  applicant_email?: string;
+  applicant_student_id?: string;
+  applicant_phone?: string;
+  applicant_birthdate?: string;
+  applicant_age?: string;
+  applicant_address?: string;
+  applicant_gender?: string;
+  applicant_year_level?: string;
+  applicant_course?: string;
+  applicant_department?: string;
+  guardian_name?: string;
+  guardian_phone?: string;
+  guardian_relationship?: string;
+  social_media?: string;
+  photo_path?: string;
+  status?: "pending" | "scheduled" | "approved" | "rejected" | "disapproved";
+  applied_at?: string;
+  // Talent-group specific flat fields
+  has_band_experience?: boolean;
+  vocal_range?: string;
+  previous_singing_experience?: string;
+  musical_background?: string;
+  primary_dance_genre?: string;
+  years_of_experience?: string;
+  performed_on_stage?: string;
+  willing_to_attend_rehearsals?: string;
+  previous_majorette_team?: string;
+  previous_organization?: string;
+  can_perform_basic_routines?: string;
+  willing_to_attend_rehearsals_majorettes?: string;
+  // Legacy nested shape (kept for backwards compatibility with older code)
+  userId?: string;
+  talentGroup?: string;
+  personalInfo?: {
+    name?: string;
+    email?: string;
+    studentId?: string;
+    phone?: string;
     birthdate?: string;
     age?: string;
     address?: string;
@@ -161,28 +187,23 @@ export interface Application {
     guardianName?: string;
     guardianContactNo?: string;
     guardianRelationship?: string;
-    // Marching Band specific
     hasBandExperience?: boolean;
-    // Glee Club specific
     vocalRange?: string;
     previousSingingExperience?: string;
     musicalBackground?: string;
-    // Dance Club specific
     primaryDanceGenre?: string;
     yearsOfExperience?: string;
     performedOnStage?: string;
     willingToAttendRehearsals?: string;
-    // Majorettes specific
     previousMajoretteTeam?: string;
     previousOrganization?: string;
     canPerformBasicRoutines?: string;
     willingToAttendRehearsalsMajorettes?: string;
   };
-  experience: string;
-  motivation: string;
-  documents: string[];
-  status: "pending" | "approved" | "disapproved";
-  appliedAt: Date;
+  experience?: string;
+  motivation?: string;
+  documents?: string[];
+  appliedAt?: Date;
 }
 
 export interface TrainingRecord {
@@ -245,6 +266,7 @@ export interface Notification {
 export interface InventoryItem {
   id: string;
   userId: string;
+  talentGroup?: string;
   itemName?: string;
   name?: string;
   type: "uniform" | "instrument" | "accessory";
@@ -302,7 +324,7 @@ export interface ScholarshipRenewal {
 const DashboardLoader = () => (
   <div className="min-h-screen bg-[#F7F8FA] flex items-center justify-center">
     <div className="text-center">
-      <div className="w-16 h-16 border-4 border-[#7A1E1E] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <div className="w-16 h-16 border-4 border-[#7A1E1E] border-t-transparent rounded-full animate-spin [animation-duration:700ms] mx-auto mb-4"></div>
       <p className="text-[#6C757D]">Loading dashboard...</p>
     </div>
   </div>
@@ -313,7 +335,21 @@ function AppContent() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(user || null);
 
   // Cast AuthUser to User for component compatibility
-  const userAsComponentUser = currentUser ? (currentUser as unknown as User) : null;
+  const userAsComponentUser = currentUser ? (currentUser as unknown as User) : null as unknown as User;
+
+  // Helper to get initial page from localStorage or default
+  const getInitialPage = () => {
+    const queryPage = new URLSearchParams(window.location.search).get('page');
+    if (queryPage === 'reset-password') {
+      return 'reset-password' as const;
+    }
+
+    const savedPage = localStorage.getItem('current_page');
+    if (user && savedPage && ['dashboard', 'public-application', 'requirements'].includes(savedPage)) {
+      return savedPage as any;
+    }
+    return user ? 'dashboard' : 'landing';
+  };
 
   const [currentPage, setCurrentPage] = useState<
     | "landing"
@@ -322,8 +358,9 @@ function AppContent() {
     | "auth"
     | "login"
     | "forgot-password"
+    | "reset-password"
     | "dashboard"
-  >(user ? "dashboard" : "login");
+  >(getInitialPage());
 
   const [currentView, setCurrentView] = useState<
     | "student"
@@ -349,6 +386,11 @@ function AppContent() {
     initKeyboardNavigation();
   }, []);
 
+  // Persist currentPage to localStorage so it survives refresh
+  useEffect(() => {
+    localStorage.setItem('current_page', currentPage);
+  }, [currentPage]);
+
   // Helper navigation utility to change views smoothly
   const navigateTo = (view: typeof currentView | 'settings', tab?: "account" | "security" | "administration" | "logout") => {
     startTransition(() => {
@@ -369,9 +411,6 @@ function AppContent() {
     }
   }, [user]);
 
-<<<<<<< HEAD
-  // TODO: Replace with API calls in Phase 2
-  // Mock data for now - will be replaced with real API calls
   const [users, setUsers] = useState<User[]>([]);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [events] = useState<Event[]>([]);
@@ -380,23 +419,148 @@ function AppContent() {
   const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
-  const [benefits] = useState<Benefit[]>([]);
+  const [benefits, setBenefits] = useState<Benefit[]>([]);
   const [renewals, setRenewals] = useState<ScholarshipRenewal[]>([]);
-=======
-  const [events] = useState<Event[]>(mockEvents);
-  const [announcements] = useState<Announcement[]>(mockAnnouncements);
 
-  const [applications, setApplications] = useState<Application[]>(mockApplications);
-  const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>(mockTrainingRecords);
+  // Fetch user-specific data from the API once logged in
+  // Use `user` directly from AuthContext (not the copy `currentUser`) to avoid stale-state timing gaps
+  useEffect(() => {
+    if (!user) return;
 
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+    const role = user.role;
+    const group = user.talentGroup;
+    console.group(`%c[TalentTrack] Data fetch — ${user.name} (${role}${group ? `, ${group}` : ''})`, 'color:#7A1E1E;font-weight:bold');
 
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(mockInventoryItems);
+    // Fetch notifications for this user
+    notificationService.getNotifications().then(apiNotifs => {
+      setNotifications(apiNotifs.map(n => ({
+        id: String(n.id),
+        userId: String(n.user_id),
+        title: n.title,
+        message: n.message,
+        type: n.type as Notification['type'],
+        read: n.read,
+        createdAt: new Date(n.created_at),
+        relatedId: n.related_id ?? undefined,
+        actionUrl: n.action_url ?? undefined,
+      })));
+      console.log(`✓ Notifications fetched: ${apiNotifs.length}`);
+    }).catch((err) => {
+      console.error('✗ Notifications fetch failed:', err?.response?.status, err?.message);
+    });
 
-  const [benefits] = useState<Benefit[]>(mockBenefits);
+    // Fetch inventory for all authenticated users
+    productService.getProducts().then(apiProducts => {
+      setInventoryItems(apiProducts.map(p => ({
+        id: String(p.id),
+        userId: String(p.assigned_to ?? ''),
+        talentGroup: p.talent_group ?? undefined,
+        name: p.name,
+        itemName: p.name,
+        type: p.type,
+        condition: p.condition,
+        status: p.status === 'available' ? 'returned' : p.status as InventoryItem['status'],
+        description: p.description ?? undefined,
+        serialNumber: p.serial_number ?? undefined,
+        propertyType: p.property_type ?? undefined,
+        instrumentType: p.instrument_type ?? undefined,
+        accessoryType: p.accessory_type ?? undefined,
+        uniformSet: p.uniform_set ?? undefined,
+        quantity: p.quantity,
+      })));
+      console.log(`✓ Inventory fetched: ${apiProducts.length} items`);
+    }).catch((err) => {
+      console.error('✗ Inventory fetch failed:', err?.response?.status, err?.message);
+    });
 
-  const [renewals, setRenewals] = useState<ScholarshipRenewal[]>(mockRenewals);
->>>>>>> origin/feature/operations-user-profile
+    if (role === 'director' || role === 'admin') {
+      // Fetch users list
+      api.get<any[]>('users').then(r => {
+        const allUsers = r.data.map(u => ({
+          id: String(u.id),
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          studentId: u.student_id ?? undefined,
+          phone: u.phone ?? undefined,
+          talentGroup: u.talent_group ?? undefined,
+          yearLevel: u.year_level ?? undefined,
+          course: u.course ?? undefined,
+          trainingStatus: u.training_status ?? undefined,
+        }));
+        setUsers(allUsers);
+        const scholars = allUsers.filter(u => u.role === 'scholar');
+        const trainees = allUsers.filter(u => u.role === 'student' || u.role === 'trainee');
+        console.log(`✓ Users fetched: ${allUsers.length} total — ${scholars.length} scholars, ${trainees.length} trainees`);
+      }).catch((err) => {
+        console.error('✗ Users fetch failed:', err?.response?.status, err?.message);
+      });
+
+      // Fetch applications
+      recruitmentService.listApplications({ page: 1 }).then(resp => {
+        setApplications(resp.data.map((a: any) => ({
+          id: String(a.id),
+          userId: '',
+          talentGroup: a.talent_group,
+          personalInfo: {
+            name: a.applicant_name ?? a.personal_info?.name ?? '',
+            email: a.applicant_email ?? a.personal_info?.email ?? '',
+            studentId: a.applicant_student_id ?? a.personal_info?.student_id ?? '',
+            phone: a.applicant_phone ?? a.personal_info?.phone ?? '',
+            birthdate: a.applicant_birthdate ?? a.personal_info?.birthdate ?? '',
+            yearLevel: a.applicant_year_level ?? a.personal_info?.year_level ?? '',
+            course: a.applicant_course ?? a.personal_info?.course ?? '',
+          },
+          experience: a.experience ?? '',
+          motivation: a.motivation ?? '',
+          documents: [],
+          status: (a.status === 'interview_scheduled' ? 'pending' : a.status) as Application['status'],
+          appliedAt: new Date(a.applied_at),
+        })));
+        console.log(`✓ Applications fetched: ${resp.data.length}`);
+      }).catch((err) => {
+        console.error('✗ Applications fetch failed:', err?.response?.status, err?.message);
+      });
+    }
+
+    // Scholars also need benefits and renewals
+    if (role === 'scholar') {
+      scholarshipService.getBenefits().then(apiB => {
+        setBenefits(apiB.map(b => ({
+          id: b.id,
+          name: b.name,
+          type: b.type,
+          amount: b.amount ?? undefined,
+          description: b.description,
+          frequency: b.frequency,
+          status: b.status,
+        })));
+        console.log(`✓ Benefits fetched: ${apiB.length}`);
+      }).catch((err) => {
+        console.error('✗ Benefits fetch failed:', err?.response?.status, err?.message);
+      });
+
+      scholarshipService.getRenewals().then(apiR => {
+        setRenewals(apiR.map(r => ({
+          id: String(r.id),
+          userId: String(r.user_id),
+          semester: r.semester,
+          year: r.year,
+          gpa: r.gpa,
+          documents: r.documents ?? [],
+          status: r.status,
+          submittedAt: new Date(r.created_at),
+          reviewedAt: r.reviewed_at ? new Date(r.reviewed_at) : undefined,
+          reviewNotes: r.review_notes ?? undefined,
+        })));
+        console.log(`✓ Renewals fetched: ${apiR.length}`);
+      }).catch((err) => {
+        console.error('✗ Renewals fetch failed:', err?.response?.status, err?.message);
+      });
+    }
+
+    console.groupEnd();
+  }, [user?.id]);
 
 
   // Notification Panel State
@@ -452,66 +616,32 @@ function AppContent() {
 
   const unreadNotificationsCount = userNotifications.filter(n => !n.read).length;
 
-<<<<<<< HEAD
-  const handleLogin = async (email: string, password: string, _selectedRole?: string) => {
-    const result = await login(email, password);
+  const handleLogin = async (email: string, password: string, selectedRole?: string) => {
+    const result = await login(email, password, selectedRole);
     if (result.success) {
-      // Update current user from auth context
-      if (user) {
-        setCurrentUser(user);
+      const loggedInUser = result.user ?? user;
+      if (loggedInUser) {
+        setCurrentUser(loggedInUser);
         startTransition(() => {
           setCurrentPage("dashboard");
-          
-          // Role-based redirect
-          if (user.role === 'admin') {
+          if (loggedInUser.role === 'admin') {
             setCurrentView('admin');
-          } else if (user.role === 'director') {
+          } else if (loggedInUser.role === 'director') {
             setCurrentView('director');
-          } else if (user.trainingStatus === 'in_progress') {
+          } else if (loggedInUser.trainingStatus === 'in_progress' || loggedInUser.trainingStatus === 'active') {
             setCurrentView('training');
           } else {
             setCurrentView('student');
           }
         });
-        toast.success(`Welcome back, ${user.name}!`);
+        toast.success(`Welcome back, ${loggedInUser.name}!`);
       }
-    } else {
-      toast.error(result.error ?? 'Invalid email or password');
     }
     return result;
   };
 
   const handleLogout = async () => {
     await logout();
-=======
-  const handleLogin = async (email: string, password: string, _selectedRole: string): Promise<{ success: boolean; error?: string }> => {
-    const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-
-    if (!foundUser) {
-      toast.error('Invalid email or password');
-      return { success: false, error: 'Invalid credentials' };
-    }
-
-    setCurrentUser(foundUser);
-    startTransition(() => {
-      setCurrentPage("dashboard");
-      if (foundUser.role === 'admin') {
-        setCurrentView('admin');
-      } else if (foundUser.role === 'director') {
-        setCurrentView('director');
-      } else if (foundUser.role === 'scholar') {
-        setCurrentView('member-profile');
-      } else {
-        setCurrentView('training');
-      }
-    });
-
-    toast.success(`Welcome back, ${foundUser.name}!`);
-    return { success: true };
-  };
-
-  const handleLogout = async () => {
->>>>>>> origin/feature/operations-user-profile
     setCurrentUser(null);
     startTransition(() => {
       setCurrentPage("landing");
@@ -527,184 +657,70 @@ function AppContent() {
     }
   };
 
-  const handleUpdatePassword = async (userId: string, currentPassword: string): Promise<{ success: boolean; error?: string }> => {
-    // In a real application, this would make an API call to verify the current password
-    // For demo purposes, we'll simulate validation
-    const user = users.find(u => u.id === userId);
-    if (!user) {
-      return { success: false, error: "User not found" };
-    }
-
-    // Simulate password validation (in production, verify against hashed password)
-    // For demo, we'll accept any non-empty current password
+  const handleUpdatePassword = async (_userId: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
     if (!currentPassword) {
-      return { success: false, error: "Current password is incorrect" };
+      return { success: false, error: "Current password is required" };
     }
-
     if (!newPassword) {
       return { success: false, error: "New password is required" };
     }
-
-    // In production, hash the new password before storing
-    // For now, we just acknowledge the change
     return { success: true };
   };
 
   const handlePublicApplicationSubmit = async (formData: ApplicationFormData) => {
-    try {
-<<<<<<< HEAD
-      // Prepare API request payload with snake_case field names
-      const payload = {
-        talent_group: formData.talentGroup,
-        applicant_name: formData.fullName,
-        applicant_email: formData.email,
-        applicant_student_id: formData.studentId || null,
-        applicant_phone: formData.mobileNo,
-        applicant_year_level: formData.yearLevel || null,
-        applicant_course: formData.course || null,
-        applicant_department: formData.department || null,
-        applicant_address: formData.address,
-        applicant_gender: formData.gender || null,
-        applicant_birthdate: formData.birthdate,
-        applicant_age: formData.age,
-        guardian_name: formData.guardianName,
-        guardian_phone: formData.guardianContactNo,
-        guardian_relationship: formData.guardianRelationship,
-        experience: formData.experience || null,
-        motivation: formData.motivation || null,
-      };
+    const fd = new FormData();
+    const formatAddress = (parts: string[]) =>
+      parts
+        .map((part) => part?.trim())
+        .filter((part) => Boolean(part))
+        .join(', ');
 
-      // Call API to submit the application (prioritizing recruitmentService)
-      const response = await recruitmentService.submitApplication(payload);
-      
-      // Create local application for UI feedback
-      const newApplication: Application = {
-        id: response.id || `app_${Date.now()}`,
-        userId: `user_${Date.now()}`,
-        talentGroup: formData.talentGroup,
-        personalInfo: {
-          name: formData.fullName,
-          email: formData.email,
-          studentId: formData.studentId || "",
-          phone: formData.mobileNo,
-          birthdate: formData.birthdate,
-          age: formData.age,
-          address: formData.address,
-          gender: formData.gender,
-          socialMedia: '',
-          yearLevel: formData.yearLevel,
-          course: formData.course,
-          department: formData.department,
-          guardianName: formData.guardianName,
-          guardianContactNo: formData.guardianContactNo,
-          guardianRelationship: formData.guardianRelationship,
-        },
-        experience: formData.experience || "",
-        motivation: formData.motivation || "",
-        documents: [],
-        status: "pending",
-        appliedAt: new Date(),
-      };
+    const residingAddress = formatAddress([
+      formData.residStreet,
+      formData.residBarangay,
+      formData.residCity,
+      formData.residProvince,
+      formData.residRegion,
+    ]);
+    const permanentAddress = formatAddress([
+      formData.permStreet,
+      formData.permBarangay,
+      formData.permCity,
+      formData.permProvince,
+      formData.permRegion,
+    ]);
+    const applicantAddress = (() => {
+      const manualAddress = (formData.address || '').trim();
+      if (manualAddress) return manualAddress;
 
-=======
-      const newApplication: Application = {
-        id: `app_${Date.now()}`,
-        userId: `user_${Date.now()}`,
-        talentGroup: formData.talentGroup,
-        personalInfo: {
-          name: formData.fullName,
-          email: formData.email,
-          studentId: formData.studentId || "",
-          phone: formData.mobileNo,
-          birthdate: formData.birthdate,
-          age: formData.age,
-          address: formData.address,
-          gender: formData.gender,
-          socialMedia: '',
-          yearLevel: formData.yearLevel,
-          course: formData.course,
-          department: formData.department,
-          guardianName: formData.guardianName,
-          guardianContactNo: formData.guardianContactNo,
-          guardianRelationship: formData.guardianRelationship,
-        },
-        experience: formData.experience || "",
-        motivation: formData.motivation || "",
-        documents: [],
-        status: "pending",
-        appliedAt: new Date(),
-      };
-
->>>>>>> origin/feature/operations-user-profile
-      setApplications([...applications, newApplication]);
-      
-      // Notify the director of the talent group about new application
-      const director = users.find(u => 
-        u.role === 'director' && u.talentGroup === formData.talentGroup
-      );
-      if (director && director.id) {
-        addNotification(
-          director.id,
-          'New Application Received',
-          `${formData.fullName} has applied for ${formData.talentGroup.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}. Review pending.`,
-          'application',
-          newApplication.id
-        );
+      if (permanentAddress && residingAddress) {
+        if (permanentAddress === residingAddress) return permanentAddress;
+        return `Permanent: ${permanentAddress} | Residing: ${residingAddress}`;
       }
-      
-      toast.success("Application submitted successfully! Check your email for updates on your application.", { duration: 6000 });
-      startTransition(() => setCurrentPage("landing"));
-    } catch (error: any) {
-      console.error('Application submission failed:', error);
-<<<<<<< HEAD
-      const errorMessage = error.message || 'Failed to submit application. Please try again.';
-      toast.error(errorMessage);
-    }
-  };
 
-  const handleCreateUserAccount = (application: Application) => {
-    const newUser: User = {
-      id: `user_${Date.now()}`,
-      name: application.personalInfo.name,
-      email: application.personalInfo.email,
-      role: "student",
-      studentId: application.personalInfo.studentId,
-      phone: application.personalInfo.phone,
-      talentGroup: application.talentGroup,
-      applicationStatus: "approved",
-      trainingStatus: "not_started",
-      yearLevel: application.personalInfo.yearLevel,
-      course: application.personalInfo.course,
-    };
+      return (residingAddress || permanentAddress || '').trim();
+    })();
 
-    setUsers([...users, newUser]);
-    
-    // Notify the admin about new scholar added
-    const admin = users.find(u => u.role === 'admin');
-    if (admin && admin.id) {
-      addNotification(
-        admin.id,
-        'New Scholar Account Created',
-        `Account created for ${newUser.name} in ${application.talentGroup.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}.`,
-        'application',
-        newUser.id
-      );
-    }
-    
-    // Notify the new user about their account
-    addNotification(
-      newUser.id || '',
-      'Welcome to TalentTrackUNC!',
-      `Your account has been created successfully. You can now access the training dashboard. Your temporary password has been sent to ${newUser.email}.`,
-      'acceptance'
-    );
-    
-    toast.success(`Account created successfully for ${newUser.name}. Temporary password sent via email.`);
-=======
-      const errorMessage = error?.message || 'Failed to submit application. Please try again.';
-      toast.error(errorMessage);
-    }
->>>>>>> origin/feature/operations-user-profile
+    fd.append('talent_group', formData.talentGroup);
+    fd.append('applicant_name', `${formData.firstName} ${formData.lastName}`.trim());
+    fd.append('applicant_email', formData.email);
+    if (formData.studentId)         fd.append('applicant_student_id', formData.studentId);
+    if (formData.mobileNo)          fd.append('applicant_phone', formData.mobileNo);
+    if (formData.yearLevel)         fd.append('applicant_year_level', formData.yearLevel);
+    if (formData.course)            fd.append('applicant_course', formData.course);
+    if (formData.department)        fd.append('applicant_department', formData.department);
+    if (applicantAddress)           fd.append('applicant_address', applicantAddress);
+    if (formData.gender)            fd.append('applicant_gender', formData.gender);
+    if (formData.birthdate)         fd.append('applicant_birthdate', formData.birthdate);
+    if (formData.age)               fd.append('applicant_age', formData.age);
+    const guardianName = `${formData.guardianLastName ?? ''} ${formData.guardianFirstName ?? ''}`.trim();
+    if (guardianName)               fd.append('guardian_name', guardianName);
+    if (formData.guardianContactNo) fd.append('guardian_phone', formData.guardianContactNo);
+    if (formData.guardianRelationship) fd.append('guardian_relationship', formData.guardianRelationship);
+    if (formData.socialMedia)          fd.append('social_media', formData.socialMedia);
+    if (formData.photo)                fd.append('photo', formData.photo);
+
+    await recruitmentService.submitApplicationForm(fd);
   };
 
   const renderCurrentPage = () => {
@@ -738,7 +754,7 @@ function AppContent() {
           <PublicApplicationForm
             talentGroup={selectedTalentGroup}
             onSubmit={handlePublicApplicationSubmit}
-            onBack={() => setCurrentPage("landing")}
+            onBack={() => setCurrentPage("requirements")}
             onSelectGroup={(group) => setSelectedTalentGroup(group)}
           />
         );
@@ -773,13 +789,24 @@ function AppContent() {
             onBackToLogin={() => setCurrentPage("login")}
           />
         );
+      case "reset-password":
+        return (
+          <ResetPassword
+            onBackToLogin={() => setCurrentPage("login")}
+          />
+        );
       case "dashboard":
         if (!currentUser) return null;
 
         switch (currentUser.role) {
           case "student":
-            if (currentUser.applicationStatus === "approved" && currentUser.trainingStatus === "in_progress") {
-              // Check if viewing settings
+          case "trainee": {
+            const hasApprovedTrainingAccess =
+              currentUser.role === 'trainee'
+              || (currentUser.applicationStatus === 'approved'
+                  && (currentUser.trainingStatus === 'in_progress' || currentUser.trainingStatus === 'active'));
+
+            if (hasApprovedTrainingAccess) {
               if (currentView === "settings") {
                 return (
                   <Suspense fallback={<DashboardLoader />}>
@@ -800,10 +827,11 @@ function AppContent() {
 
               return (
                 <Suspense fallback={<DashboardLoader />}>
-                  <TrainingDashboard
+                  <TraineeProgressDashboard
                     user={userAsComponentUser}
                     onLogout={handleLogout}
                     trainingRecord={trainingRecords.find((tr) => tr.userId === currentUser.id) || null}
+                    evaluations={evaluations.filter((e: any) => e.traineeId === currentUser?.id)}
                     unreadNotifications={unreadNotificationsCount}
                     onNotificationsClick={() => setShowNotificationPanel(!showNotificationPanel)}
                     onNavigateToSettings={(tab) => {
@@ -829,6 +857,7 @@ function AppContent() {
                 />
               </Suspense>
             );
+          }
 
           case "scholar":
             if (currentView === "settings") {
@@ -849,88 +878,15 @@ function AppContent() {
               );
             }
 
-            if (currentUser.trainingStatus === "completed") {
-              if (currentView === "member-profile") {
-                return (
-                  <Suspense fallback={<DashboardLoader />}>
-                    <MemberProfileDashboard
-                      user={userAsComponentUser}
-                      onLogout={handleLogout}
-                      onNavigate={(view, tab) => {
-                        navigateTo(view as any, tab ?? undefined);
-                      }}
-                      inventory={inventoryItems}
-                      notifications={notifications.filter((n) => n.userId === currentUser.id)}
-                      onMarkNotificationRead={(notificationId) => {
-                        setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
-                      }}
-                      onUpdateProfile={(updatedData) => {
-                        setUsers(users.map((u) => u.id === currentUser.id ? { ...u, ...updatedData } : u));
-                      }}
-                    />
-                  </Suspense>
-                );
-              }
-
-              if (currentView === "engagement") {
-                return (
-                  <Suspense fallback={<DashboardLoader />}>
-                    <EngagementDashboard
-                      user={userAsComponentUser}
-                      onLogout={handleLogout}
-                      onNavigate={(view, tab) => {
-                        navigateTo(view as any, tab ?? undefined);
-                      }}
-<<<<<<< HEAD
-                      events={events.filter((e: any) => e.talentGroups.includes(currentUser?.talentGroup || ""))}
-                      notifications={notifications.filter((n) => n.userId === currentUser?.id)}
-=======
-                      notifications={notifications.filter((n) => n.userId === currentUser.id)}
->>>>>>> origin/feature/operations-user-profile
-                      onMarkNotificationRead={(notificationId) => {
-                        setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
-                      }}
-                    />
-                  </Suspense>
-                );
-              }
-
-              if (currentView === "scholarship") {
-                return (
-                  <Suspense fallback={<DashboardLoader />}>
-                    <ScholarshipDashboard
-                      user={userAsComponentUser}
-                      onLogout={handleLogout}
-                      onNavigate={(view, tab) => {
-                        navigateTo(view as any, tab ?? undefined);
-                      }}
-                      benefits={benefits}
-                      renewals={renewals}
-                      evaluations={evaluations.filter((e: any) => e.traineeId === currentUser?.id)}
-                      notifications={notifications.filter((n) => n.userId === currentUser?.id)}
-                      onMarkNotificationRead={(notificationId) => {
-                        setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
-                      }}
-                      onSubmitRenewal={(renewalData) => {
-                        const newRenewal: ScholarshipRenewal = {
-                          ...renewalData,
-                          id: Date.now().toString(),
-                          submittedAt: new Date(),
-                        };
-                      setRenewals([...renewals, newRenewal]);
-                      toast.success('Renewal application submitted successfully!');
-                    }}
-                  />
-                  </Suspense>
-                );
-              }
-
+            if (currentView === "member-profile") {
               return (
                 <Suspense fallback={<DashboardLoader />}>
                   <MemberProfileDashboard
                     user={userAsComponentUser}
                     onLogout={handleLogout}
-                    onNavigate={(view) => navigateTo(view as any)}
+                    onNavigate={(view, tab) => {
+                      navigateTo(view as any, tab ?? undefined);
+                    }}
                     inventory={inventoryItems}
                     notifications={notifications.filter((n) => n.userId === currentUser.id)}
                     onMarkNotificationRead={(notificationId) => {
@@ -942,14 +898,18 @@ function AppContent() {
                   />
                 </Suspense>
               );
-            } else {
+            }
+
+            if (currentView === "engagement") {
               return (
                 <Suspense fallback={<DashboardLoader />}>
-                  <StudentDashboard
+                  <EngagementDashboard
                     user={userAsComponentUser}
                     onLogout={handleLogout}
-                    applications={applications.filter((app) => app.userId === currentUser?.id)}
-                    notifications={notifications.filter((n) => n.userId === currentUser?.id)}
+                    onNavigate={(view, tab) => {
+                      navigateTo(view as any, tab ?? undefined);
+                    }}
+                    notifications={notifications.filter((n) => n.userId === currentUser.id)}
                     onMarkNotificationRead={(notificationId) => {
                       setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
                     }}
@@ -957,6 +917,68 @@ function AppContent() {
                 </Suspense>
               );
             }
+
+            if (currentView === "scholarship") {
+              return (
+                <Suspense fallback={<DashboardLoader />}>
+                  <ScholarshipDashboard
+                    user={userAsComponentUser}
+                    onLogout={handleLogout}
+                    onNavigate={(view, tab) => {
+                      navigateTo(view as any, tab ?? undefined);
+                    }}
+                    benefits={benefits}
+                    renewals={renewals}
+                    evaluations={evaluations.filter((e: any) => e.traineeId === currentUser?.id)}
+                    notifications={notifications.filter((n) => n.userId === currentUser?.id)}
+                    onMarkNotificationRead={(notificationId) => {
+                      setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
+                      notificationService.markRead(Number(notificationId)).catch(() => {});
+                    }}
+                    onSubmitRenewal={(renewalData) => {
+                      scholarshipService.submitRenewal({
+                        semester: renewalData.semester,
+                        year: renewalData.year,
+                        gpa: renewalData.gpa,
+                        documents: renewalData.documents,
+                      }).then(saved => {
+                        setRenewals(prev => [...prev, {
+                          id: String(saved.id),
+                          userId: String(saved.user_id),
+                          semester: saved.semester,
+                          year: saved.year,
+                          gpa: saved.gpa,
+                          documents: saved.documents ?? [],
+                          status: saved.status,
+                          submittedAt: new Date(saved.created_at),
+                        }]);
+                        toast.success('Renewal application submitted successfully!');
+                      }).catch(() => {
+                        toast.error('Failed to submit renewal. Please try again.');
+                      });
+                    }}
+                  />
+                </Suspense>
+              );
+            }
+
+            return (
+              <Suspense fallback={<DashboardLoader />}>
+                <MemberProfileDashboard
+                  user={userAsComponentUser}
+                  onLogout={handleLogout}
+                  onNavigate={(view) => navigateTo(view as any)}
+                  inventory={inventoryItems}
+                  notifications={notifications.filter((n) => n.userId === currentUser.id)}
+                  onMarkNotificationRead={(notificationId) => {
+                    setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
+                  }}
+                  onUpdateProfile={(updatedData) => {
+                    setUsers(users.map((u) => u.id === currentUser.id ? { ...u, ...updatedData } : u));
+                  }}
+                />
+              </Suspense>
+            );
 
           case "admin":
             if (currentView === "settings") {
@@ -1035,7 +1057,7 @@ function AppContent() {
                 events={events}
                 announcements={announcements}
                 evaluations={evaluations}
-                setEvaluations={setEvaluations}
+                setEvaluations={(evals) => setEvaluations(evals as any)}
                 onUpdateApplicationStatus={(applicationId, status) => {
                   const application = applications.find((app) => app.id === applicationId);
                   
@@ -1046,26 +1068,36 @@ function AppContent() {
                   
                   // If approved, create a trainee user from the application
                   if (status === 'approved' && application) {
-                    // Generate temporary password
                     const tempPassword = `UNC${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-                    
+                    const p = application.personalInfo;
+                    const appName    = application.applicant_name        ?? p?.name        ?? '';
+                    const appEmail   = application.applicant_email       ?? p?.email       ?? '';
+                    const appSid     = application.applicant_student_id  ?? p?.studentId   ?? '';
+                    const appPhone   = application.applicant_phone       ?? p?.phone       ?? '';
+                    const appGroup   = application.talent_group          ?? application.talentGroup ?? '';
+                    const appYear    = application.applicant_year_level  ?? p?.yearLevel   ?? '';
+                    const appCourse  = application.applicant_course      ?? p?.course      ?? '';
+                    const appAddr    = application.applicant_address     ?? p?.address     ?? '';
+                    const appGuard   = application.guardian_name         ?? p?.guardianName ?? '';
+                    const appGuardPh = application.guardian_phone        ?? p?.guardianContactNo ?? '';
+                    const appVocal   = application.vocal_range           ?? p?.vocalRange  ?? '';
                     const newTrainee: User = {
                       id: `trainee_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                      name: application.personalInfo.name,
-                      email: application.personalInfo.email,
+                      name: appName,
+                      email: appEmail,
                       role: 'student',
-                      studentId: application.personalInfo.studentId,
-                      phone: application.personalInfo.phone,
-                      talentGroup: application.talentGroup,
+                      studentId: appSid,
+                      phone: appPhone,
+                      talentGroup: appGroup,
                       applicationStatus: 'approved',
-                      yearLevel: application.personalInfo.yearLevel,
-                      course: application.personalInfo.course,
+                      yearLevel: appYear,
+                      course: appCourse,
                       trainingStatus: 'not_started',
-                      address: application.personalInfo.address,
-                      emergencyContact: application.personalInfo.guardianName,
-                      emergencyPhone: application.personalInfo.guardianContactNo,
-                      assignedInstrument: application.personalInfo.vocalRange || undefined,
-                      assignedVoice: application.personalInfo.vocalRange || undefined
+                      address: appAddr,
+                      emergencyContact: appGuard,
+                      emergencyPhone: appGuardPh,
+                      assignedInstrument: appVocal || undefined,
+                      assignedVoice: appVocal || undefined
                     };
                     
                     // Only add if user doesn't already exist
@@ -1082,22 +1114,22 @@ function AppContent() {
                       );
                       
                       // Notify director about successful account creation
-                      const director = users.find(u => u.role === 'director' && u.talentGroup === application.talentGroup);
+                      const director = users.find(u => u.role === 'director' && u.talentGroup === appGroup);
                       if (director && director.id) {
                         addNotification(
                           director.id,
                           'Trainee Account Created',
-                          `Login credentials created and sent to ${newTrainee.name} for ${application.talentGroup.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}.`,
+                          `Login credentials created and sent to ${newTrainee.name} for ${appGroup.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}.`,
                           'application',
                           newTrainee.id
                         );
                       }
                       
-                      toast.success(`✅ Acceptance email sent to ${application.personalInfo.name}! Login credentials created.`);
+                      toast.success(`✅ Acceptance email sent to ${appName}! Login credentials created.`);
                     }
                   } else if (status === 'disapproved' && application) {
-                    // Send rejection email notification
-                    toast.success(`✉️ Rejection email sent to ${application.personalInfo.name}`);
+                    const rejName = application.applicant_name ?? application.personalInfo?.name ?? '';
+                    toast.success(`✉️ Rejection email sent to ${rejName}`);
                   } else {
                     toast.success(`Application ${status}`);
                   }

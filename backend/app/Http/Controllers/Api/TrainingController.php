@@ -22,6 +22,8 @@ final class TrainingController extends Controller
  
         if ($request->user()->role === 'director') {
             $query->whereHas('user', fn($q) => $q->where('talent_group', $request->user()->talent_group));
+        } elseif (in_array($request->user()->role, ['student', 'trainee', 'scholar'], true)) {
+            $query->where('user_id', $request->user()->id);
         }
  
         if ($request->filled('status')) {
@@ -43,9 +45,27 @@ final class TrainingController extends Controller
             'current_status'          => ['nullable', 'in:active,inactive,completed,dropped'],
             'instrument'              => ['nullable', 'string'],
             'voice'                   => ['nullable', 'string'],
+            'deactivation_note'       => ['nullable', 'string', 'max:2000'],
             'chapter'                 => ['nullable', 'string'],
+            'chapters_completed'      => ['nullable', 'array'],
+            'chapters_completed.*'    => ['boolean'],
+            'completion_rate'         => ['nullable', 'integer', 'min:0', 'max:100'],
             'total_expected_sessions' => ['nullable', 'integer'],
         ]);
+
+        if (array_key_exists('chapters_completed', $data) && is_array($data['chapters_completed'])) {
+            $normalizedChapters = [];
+            foreach ($data['chapters_completed'] as $chapter => $isCompleted) {
+                $normalizedChapters[(string) $chapter] = (bool) $isCompleted;
+            }
+            $data['chapters_completed'] = $normalizedChapters;
+
+            if (! array_key_exists('completion_rate', $data)) {
+                $total = count($normalizedChapters) ?: 30;
+                $completed = count(array_filter($normalizedChapters, fn ($v) => (bool) $v));
+                $data['completion_rate'] = (int) round(($completed / $total) * 100);
+            }
+        }
  
         $trainee->update($data);
         return response()->json(['data' => $trainee->fresh('user')]);
@@ -82,6 +102,16 @@ final class TrainingController extends Controller
  
         if ($request->user()->role === 'director') {
             $query->whereHas('trainee.user', fn($q) => $q->where('talent_group', $request->user()->talent_group));
+        } elseif (in_array($request->user()->role, ['student', 'trainee', 'scholar'], true)) {
+            $traineeId = Trainee::query()->where('user_id', $request->user()->id)->value('id');
+            if (! $traineeId) {
+                return response()->json(['data' => []]);
+            }
+            $query->where('trainee_id', $traineeId);
+        }
+
+        if ($request->filled('trainee_id')) {
+            $query->where('trainee_id', $request->trainee_id);
         }
  
         if ($request->filled('date_from')) {
@@ -131,6 +161,12 @@ final class TrainingController extends Controller
  
         if ($request->user()->role === 'director') {
             $query->whereHas('trainee.user', fn($q) => $q->where('talent_group', $request->user()->talent_group));
+        } elseif (in_array($request->user()->role, ['student', 'trainee', 'scholar'], true)) {
+            $traineeId = Trainee::query()->where('user_id', $request->user()->id)->value('id');
+            if (! $traineeId) {
+                return response()->json(['data' => []]);
+            }
+            $query->where('trainee_id', $traineeId);
         }
  
         if ($request->filled('trainee_id')) {

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { MicroFooter } from "./MicroFooter";
+import heroBg from "../../assets/686764cd777b2009c4d97b10b8115da2020adac8.png";
 
 interface TalentTrackLandingProps {
   onNavigate?: (page: string) => void;
@@ -152,7 +153,8 @@ export const TalentTrackLanding: React.FC<
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{
             backgroundImage:
-              "url('https://images.unsplash.com/photo-1730148137883-8650a1a7cfea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw1fHx1bml2ZXJzaXR5JTIwc3R1ZGVudHMlMjBwZXJmb3JtaW5nJTIwYXJ0cyUyMHRhbGVudCUyMHN0YWdlfGVufDF8fHx8MTc3ODk4MzU2MXww&ixlib=rb-4.1.0&q=80&w=1080')",
+              `url('${heroBg}')`,
+
           }}
         />
         {/* Dark overlay */}
@@ -371,8 +373,6 @@ export const TalentTrackLanding: React.FC<
         </div>
       </section>
 
-      {/* Minimalist Micro-Footer */}
-      <MicroFooter />
     </div>
   );
 };

@@ -17,9 +17,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string      $applicant_name
  * @property string      $applicant_email
  * @property string|null $applicant_student_id
- * @property string|null $chapters
- * @property string|null $instruments
- * @property string|null $voices
  * @property array|null  $documents
  * @property string|null $portfolio_url
  * @property string|null $denial_reason
@@ -27,7 +24,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $approval_notes
  * @property \Carbon\Carbon $applied_at
  */
-final class Application extends Model
 class Application extends Model
 {
     use HasFactory, SoftDeletes;
@@ -39,6 +35,7 @@ class Application extends Model
         'applications_this_week_tracker',
         'applicant_name',
         'applicant_email',
+        'social_media',
         'applicant_student_id',
         'applicant_phone',
         'applicant_birthdate',
@@ -51,9 +48,7 @@ class Application extends Model
         'guardian_name',
         'guardian_phone',
         'guardian_relationship',
-        'chapters',
-        'instruments',
-        'voices',
+        'photo_path',
         'vocal_range',
         'primary_dance_genre',
         'years_of_experience',
@@ -65,8 +60,6 @@ class Application extends Model
         'previous_majorette_team',
         'previous_organization',
         'can_perform_basic_routines',
-        'experience',
-        'motivation',
         'documents',
         'portfolio_url',
         'denial_reason',

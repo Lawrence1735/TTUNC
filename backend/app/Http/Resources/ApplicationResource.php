@@ -11,11 +11,7 @@ final class ApplicationResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        // Determine actual status: if interview is loaded and exists, status is 'scheduled'
-        // Otherwise use the column value
-        $actualStatus = $this->status;
-        if ($this->relationLoaded('interview') && $this->interview !== null) {
-        // Determine actual status: 
+        // Determine actual status:
         // - If already approved/rejected, return that status (don't override)
         // - If interview exists and status is pending, return 'scheduled'
         // - Otherwise use the column value
@@ -38,9 +34,6 @@ final class ApplicationResource extends JsonResource
             'personal_info' => $this->personal_info,
 
             // Talent-specific fields
-            'chapters'            => $this->chapters,
-            'instruments'         => $this->instruments,
-            'voices'              => $this->voices,
             'vocal_range'         => $this->vocal_range,
             'primary_dance_genre' => $this->primary_dance_genre,
             'years_of_experience' => $this->years_of_experience,

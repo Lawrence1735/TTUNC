@@ -14,6 +14,7 @@ export interface Trainee {
   chapters_completed?: Record<number, boolean>;
   instrument?: string;
   voice?: string;
+  deactivation_note?: string;
   total_expected_sessions: number;
   date_joined?: string;
   created_at?: string;
@@ -29,13 +30,31 @@ export interface TraineeResponse {
   };
 }
 
+export interface AttendanceRecordApi {
+  id: number;
+  trainee_id: number;
+  session_date: string;
+  status: 'present' | 'absent' | 'excused';
+  no_practice: boolean;
+  notes?: string | null;
+  trainee?: {
+    id: number;
+    user_id: number;
+    user?: {
+      id: number;
+      name: string;
+      email: string;
+    };
+  };
+}
+
 export class TrainingClient {
   /**
    * Fetch all trainees
    */
   async getTrainees(): Promise<Trainee[]> {
     try {
-      const response = await apiClient.get('/training/trainees');
+      const response = await apiClient.get('training/trainees');
       const data = response.data?.data || response.data || [];
       return Array.isArray(data) ? data : [];
     } catch (err: any) {
@@ -79,6 +98,52 @@ export class TrainingClient {
       throw {
         status: err.status,
         message: err.message || `Failed to update trainee ${traineeId}`,
+        data: err.data,
+        errors: err.errors,
+      };
+    }
+  }
+
+  /**
+   * Fetch attendance rows
+   */
+  async getAttendance(filters?: { trainee_id?: number; date_from?: string; date_to?: string }): Promise<AttendanceRecordApi[]> {
+    try {
+      const params = new URLSearchParams();
+      if (filters?.trainee_id) params.append('trainee_id', filters.trainee_id.toString());
+      if (filters?.date_from) params.append('date_from', filters.date_from);
+      if (filters?.date_to) params.append('date_to', filters.date_to);
+
+      const response = await apiClient.get('/training/attendance', { params });
+      const data = response.data?.data || response.data || [];
+      return Array.isArray(data) ? data : [];
+    } catch (err: any) {
+      console.error('Failed to fetch attendance:', err);
+      throw {
+        status: err.status,
+        message: err.message || 'Failed to fetch attendance',
+        data: err.data,
+        errors: err.errors,
+      };
+    }
+  }
+
+  /**
+   * Save one session attendance batch
+   */
+  async upsertAttendanceSession(data: {
+    session_date: string;
+    no_practice?: boolean;
+    records: Array<{ trainee_id: number; attended: boolean }>;
+  }): Promise<any> {
+    try {
+      const response = await apiClient.post('/training/attendance/batch', data);
+      return response.data?.data || response.data;
+    } catch (err: any) {
+      console.error('Failed to upsert attendance session:', err);
+      throw {
+        status: err.status,
+        message: err.message || 'Failed to save attendance session',
         data: err.data,
         errors: err.errors,
       };

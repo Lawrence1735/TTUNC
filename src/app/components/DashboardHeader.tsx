@@ -1,8 +1,9 @@
-import React, { useState, memo } from 'react';
+import { useState, memo } from 'react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { LogOut, Bell, ChevronRight, Settings, User, Lock, Shield, Menu } from './ui/icons';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { LogOut, Bell, ChevronRight, Settings, User, Lock, Menu } from './ui/icons';
 import uncLogo from 'figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png';
 import { getTalentGroupName } from './ui/unc-colors';
 import {
@@ -31,6 +32,7 @@ interface DashboardHeaderProps {
   hideStudentId?: boolean;
   onMenuClick?: () => void;
   showMenuButton?: boolean;
+  variant?: 'default' | 'director';
 }
 
 function DashboardHeaderComponent({
@@ -43,17 +45,45 @@ function DashboardHeaderComponent({
   onNavigateToSettings,
   hideStudentId,
   onMenuClick,
-  showMenuButton = false
+  showMenuButton = false,
+  variant = 'default'
 }: DashboardHeaderProps) {
   const [showLogoutConfirmation, setShowLogoutConfirmation] = useState(false);
+  const normalizedRole = String(user.role || '').toLowerCase();
+  const hasTalentGroup = Boolean(user.talentGroup);
+  const showTraineeLikeBadge = (normalizedRole === 'trainee' || (normalizedRole === 'student' && hasTalentGroup));
+
+  const userRecord = user as Record<string, unknown>;
+  const normalizedTalentGroup =
+    (typeof user.talentGroup === 'string' && user.talentGroup.trim())
+    || (typeof userRecord.talent_group === 'string' && userRecord.talent_group.trim())
+    || '';
+  const directorGroupRoleLabelMap: Record<string, string> = {
+    'marching-band': 'Band Master',
+    'majorettes': 'Majorette Coordinator',
+    'glee-club': 'Choir Master',
+    'dance-club': 'Dance Director',
+  };
+  const rawPhoto = userRecord.photo_url ?? userRecord.photoUrl ?? userRecord.photo_path ?? userRecord.avatar_url ?? userRecord.avatar;
+  const photoPath = typeof rawPhoto === 'string' ? rawPhoto.trim() : '';
+  const photoSrc = photoPath
+    ? (photoPath.startsWith('http://') || photoPath.startsWith('https://')
+      ? photoPath
+      : `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/storage/${photoPath.replace(/^\/+/, '')}`)
+    : null;
+  const nameParts = String(user.name || '').trim().split(/\s+/).filter(Boolean);
+  const fallbackInitials = nameParts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'U';
+  const secondaryDirectorLabel = normalizedTalentGroup
+    ? (directorGroupRoleLabelMap[normalizedTalentGroup] || getTalentGroupName(normalizedTalentGroup))
+    : 'Director';
 
   return (
     <>
-    <header className="bg-white border-b shadow-sm sticky top-0 z-50" role="banner">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between py-3 sm:py-4 gap-2 sm:gap-4">
+    <header className={variant === 'director' ? 'h-20 bg-white border-b border-[#E2E8F0] sticky top-0 z-50 flex items-center' : 'bg-white border-b shadow-sm sticky top-0 z-50'} role="banner">
+      <div className={variant === 'director' ? 'w-full max-w-[1440px] mx-auto px-4 md:px-[70px]' : 'container mx-auto px-4 sm:px-6 lg:px-8'}>
+        <div className={variant === 'director' ? 'flex items-center justify-between w-full' : 'flex items-center justify-between py-3 sm:py-4 gap-2 sm:gap-4'}>
           {/* Left Section - Menu Button (Mobile), Logo and Title */}
-          <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+          <div className={variant === 'director' ? 'flex items-center gap-3' : 'flex items-center gap-2 sm:gap-4 flex-1 min-w-0'}>
             {/* Mobile Menu Button */}
             {showMenuButton && onMenuClick && (
               <Button
@@ -68,72 +98,100 @@ function DashboardHeaderComponent({
               </Button>
             )}
 
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className={variant === 'director' ? 'flex items-center gap-3 min-w-0' : 'flex items-center gap-2 sm:gap-3 min-w-0'}>
               <img
                 src={uncLogo}
                 alt="University of Nueva Caceres logo"
-                className="w-10 h-10 sm:w-12 sm:h-12 object-contain flex-shrink-0"
+                className={variant === 'director' ? 'w-10 h-10 object-contain flex-shrink-0' : 'w-10 h-10 sm:w-12 sm:h-12 object-contain flex-shrink-0'}
                 width="48"
                 height="48"
                 loading="eager"
-                fetchPriority="high"
               />
               <div className="min-w-0">
-                <h1 className="unc-burgundy-text text-base sm:text-lg truncate">TalentTrackUNC</h1>
-                <p className="text-xs text-muted-foreground truncate">{dashboardTitle}</p>
+                {variant === 'director' ? (
+                  <>
+                    <h1 className="text-xl leading-tight truncate">
+                      <span className="font-bold text-[#0F172A]">Talent</span>
+                      <span className="text-[#0F172A]">Track</span>
+                      <span className="font-bold text-[#7A1E1E]">UNC</span>
+                    </h1>
+                    <p className="text-[11px] text-[#64748B] leading-none mt-0.5 truncate">{dashboardTitle}</p>
+                  </>
+                ) : (
+                  <>
+                    <h1 className="unc-burgundy-text text-base sm:text-lg truncate">TalentTrackUNC</h1>
+                    <p className="text-xs text-muted-foreground truncate">{dashboardTitle}</p>
+                  </>
+                )}
               </div>
             </div>
           </div>
 
           {/* Right Section - User Info and Actions */}
-          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+          <div className={variant === 'director' ? 'flex items-center gap-3 flex-shrink-0' : 'flex items-center gap-2 sm:gap-4 flex-shrink-0'}>
             {/* Notifications */}
             {onNotificationsClick && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative min-h-[44px] min-w-[44px]"
+              <button
                 onClick={onNotificationsClick}
+                className={variant === 'director'
+                  ? 'relative w-9 h-9 flex items-center justify-center rounded-lg bg-transparent hover:text-[#7A1E1E] text-[#475569] transition-colors'
+                  : 'relative min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md hover:bg-accent'
+                }
                 aria-label={`Notifications${unreadNotifications && unreadNotifications > 0 ? `, ${unreadNotifications} unread` : ''}`}
               >
-                <Bell className="w-5 h-5" aria-hidden="true" />
-                {unreadNotifications && unreadNotifications > 0 && (
-                  <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-[#7A1E1E] text-white text-xs" aria-live="polite">
+                <Bell className={variant === 'director' ? 'w-4 h-4' : 'w-5 h-5'} aria-hidden="true" />
+                {variant !== 'director' && unreadNotifications && unreadNotifications > 0 && (
+                  <span
+                    className={variant === 'director'
+                      ? 'absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center rounded-full bg-[#7A1E1E] text-white text-[9px] font-bold'
+                      : 'absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center rounded-full bg-[#7A1E1E] text-white text-xs'
+                    }
+                    aria-live="polite"
+                  >
                     {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                  </Badge>
+                  </span>
                 )}
-              </Button>
+              </button>
             )}
 
             {/* User Info */}
-            <div className="hidden md:block text-right">
-              <p className="text-sm font-medium">{user.name}</p>
-              <div className="flex items-center justify-end space-x-2">
-                {user.role === "admin" && (
-                  <Badge className="bg-[#6c757d] text-white">Admin</Badge>
-                )}
-                {user.role === "director" && user.talentGroup && (
-                  <Badge className="bg-[#7A1E1E] text-white">
-                    {getTalentGroupName(user.talentGroup)}
-                  </Badge>
-                )}
-                {user.role === "scholar" && user.talentGroup && (
-                  <>
-                    <Badge className="bg-[#7A1E1E] text-white">
-                      {getTalentGroupName(user.talentGroup)}
-                    </Badge>
-                    {user.studentId && !hideStudentId && (
-                      <span className="text-xs text-muted-foreground">{user.studentId}</span>
+            <div className={variant === 'director' ? 'hidden md:flex items-center gap-2.5 pl-3 border-l border-[#E2E8F0]' : 'hidden md:block text-right'}>
+              {variant === 'director' && (
+                <Avatar className="w-8 h-8 border border-[#7A1E1E]/20 flex-shrink-0">
+                  {photoSrc && <AvatarImage src={photoSrc} alt={`${user.name} profile photo`} />}
+                  <AvatarFallback className="bg-[#F9EAEA] text-[#7A1E1E] text-[11px] font-semibold">
+                    {photoSrc ? fallbackInitials : <User className="w-4 h-4" aria-hidden="true" />}
+                  </AvatarFallback>
+                </Avatar>
+              )}
+              <div className={variant === 'director' ? 'text-right' : 'contents'}>
+                <p className={variant === 'director' ? 'text-[13px] font-semibold text-[#0F172A] leading-tight' : 'text-sm font-medium'}>{user.name}</p>
+                {variant === 'director' ? (
+                  <p className="text-[11px] text-[#64748B] leading-none mt-0.5">{secondaryDirectorLabel}</p>
+                ) : (
+                  <div className="flex items-center justify-end space-x-2">
+                    {normalizedRole === 'admin' && (
+                      <Badge className="bg-[#6c757d] text-white">Admin</Badge>
                     )}
-                  </>
-                )}
-                {user.role === "trainee" && user.talentGroup && (
-                  <Badge className="bg-[#7A1E1E] text-white">
-                    {getTalentGroupName(user.talentGroup)}
-                  </Badge>
-                )}
-                {user.role === "student" && !user.talentGroup && user.email && (
-                  <span className="text-xs text-muted-foreground">{user.email}</span>
+                    {normalizedRole === 'director' && user.talentGroup && (
+                      <Badge className="bg-[#7A1E1E] text-white">
+                        {getTalentGroupName(user.talentGroup)}
+                      </Badge>
+                    )}
+                    {normalizedRole === 'scholar' && user.talentGroup && (
+                      <>
+                        <Badge className="bg-[#7A1E1E] text-white">
+                          {getTalentGroupName(user.talentGroup)}
+                        </Badge>
+                        {user.studentId && !hideStudentId && (
+                          <span className="text-xs text-muted-foreground">{user.studentId}</span>
+                        )}
+                      </>
+                    )}
+                    {normalizedRole === 'student' && !user.talentGroup && user.email && (
+                      <span className="text-xs text-muted-foreground">{user.email}</span>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -144,10 +202,12 @@ function DashboardHeaderComponent({
                 <Button
                   variant="outline"
                   size="default"
-                  className="border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors min-h-[44px] min-w-[44px] px-3 sm:px-4"
+                  className={variant === 'director'
+                    ? 'flex items-center gap-1.5 border border-[#7A1E1E] rounded-lg px-3 py-1.5 text-sm font-medium text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors duration-200 h-auto min-h-0'
+                    : 'border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors min-h-[44px] min-w-[44px] px-3 sm:px-4'}
                   aria-label="User settings menu"
                 >
-                  <Settings className="w-4 h-4 sm:mr-2" aria-hidden="true" />
+                  <Settings className={variant === 'director' ? 'w-3.5 h-3.5' : 'w-4 h-4 sm:mr-2'} aria-hidden="true" />
                   <span className="hidden sm:inline">Settings</span>
                 </Button>
               </DropdownMenuTrigger>

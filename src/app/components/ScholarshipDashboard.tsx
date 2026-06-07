@@ -441,7 +441,7 @@ export function ScholarshipDashboard({
                     </div>
                     <div className="p-4 border border-[#e0e0e0] rounded-lg">
                       <dt className="text-sm text-[#6c757d] mb-2">Student ID</dt>
-                      <dd className="text-sm font-mono">{user.studentId}</dd>
+                      <dd className="text-sm">{user.studentId}</dd>
                     </div>
                   </dl>
 

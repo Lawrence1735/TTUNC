@@ -1,5 +1,7 @@
 import React, { useState } from "react";
-import { ArrowLeft, User } from "lucide-react";
+import { ArrowLeft, ChevronDown } from "lucide-react";
+import { toast } from "sonner";
+import { authService } from "../services/authService";
 
 interface AccountRecoveryProps {
   onBack?: () => void;
@@ -7,26 +9,45 @@ interface AccountRecoveryProps {
 }
 
 type AccountType = "student" | "teacher" | "ups-employee";
+type RecoveryAccountType = "admin" | "director" | "scholar" | "trainee";
 
 export const AccountRecovery: React.FC<AccountRecoveryProps> = ({
   onBack,
   onBackToLogin,
 }) => {
-  const [selectedType, setSelectedType] = useState<AccountType>("student");
-  const [username, setUsername] = useState("");
-  const [focusedField, setFocusedField] = useState(false);
+  const [selectedType, setSelectedType] = useState<RecoveryAccountType | "">("");
+  const [email, setEmail] = useState("");
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const accountTypes: { key: AccountType; label: string }[] = [
-    { key: "student", label: "Student" },
-    { key: "teacher", label: "Teacher" },
-    { key: "ups-employee", label: "UPS Employee" },
+  const accountTypes: { key: RecoveryAccountType; label: string }[] = [
+    { key: "admin", label: "Admin" },
+    { key: "director", label: "Director" },
+    { key: "scholar", label: "Scholar" },
+    { key: "trainee", label: "Trainee" },
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username.trim()) {
+    setErrorMessage("");
+    if (!selectedType || !email.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      await authService.forgotPassword({
+        email: email.trim(),
+        role: selectedType,
+      });
       setSubmitted(true);
+      toast.success("If this account exists, a reset link has been sent.");
+    } catch (error: any) {
+      const message = error?.response?.data?.message || "Failed to send reset link. Please try again.";
+      setErrorMessage(message);
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -42,32 +63,19 @@ export const AccountRecovery: React.FC<AccountRecoveryProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#F8FAFC] via-white to-[#F1F5F9]">
+    <div className="relative min-h-screen flex flex-col bg-gradient-to-br from-[#F8FAFC] via-white to-[#F1F5F9]">
+      <button
+        onClick={handleBackClick}
+        className="absolute top-5 left-5 z-10 w-10 h-10 rounded-full border border-[#E2E8F0] bg-white flex items-center justify-center hover:bg-[#F8FAFC] hover:border-[#CBD5E1] transition-all duration-200"
+        aria-label="Go back"
+      >
+        <ArrowLeft className="w-5 h-5 text-[#475569]" />
+      </button>
+
       {/* Main content */}
       <div className="flex-1 flex flex-col justify-center items-center px-4 py-8">
-
-        {/* Back button — aligned to card width */}
-        <div className="w-full max-w-[460px] mb-4">
-          <button
-            onClick={handleBackClick}
-            className="w-10 h-10 rounded-full border border-[#E2E8F0] bg-white flex items-center justify-center hover:bg-[#F8FAFC] hover:border-[#CBD5E1] transition-all duration-200"
-            aria-label="Go back"
-          >
-            <ArrowLeft className="w-5 h-5 text-[#475569]" />
-          </button>
-        </div>
-
-        {/* Institutional branding header */}
+        {/* Branding header */}
         <div className="flex flex-col items-center mb-8">
-          {/* UNC Crest placeholder — circular seal */}
-          <div className="w-16 h-16 rounded-full border-2 border-[#7A1E1E] bg-white flex items-center justify-center mb-4 shadow-sm">
-            <div className="w-12 h-12 rounded-full border border-[#E2E8F0] bg-gradient-to-br from-[#FEF2F2] to-[#F8FAFC] flex items-center justify-center">
-              <span className="text-[#7A1E1E] text-xs font-bold tracking-tight leading-none text-center">
-                UNC
-              </span>
-            </div>
-          </div>
-
           <h1 className="text-2xl md:text-3xl mb-1">
             <span className="font-bold text-[#0F172A]">Talent</span>
             <span className="text-[#0F172A]">Track</span>
@@ -84,75 +92,82 @@ export const AccountRecovery: React.FC<AccountRecoveryProps> = ({
               {/* Card header */}
               <div className="mb-7">
                 <h2 className="text-[22px] font-bold text-[#0F172A] mb-2 leading-tight">
-                  Account Recovery
+                  Forgot Password
                 </h2>
                 <p className="text-sm text-[#475569] leading-relaxed">
-                  This will send a link to reset your account to the institutional
-                  email address listed in your profile.
+                  Select your account type and enter your registered email to receive a password reset link.
                 </p>
               </div>
 
               <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+                {errorMessage && (
+                  <div className="rounded-md border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-sm text-[#991B1B]">
+                    {errorMessage}
+                  </div>
+                )}
 
-                {/* Account Type segmented control */}
+                {/* Account Type */}
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-widest text-[#475569] mb-2">
+                  <label htmlFor="recovery-role" className="block text-xs font-semibold uppercase tracking-widest text-[#475569] mb-2">
                     Account Type
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {accountTypes.map(({ key, label }) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setSelectedType(key)}
-                        className={`h-[44px] rounded-md border text-[13px] font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A1E1E]/30 ${
-                          selectedType === key
-                            ? "bg-white border-[#7A1E1E] text-[#0F172A] font-semibold shadow-sm"
-                            : "bg-[#F8FAFC] border-[#E2E8F0] text-[#475569] hover:border-[#CBD5E1] hover:bg-white"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                  <div className="relative">
+                    <select
+                      id="recovery-role"
+                      value={selectedType}
+                      onChange={(e) => setSelectedType(e.target.value as RecoveryAccountType)}
+                      onFocus={() => setFocusedField("role")}
+                      onBlur={() => setFocusedField(null)}
+                      className={`w-full h-11 px-4 bg-[#F8FAFC] border rounded-lg appearance-none transition-all duration-200 text-sm ${
+                        focusedField === "role"
+                          ? "bg-white border-[#7A1E1E] ring-2 ring-[#7A1E1E]/20"
+                          : "border-[#CBD5E1] hover:border-[#94A3B8]"
+                      } ${selectedType ? "text-[#0F172A]" : "text-[#94A3B8]"}`}
+                      required
+                    >
+                      <option value="" disabled>
+                        Select account type
+                      </option>
+                      {accountTypes.map(({ key, label }) => (
+                        <option key={key} value={key}>{label}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B] pointer-events-none" />
                   </div>
                 </div>
 
-                {/* Username / Email input */}
+                {/* Email input */}
                 <div>
                   <label
-                    htmlFor="recovery-username"
+                    htmlFor="recovery-email"
                     className="block text-xs font-semibold uppercase tracking-widest text-[#475569] mb-2"
                   >
-                    Username or Email Address
+                    Email Address
                   </label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <User className="w-4 h-4 text-[#94A3B8]" />
-                    </div>
-                    <input
-                      id="recovery-username"
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      onFocus={() => setFocusedField(true)}
-                      onBlur={() => setFocusedField(false)}
-                      placeholder="Enter your username or email"
-                      className={`w-full h-11 pl-10 pr-4 border rounded-lg text-sm transition-all duration-200 placeholder:text-[#CBD5E1] ${
-                        focusedField
-                          ? "bg-white border-[#7A1E1E] ring-2 ring-[#7A1E1E]/20 outline-none"
-                          : "bg-[#F8FAFC] border-[#CBD5E1] hover:border-[#94A3B8]"
-                      }`}
-                      required
-                    />
-                  </div>
+                  <input
+                    id="recovery-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onFocus={() => setFocusedField("email")}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder="your.email@unc.edu.ph"
+                    className={`w-full h-11 px-4 border rounded-lg text-sm transition-all duration-200 placeholder:text-[#CBD5E1] ${
+                      focusedField === "email"
+                        ? "bg-white border-[#7A1E1E] ring-2 ring-[#7A1E1E]/20 outline-none"
+                        : "bg-[#F8FAFC] border-[#CBD5E1] hover:border-[#94A3B8]"
+                    }`}
+                    required
+                  />
                 </div>
 
                 {/* Primary CTA */}
                 <button
                   type="submit"
+                  disabled={isSubmitting}
                   className="w-full h-11 bg-[#7A1E1E] hover:bg-[#5C1616] text-white font-bold text-sm uppercase tracking-wide rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md mt-1"
                 >
-                  Send Reset Link
+                  {isSubmitting ? "Sending..." : "Send Reset Link"}
                 </button>
               </form>
 
@@ -189,8 +204,7 @@ export const AccountRecovery: React.FC<AccountRecoveryProps> = ({
                 Check Your Email
               </h2>
               <p className="text-sm text-[#475569] leading-relaxed mb-1">
-                A password reset link has been sent to the institutional email
-                address associated with your account.
+                A password reset link has been sent to the email associated with your selected account type.
               </p>
               <p className="text-xs text-[#94A3B8] mb-7">
                 If you don't see it, check your spam folder.
@@ -207,38 +221,7 @@ export const AccountRecovery: React.FC<AccountRecoveryProps> = ({
         </div>
       </div>
 
-      {/* Micro-footer */}
-      <footer className="border-t border-[#E2E8F0] bg-white">
-        <div className="max-w-[1440px] mx-auto px-4 md:px-[70px] py-5">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <span className="text-xs text-[#475569]">
-              TalentTrackUNC &copy; 2026 University of Nueva Caceres
-            </span>
-            <div className="flex items-center gap-4">
-              <a
-                href="#status"
-                className="text-xs text-[#0052CC] hover:text-[#7A1E1E] hover:underline transition-colors duration-200"
-              >
-                System Status
-              </a>
-              <span className="text-[#CBD5E1] hidden md:inline">|</span>
-              <a
-                href="#privacy"
-                className="text-xs text-[#0052CC] hover:text-[#7A1E1E] hover:underline transition-colors duration-200"
-              >
-                Privacy Policy
-              </a>
-              <span className="text-[#CBD5E1] hidden md:inline">|</span>
-              <a
-                href="#support"
-                className="text-xs text-[#0052CC] hover:text-[#7A1E1E] hover:underline transition-colors duration-200"
-              >
-                Contact Support
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <footer className="border-t border-[#E2E8F0] bg-white" />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -20,6 +20,7 @@ import {
 } from './ui/dropdown-menu';
 // ── Accessibility components (WCAG 2.1 AA / ISO 9241 / ISO 25010) ──────────────
 import { SkipToContent, EmptyState } from './accessibility';
+import engagementService, { type Engagement as ApiEngagement } from '../services/engagementService';
 
 interface EngagementDashboardProps {
   user: UserType;
@@ -29,73 +30,6 @@ interface EngagementDashboardProps {
   onNavigate?: (view: 'scholar' | 'member-profile' | 'engagement' | 'scholarship' | 'settings', tab?: 'account' | 'security' | 'administration' | 'logout') => void;
 }
 
-// Mock accepted engagement data (only accepted events shown to scholars)
-const ACCEPTED_ENGAGEMENTS = [
-  {
-    id: 'eng1',
-    eventName: 'University Foundation Day',
-    date: new Date('2024-12-15'),
-    time: '14:00',
-    venue: 'UNC Main Auditorium',
-    description: 'Annual foundation day celebration performance',
-    attendanceMarked: true
-  },
-  {
-    id: 'eng2',
-    eventName: 'City Christmas Festival',
-    date: new Date('2024-12-20'),
-    time: '18:00',
-    venue: 'Naga City Plaza',
-    description: 'Community Christmas celebration',
-    attendanceMarked: false
-  },
-  {
-    id: 'eng3',
-    eventName: 'Bicol Cultural Festival',
-    date: new Date('2025-01-10'),
-    time: '16:00',
-    venue: 'Naga City Convention Center',
-    description: 'Regional cultural showcase',
-    attendanceMarked: false
-  }
-];
-
-// Mock rehearsal data (scheduled by Director/Admin, no approval needed)
-const REHEARSALS = [
-  {
-    id: 'reh1',
-    title: 'Weekly Practice Session',
-    date: new Date('2026-02-18'),
-    time: '15:00',
-    venue: 'Band Room, Music Building',
-    description: 'Regular weekly rehearsal for marching formations',
-    type: 'rehearsal' as const,
-    isRequired: true,
-    attendanceMarked: false
-  },
-  {
-    id: 'reh2',
-    title: 'Competition Preparation',
-    date: new Date('2026-02-22'),
-    time: '14:00',
-    venue: 'UNC Main Auditorium',
-    description: 'Intensive practice for upcoming regional competition',
-    type: 'rehearsal' as const,
-    isRequired: true,
-    attendanceMarked: false
-  },
-  {
-    id: 'reh3',
-    title: 'Sectional Practice',
-    date: new Date('2026-02-16'),
-    time: '16:00',
-    venue: 'Practice Room 3',
-    description: 'Brass section practice',
-    type: 'rehearsal' as const,
-    isRequired: false,
-    attendanceMarked: true
-  }
-];
 
 export function EngagementDashboard({
   user,
@@ -108,17 +42,22 @@ export function EngagementDashboard({
   const [showLogoutConfirmation, setShowLogoutConfirmation] = useState(false);
   const [activeTab, setActiveTab] = useState<'engagements' | 'rehearsals'>('engagements');
   const [hiddenNotifIds, setHiddenNotifIds] = useState<string[]>([]);
+  const [engagements, setEngagements] = useState<ApiEngagement[]>([]);
+  const [rehearsals, setRehearsals] = useState<ApiEngagement[]>([]);
+
+  useEffect(() => {
+    engagementService.getEngagements().then(setEngagements).catch(() => {});
+    engagementService.getRehearsals().then(setRehearsals).catch(() => {});
+  }, []);
 
   const visibleNotifications = notifications.filter(n => !hiddenNotifIds.includes(n.id));
   const unreadNotifications = visibleNotifications.filter(n => !n.read);
 
-  // Engagements
-  const upcomingEngagements = ACCEPTED_ENGAGEMENTS.filter(e => e.date >= new Date());
-  const pastEngagements = ACCEPTED_ENGAGEMENTS.filter(e => e.date < new Date());
-
-  // Rehearsals
-  const upcomingRehearsals = REHEARSALS.filter(r => r.date >= new Date());
-  const pastRehearsals = REHEARSALS.filter(r => r.date < new Date());
+  const today = new Date().toISOString().split('T')[0];
+  const upcomingEngagements = engagements.filter(e => e.date >= today);
+  const pastEngagements = engagements.filter(e => e.date < today);
+  const upcomingRehearsals = rehearsals.filter(r => r.date >= today);
+  const pastRehearsals = rehearsals.filter(r => r.date < today);
 
   const handleMarkNotificationRead = (notificationId: string) => {
     onMarkNotificationRead(notificationId);
@@ -420,12 +359,12 @@ export function EngagementDashboard({
                       <div key={engagement.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
                         <div className="flex items-start gap-2 min-w-0">
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-[#880808]">{engagement.eventName}</h4>
+                            <h4 className="font-medium text-[#880808]">{engagement.event_name}</h4>
                             <p className="text-sm text-[#6c757d] mt-1">{engagement.description}</p>
                             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-sm text-[#6c757d]">
                               <div className="flex items-center shrink-0">
                                 <Calendar className="w-4 h-4 mr-1" />
-                                {engagement.date.toLocaleDateString()}
+                                {new Date(engagement.date).toLocaleDateString()}
                               </div>
                               <div className="flex items-center shrink-0">
                                 <Clock className="w-4 h-4 mr-1" />
@@ -438,9 +377,9 @@ export function EngagementDashboard({
                             </div>
                           </div>
                           <Badge
-                            className={`shrink-0 ${engagement.attendanceMarked ? "bg-green-500" : "bg-yellow-500"}`}
+                            className={`shrink-0 ${engagement.status === 'completed' ? "bg-green-500" : "bg-yellow-500"}`}
                           >
-                            {engagement.attendanceMarked ? "Attendance Recorded" : "Pending"}
+                            {engagement.status === 'completed' ? "Attendance Recorded" : "Pending"}
                           </Badge>
                         </div>
                       </div>
@@ -468,12 +407,12 @@ export function EngagementDashboard({
                       <div key={engagement.id} className="border rounded-lg p-4 bg-gray-50">
                         <div className="flex items-start gap-2 min-w-0">
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-[#6c757d]">{engagement.eventName}</h4>
+                            <h4 className="font-medium text-[#6c757d]">{engagement.event_name}</h4>
                             <p className="text-sm text-[#6c757d] mt-1">{engagement.description}</p>
                             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-sm text-[#6c757d]">
                               <div className="flex items-center shrink-0">
                                 <Calendar className="w-4 h-4 mr-1" />
-                                {engagement.date.toLocaleDateString()}
+                                {new Date(engagement.date).toLocaleDateString()}
                               </div>
                               <div className="flex items-center shrink-0">
                                 <Clock className="w-4 h-4 mr-1" />
@@ -586,8 +525,8 @@ export function EngagementDashboard({
                         <div className="flex items-start gap-2 min-w-0">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center flex-wrap gap-2">
-                              <h4 className="font-medium text-[#880808]">{rehearsal.title}</h4>
-                              {rehearsal.isRequired && (
+                              <h4 className="font-medium text-[#880808]">{rehearsal.event_name}</h4>
+                              {rehearsal.is_required && (
                                 <Badge className="bg-red-500 shrink-0">Required</Badge>
                               )}
                             </div>
@@ -595,7 +534,7 @@ export function EngagementDashboard({
                             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-sm text-[#6c757d]">
                               <div className="flex items-center shrink-0">
                                 <Calendar className="w-4 h-4 mr-1" />
-                                {rehearsal.date.toLocaleDateString()}
+                                {new Date(rehearsal.date).toLocaleDateString()}
                               </div>
                               <div className="flex items-center shrink-0">
                                 <Clock className="w-4 h-4 mr-1" />
@@ -608,9 +547,9 @@ export function EngagementDashboard({
                             </div>
                           </div>
                           <Badge
-                            className={`shrink-0 ${rehearsal.attendanceMarked ? "bg-green-500" : "bg-yellow-500"}`}
+                            className={`shrink-0 ${rehearsal.status === 'completed' ? "bg-green-500" : "bg-yellow-500"}`}
                           >
-                            {rehearsal.attendanceMarked ? "Attendance Recorded" : "Pending"}
+                            {rehearsal.status === 'completed' ? "Attendance Recorded" : "Pending"}
                           </Badge>
                         </div>
                       </div>
@@ -639,8 +578,8 @@ export function EngagementDashboard({
                         <div className="flex items-start gap-2 min-w-0">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center flex-wrap gap-2">
-                              <h4 className="font-medium text-[#6c757d]">{rehearsal.title}</h4>
-                              {rehearsal.isRequired && (
+                              <h4 className="font-medium text-[#6c757d]">{rehearsal.event_name}</h4>
+                              {rehearsal.is_required && (
                                 <Badge className="bg-gray-400 shrink-0">Was Required</Badge>
                               )}
                             </div>
@@ -648,7 +587,7 @@ export function EngagementDashboard({
                             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-sm text-[#6c757d]">
                               <div className="flex items-center shrink-0">
                                 <Calendar className="w-4 h-4 mr-1" />
-                                {rehearsal.date.toLocaleDateString()}
+                                {new Date(rehearsal.date).toLocaleDateString()}
                               </div>
                               <div className="flex items-center shrink-0">
                                 <Clock className="w-4 h-4 mr-1" />

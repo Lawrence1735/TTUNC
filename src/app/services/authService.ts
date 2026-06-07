@@ -7,15 +7,18 @@ import { api, setToken, clearToken } from './api';
 
 // ── Types (mirrors UserResource from Laravel) ─────────────────────────────────
 export interface AuthUser {
-  id: number;
+  id: string | number;
   name: string;
   email: string;
-  role: 'admin' | 'director' | 'trainee';
-  talent_group: string | null;
-  student_id: string | null;
-  phone: string | null;
-  is_active: boolean;
-  created_at: string;
+  role: 'admin' | 'director' | 'scholar' | 'student' | 'trainee';
+  talent_group?: string | null;
+  talentGroup?: string;
+  student_id?: string | null;
+  phone?: string;
+  is_active?: boolean;
+  trainingStatus?: string;
+  applicationStatus?: string;
+  created_at?: string;
 }
 
 export interface LoginPayload {
@@ -28,6 +31,18 @@ export interface LoginResponse {
   user: AuthUser;
 }
 
+export interface ForgotPasswordPayload {
+  email: string;
+  role?: 'admin' | 'director' | 'scholar' | 'trainee' | 'student';
+}
+
+export interface ResetPasswordPayload {
+  email: string;
+  token: string;
+  password: string;
+  password_confirmation: string;
+}
+
 // ── Auth service ──────────────────────────────────────────────────────────────
 export const authService = {
   /**
@@ -35,28 +50,39 @@ export const authService = {
    * Returns the user so the caller can update app state immediately.
    */
   async login(payload: LoginPayload): Promise<LoginResponse> {
-    const { data } = await api.post<LoginResponse>('/auth/login', payload);
+    const { data } = await api.post<LoginResponse>('auth/login', payload);
+    // Normalize snake_case backend fields to camelCase
+    const user: AuthUser = {
+      ...data.user,
+      talentGroup: (data.user as any).talent_group ?? data.user.talentGroup,
+      trainingStatus: (data.user as any).training_status ?? data.user.trainingStatus,
+      applicationStatus: (data.user as any).application_status ?? data.user.applicationStatus,
+    };
     setToken(data.token);
-    localStorage.setItem('auth_user', JSON.stringify(data.user));
-    return data;
+    localStorage.setItem('auth_user', JSON.stringify(user));
+    return { token: data.token, user };
   },
 
-  /**
-   * Revoke the current token on the server, then clear local storage.
-   */
   async logout(): Promise<void> {
     try {
-      await api.post('/auth/logout');
+      await api.post('logout');
     } finally {
       clearToken();
     }
   },
 
-  /**
-   * Fetch the currently authenticated user from the server.
-   */
   async me(): Promise<AuthUser> {
-    const { data } = await api.get<AuthUser>('/auth/me');
+    const { data } = await api.get<AuthUser>('me');
+    return data;
+  },
+
+  async forgotPassword(payload: ForgotPasswordPayload): Promise<{ message: string }> {
+    const { data } = await api.post<{ message: string }>('auth/forgot-password', payload);
+    return data;
+  },
+
+  async resetPassword(payload: ResetPasswordPayload): Promise<{ message: string }> {
+    const { data } = await api.post<{ message: string }>('auth/reset-password', payload);
     return data;
   },
 
