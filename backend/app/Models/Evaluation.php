@@ -27,6 +27,7 @@ class Evaluation extends Model
         'academic_year',
         'adjectival_rating',
         'recommend_for_renewal',
+        'scholarship_percentage',
         'evaluation_date',
     ];
 

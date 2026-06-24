@@ -6,6 +6,26 @@
 
 import axios, { AxiosError, type AxiosInstance } from 'axios';
 
+let inMemoryToken: string | null = null;
+const TOKEN_STORAGE_KEY = 'ttunc_auth_token';
+
+const readStoredToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+};
+
+const writeStoredToken = (token: string | null) => {
+  if (typeof window === 'undefined') return;
+
+  if (token) {
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } else {
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+  }
+};
+
+inMemoryToken = readStoredToken();
+
 // ── Config ────────────────────────────────────────────────────────────────────
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
@@ -21,7 +41,7 @@ export const api: AxiosInstance = axios.create({
 
 // ── Request interceptor — attach token ────────────────────────────────────────
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
+  const token = inMemoryToken;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -39,8 +59,7 @@ api.interceptors.response.use(
       // Keep login failures local to the login form. Only clear stale auth state
       // for protected endpoint 401 responses.
       if (!isAuthLoginRequest) {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
+        inMemoryToken = null;
       }
     }
     return Promise.reject(error);
@@ -48,9 +67,12 @@ api.interceptors.response.use(
 );
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
-export const setToken = (token: string) => localStorage.setItem('auth_token', token);
-export const clearToken = () => {
-  localStorage.removeItem('auth_token');
-  localStorage.removeItem('auth_user');
+export const setToken = (token: string) => {
+  inMemoryToken = token;
+  writeStoredToken(token);
 };
-export const getToken = () => localStorage.getItem('auth_token');
+export const clearToken = () => {
+  inMemoryToken = null;
+  writeStoredToken(null);
+};
+export const getToken = () => inMemoryToken ?? readStoredToken();

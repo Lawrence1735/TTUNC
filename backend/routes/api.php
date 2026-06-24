@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\DashboardSummaryController;
 use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\EngagementController;
+use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\RecruitmentController;
@@ -29,6 +31,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
         Route::post('/refresh', [AuthController::class, 'refresh'])->name('refresh');
         Route::get('/me', [AuthController::class, 'me'])->name('me');
+        Route::patch('/me', [AuthController::class, 'updateMe'])->name('me.update');
 
         // ── Dashboard ─────────────────────────────────────────────────────────
         Route::get(
@@ -94,10 +97,14 @@ Route::prefix('v1')->group(function (): void {
             Route::patch('/trainees/{trainee}', [TrainingController::class, 'updateTrainee']);
             Route::delete('/trainees/{trainee}', [TrainingController::class, 'destroyTrainee']);
             Route::get('/trainees/{trainee}/stats', [TrainingController::class, 'traineeStats']);
+            Route::post('/trainees/{trainee}/promote', [TrainingController::class, 'promoteToScholar'])
+                ->middleware('role:director,admin');
 
             // Attendance
             Route::get('/attendance', [TrainingController::class, 'indexAttendance']);
             Route::post('/attendance/batch', [TrainingController::class, 'batchUpsertAttendance']);
+            Route::delete('/attendance/session/{sessionDate}', [TrainingController::class, 'deleteAttendanceSession']);
+            Route::delete('/attendance', [TrainingController::class, 'clearAttendance']);
             Route::patch('/attendance/{record}/toggle-no-practice', [TrainingController::class, 'toggleNoPractice']);
 
             // Evaluations
@@ -112,6 +119,8 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/benefits', [ScholarshipController::class, 'benefits']);
             Route::get('/renewals', [ScholarshipController::class, 'indexRenewals']);
             Route::post('/renewals', [ScholarshipController::class, 'submitRenewal']);
+            Route::patch('/renewals/{scholarship}/review', [ScholarshipController::class, 'reviewRenewal'])
+                ->middleware('role:director,admin');
         });
 
         // ── Engagements ───────────────────────────────────────────────────────
@@ -120,13 +129,29 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/rehearsals', [EngagementController::class, 'rehearsals']);
             Route::post('/', [EngagementController::class, 'store'])
                 ->middleware('role:director,admin');
+            Route::patch('/{engagement}', [EngagementController::class, 'update'])
+                ->middleware('role:director,admin');
+            Route::delete('/{engagement}', [EngagementController::class, 'destroy'])
+                ->middleware('role:director,admin');
         });
+
+            // ── Locations (PSGC) ─────────────────────────────────────────────────
+            Route::prefix('locations')->group(function (): void {
+                Route::get('/regions', [LocationController::class, 'regions']);
+                Route::get('/provinces', [LocationController::class, 'provinces']);
+                Route::get('/cities', [LocationController::class, 'cities']);
+                Route::get('/barangays', [LocationController::class, 'barangays']);
+            });
 
         // ── Documents ─────────────────────────────────────────────────────────
         Route::prefix('documents')->group(function (): void {
             Route::get('/', [DocumentController::class, 'index']);
             Route::get('/{document}', [DocumentController::class, 'show']);
             Route::post('/', [DocumentController::class, 'store'])
+                ->middleware('role:director,admin');
+            Route::patch('/{document}', [DocumentController::class, 'update'])
+                ->middleware('role:director,admin');
+            Route::delete('/{document}', [DocumentController::class, 'destroy'])
                 ->middleware('role:director,admin');
         });
 
@@ -136,6 +161,17 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/read-all', [NotificationController::class, 'markAllRead']);
             Route::post('/{id}/read', [NotificationController::class, 'markRead']);
             Route::delete('/{id}', [NotificationController::class, 'destroy']);
+        });
+
+        // ── Announcements / Latest Updates ───────────────────────────────────
+        Route::prefix('announcements')->group(function (): void {
+            Route::get('/', [AnnouncementController::class, 'index']);
+            Route::post('/', [AnnouncementController::class, 'store'])
+                ->middleware('role:director,admin');
+            Route::patch('/{announcement}', [AnnouncementController::class, 'update'])
+                ->middleware('role:director,admin');
+            Route::delete('/{announcement}', [AnnouncementController::class, 'destroy'])
+                ->middleware('role:director,admin');
         });
 
         // ── Products / Inventory ──────────────────────────────────────────────
@@ -153,6 +189,10 @@ Route::prefix('v1')->group(function (): void {
         // ── Users (listing) ───────────────────────────────────────────────────
         Route::get('/users', [AuthController::class, 'index'])
             ->middleware('role:director,admin');
+        Route::get('/users/{user}', [AuthController::class, 'show'])
+            ->middleware('role:director,admin');
+        Route::patch('/users/{user}', [AuthController::class, 'update'])
+            ->middleware('role:admin');
     });
 
 });

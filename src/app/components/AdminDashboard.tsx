@@ -1,5 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, type ChangeEvent } from 'react';
+
+interface PsgcItem { code: string; name: string; }
 import engagementService from '../services/engagementService';
+import scholarshipService from '../services/scholarshipService';
+import { api } from '../services/api';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -26,16 +30,17 @@ import {
   GraduationCap,
   Eye,
   Download,
-  Trash2,
-  Package,
+  Upload,
+  AlertCircle,
+  Send,
   Settings,
   Lock
 } from './ui/icons';
 import type { User as UserType, Application, Event, TrainingRecord, Announcement } from '../App';
-import uncLogo from 'figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png';
 import { getTalentGroupColor, getTalentGroupName } from './ui/unc-colors';
 import { DocumentsDashboard } from './DocumentsDashboardTabs';
 import { Evaluation } from './DirectorDashboardEnhanced';
+import { DashboardQuickStatCard } from './ui/DashboardQuickStatCard';
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -54,7 +59,6 @@ interface AdminDashboardProps {
   users: UserType[];
   events: Event[];
   announcements: Announcement[];
-  trainingRecords: TrainingRecord[];
   evaluations?: Evaluation[];
   onUpdateApplicationStatus: (applicationId: string, status: 'approved' | 'disapproved') => void;
   unreadNotifications?: number;
@@ -66,7 +70,6 @@ export function AdminDashboard({
   user, 
   onLogout, 
   users, 
-  trainingRecords,
   evaluations = [],
   unreadNotifications = 0,
   onNotificationsClick,
@@ -79,7 +82,11 @@ export function AdminDashboard({
   const [groupFilter, setGroupFilter] = useState<string>('all');
   const [selectedScholar, setSelectedScholar] = useState<UserType | null>(null);
   const [showScholarProfile, setShowScholarProfile] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [scholarProfileLoading, setScholarProfileLoading] = useState(false);
+  const [isEditingScholar, setIsEditingScholar] = useState(false);
+  const [scholarEditForm, setScholarEditForm] = useState({ name: '', phone: '', yearLevel: '', course: '', department: '', address: '', talentGroup: '' });
+  const [isSavingScholar, setIsSavingScholar] = useState(false);
+  const [selectedEvent] = useState<any | null>(null);
   const [showEventDetails, setShowEventDetails] = useState(false);
   const [reportGroupFilter, setReportGroupFilter] = useState<string>('all');
   const [eventListFilter, setEventListFilter] = useState<'upcoming' | 'completed'>('upcoming');
@@ -88,6 +95,10 @@ export function AdminDashboard({
   const [selectedRenewal, setSelectedRenewal] = useState<any | null>(null);
   const [showRenewalDetails, setShowRenewalDetails] = useState(false);
   const [scholarshipGroupFilter, setScholarshipGroupFilter] = useState<string>('all');
+  const [renewalRows, setRenewalRows] = useState<any[]>([]);
+  const [renewalsLoading, setRenewalsLoading] = useState(false);
+  const [renewalReviewNotes, setRenewalReviewNotes] = useState('');
+  const [isReviewingRenewal, setIsReviewingRenewal] = useState(false);
   
   // Form submission loading state
   const [isCreatingEngagement, setIsCreatingEngagement] = useState(false);
@@ -95,31 +106,247 @@ export function AdminDashboard({
   // Attachment preview state
   const [showAttachmentPreview, setShowAttachmentPreview] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState<{ name: string; type: string } | null>(null);
+  const [scholarConnections, setScholarConnections] = useState<{
+    traineeProfile: any | null;
+    evaluations: any[];
+    scholarshipRenewals: any[];
+    documents: any[];
+    engagements: any[];
+  }>({
+    traineeProfile: null,
+    evaluations: [],
+    scholarshipRenewals: [],
+    documents: [],
+    engagements: [],
+  });
 
-  // Calculate age from date of birth
-  const calculateAge = (dateOfBirth: string) => {
-    if (!dateOfBirth) return null;
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
+  const formatDateLabel = (value?: string | null) => {
+    if (!value) return 'N/A';
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? 'N/A' : parsed.toLocaleDateString();
+  };
+
+  // Fetch scholar profile data from backend
+  const fetchScholarProfile = async (scholarId: string | number) => {
+    setScholarProfileLoading(true);
+    setScholarConnections({
+      traineeProfile: null,
+      evaluations: [],
+      scholarshipRenewals: [],
+      documents: [],
+      engagements: [],
+    });
+    try {
+      const response = await api.get<any>(`users/${scholarId}`);
+      const data = response?.data?.data || response?.data;
+      if (data) {
+        const connections = data.connections || {};
+        setSelectedScholar((prev) => ({
+          ...(prev || {}),
+          id: String(data.id ?? prev?.id ?? ''),
+          name: data.name ?? prev?.name,
+          email: data.email ?? prev?.email,
+          role: data.role ?? prev?.role,
+          studentId: data.student_id ?? prev?.studentId,
+          phone: data.phone ?? prev?.phone,
+          talentGroup: data.talent_group ?? prev?.talentGroup,
+          yearLevel: data.year_level ?? prev?.yearLevel,
+          course: data.course ?? prev?.course,
+          department: data.department ?? prev?.department,
+          address: data.address ?? prev?.address,
+          createdAt: data.created_at ?? prev?.createdAt,
+        } as UserType));
+        setScholarConnections({
+          traineeProfile: connections.trainee_profile ?? null,
+          evaluations: Array.isArray(connections.evaluations) ? connections.evaluations : [],
+          scholarshipRenewals: Array.isArray(connections.scholarship_renewals) ? connections.scholarship_renewals : [],
+          documents: Array.isArray(connections.documents) ? connections.documents : [],
+          engagements: Array.isArray(connections.engagements) ? connections.engagements : [],
+        });
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch scholar profile:', err);
+    } finally {
+      setScholarProfileLoading(false);
     }
-    return age;
+  };
+
+  const loadScholarshipRenewals = async () => {
+    setRenewalsLoading(true);
+    try {
+      const rows = await scholarshipService.getRenewals();
+      setRenewalRows(Array.isArray(rows) ? rows : []);
+    } catch (err) {
+      console.error('Failed to load scholarship renewals:', err);
+      toast.error('Failed to load scholarship renewals');
+    } finally {
+      setRenewalsLoading(false);
+    }
   };
 
   // Engagement form state
   const [eventName, setEventName] = useState('');
+  const [eventType, setEventType] = useState<'performance' | 'workshop' | 'competition' | 'rehearsal'>('performance');
   const [venue, setVenue] = useState('');
+  // PSGC venue address state
+  const [venueAddress, setVenueAddress] = useState({ region: '', province: '', city: '', barangay: '', street: '' });
+  const [regionOptions, setRegionOptions] = useState<PsgcItem[]>([]);
+  const [provinceOptions, setProvinceOptions] = useState<PsgcItem[]>([]);
+  const [cityOptions, setCityOptions] = useState<PsgcItem[]>([]);
+  const [barangayOptions, setBarangayOptions] = useState<PsgcItem[]>([]);
+  const [isLoadingVenueOptions, setIsLoadingVenueOptions] = useState(false);
   const [eventDate, setEventDate] = useState('');
   const [eventTime, setEventTime] = useState(() => {
     const now = new Date();
     return now.toTimeString().slice(0, 5);
   });
   const [description, setDescription] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
+  const [contactPerson, setContactPerson] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
-  const [attachment, setAttachment] = useState<string>('');
+  const [attachments, setAttachments] = useState<Array<{ name: string; size: number; type: string }>>([]);
+
+  const getTodayDateValue = () => {
+    const now = new Date();
+    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 10);
+  };
+
+  const fetchLocationItems = useCallback(async (endpoint: string, params?: Record<string, string>) => {
+    const response = await api.get<{ data?: any[] }>(endpoint, { params });
+    const rows = response.data?.data ?? [];
+    if (!Array.isArray(rows)) return [] as PsgcItem[];
+    return rows
+      .map((row: any) => ({ code: String(row.code ?? ''), name: String(row.name ?? '') }))
+      .filter((r: PsgcItem) => r.code && r.name)
+      .sort((a: PsgcItem, b: PsgcItem) => a.name.localeCompare(b.name));
+  }, []);
+
+  // Load regions on mount
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        setIsLoadingVenueOptions(true);
+        const rows = await fetchLocationItems('/locations/regions');
+        if (!cancelled) setRegionOptions(rows);
+      } catch { /* silent */ } finally {
+        if (!cancelled) setIsLoadingVenueOptions(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [fetchLocationItems]);
+
+  // Load provinces when region changes
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!venueAddress.region) { setProvinceOptions([]); setCityOptions([]); setBarangayOptions([]); return; }
+      try {
+        setIsLoadingVenueOptions(true);
+        const selectedRegion = regionOptions.find(r => r.name === venueAddress.region);
+        if (!selectedRegion) return;
+        const provinces = await fetchLocationItems('/locations/provinces', { region_code: selectedRegion.code });
+        if (cancelled) return;
+        setProvinceOptions(provinces);
+        setCityOptions([]);
+        setBarangayOptions([]);
+        if (provinces.length === 0) {
+          const regionCities = await fetchLocationItems('/locations/cities', { region_code: selectedRegion.code });
+          if (!cancelled) setCityOptions(regionCities);
+        }
+      } catch { /* silent */ } finally {
+        if (!cancelled) setIsLoadingVenueOptions(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [venueAddress.region, fetchLocationItems, regionOptions]);
+
+  // Load cities when province changes
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!venueAddress.region || !venueAddress.province) {
+        if (provinceOptions.length > 0) setCityOptions([]);
+        setBarangayOptions([]);
+        return;
+      }
+      try {
+        setIsLoadingVenueOptions(true);
+        const selectedProvince = provinceOptions.find(p => p.name === venueAddress.province);
+        if (!selectedProvince) return;
+        const cities = await fetchLocationItems('/locations/cities', { province_code: selectedProvince.code });
+        if (!cancelled) { setCityOptions(cities); setBarangayOptions([]); }
+      } catch { /* silent */ } finally {
+        if (!cancelled) setIsLoadingVenueOptions(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [venueAddress.region, venueAddress.province, fetchLocationItems, provinceOptions]);
+
+  // Load barangays when city changes
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!venueAddress.city) { setBarangayOptions([]); return; }
+      try {
+        setIsLoadingVenueOptions(true);
+        const selectedCity = cityOptions.find(c => c.name === venueAddress.city);
+        if (!selectedCity) return;
+        const barangays = await fetchLocationItems('/locations/barangays', { city_code: selectedCity.code });
+        if (!cancelled) setBarangayOptions(barangays);
+      } catch { /* silent */ } finally {
+        if (!cancelled) setIsLoadingVenueOptions(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [venueAddress.city, fetchLocationItems, cityOptions]);
+
+  // Compose venue string from address parts
+  useEffect(() => {
+    const parts = [venueAddress.street.trim(), venueAddress.barangay, venueAddress.city, venueAddress.province, venueAddress.region].filter(Boolean);
+    const composed = parts.join(', ');
+    setVenue(prev => (prev === composed ? prev : composed));
+  }, [venueAddress]);
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleAttachmentUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    const supported = files.filter((file) => {
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      return ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'].includes(ext);
+    });
+
+    if (supported.length !== files.length) {
+      toast.error('Some files were skipped. Allowed types: PDF, DOC, DOCX, JPG, JPEG, PNG.');
+    }
+
+    const mapped = supported.map((file) => ({
+      name: file.name,
+      size: file.size,
+      type: file.type || 'application/octet-stream',
+    }));
+
+    setAttachments((prev) => [...prev, ...mapped]);
+    event.target.value = '';
+  };
+
+  const removeAttachmentAt = (index: number) => {
+    setAttachments((prev) => prev.filter((_, idx) => idx !== index));
+  };
 
   // Engagement form validation state
   const [engagementFormTouched, setEngagementFormTouched] = useState({
@@ -127,6 +354,10 @@ export function AdminDashboard({
     venue: false,
     eventDate: false,
     eventTime: false,
+    description: false,
+    organizationName: false,
+    contactEmail: false,
+    contactPhone: false,
     selectedGroups: false
   });
   const [engagementFormErrors, setEngagementFormErrors] = useState({
@@ -134,6 +365,10 @@ export function AdminDashboard({
     venue: '',
     eventDate: '',
     eventTime: '',
+    description: '',
+    organizationName: '',
+    contactEmail: '',
+    contactPhone: '',
     selectedGroups: ''
   });
 
@@ -148,9 +383,26 @@ export function AdminDashboard({
         break;
       case 'eventDate':
         if (!value) error = 'Date is required';
+        if (value && value < getTodayDateValue()) error = 'Date cannot be in the past';
         break;
       case 'eventTime':
         if (!value) error = 'Time is required';
+        break;
+      case 'description':
+        if (!value.trim()) error = 'Description is required';
+        break;
+      case 'organizationName':
+        if (!value.trim()) error = 'Organization Name is required';
+        break;
+      case 'contactEmail':
+        if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
+          error = 'Enter a valid email address';
+        }
+        break;
+      case 'contactPhone':
+        if (value && !/^\+?[\d\s-]{7,20}$/.test(value.trim())) {
+          error = 'Enter a valid contact phone number';
+        }
         break;
       case 'selectedGroups':
         if (value.length === 0) error = 'At least one Talent Group must be selected';
@@ -167,6 +419,10 @@ export function AdminDashboard({
       case 'venue': value = venue; break;
       case 'eventDate': value = eventDate; break;
       case 'eventTime': value = eventTime; break;
+      case 'description': value = description; break;
+      case 'organizationName': value = organizationName; break;
+      case 'contactEmail': value = contactEmail; break;
+      case 'contactPhone': value = contactPhone; break;
       case 'selectedGroups': value = selectedGroups; break;
       default: value = '';
     }
@@ -180,75 +436,166 @@ export function AdminDashboard({
   // Engagement requests from directors
   const [engagementRequests, setEngagementRequests] = useState<any[]>([]);
 
+  const loadEngagementData = async () => {
+    const data = await engagementService.getEngagements();
+    const events = data.map((e: any) => ({
+      id: String(e.id),
+      eventName: e.event_name ?? e.title ?? '',
+      date: e.date ? new Date(e.date).toLocaleDateString() : '',
+      time: e.time ?? '',
+      venue: e.venue ?? '',
+      organization: e.organization_name ?? e.requester_org ?? '',
+      groups: e.talent_groups ?? [],
+      description: e.description ?? '',
+      status: e.status === 'scheduled' ? 'upcoming' : (e.status ?? 'upcoming'),
+      attachment: Array.isArray(e.attachments) && e.attachments.length > 0
+        ? (typeof e.attachments[0] === 'string' ? e.attachments[0] : e.attachments[0]?.name)
+        : undefined,
+      requestedBy: e.created_by ?? '',
+    }));
+
+    setCreatedEvents(events.filter((e: any) => e.status !== 'pending_admin_approval'));
+    setEngagementRequests(events.filter((e: any) => e.status === 'pending_admin_approval'));
+  };
+
+  const adminCreatedForDirectorDecision = createdEvents.filter(
+    (event: any) => event.status === 'pending_director_approval'
+  );
+
   useEffect(() => {
-    engagementService.getEngagements().then((data: any[]) => {
-      const events = data.map((e: any) => ({
-        id: String(e.id),
-        eventName: e.event_name ?? e.title ?? '',
-        date: e.date ? new Date(e.date).toLocaleDateString() : '',
-        venue: e.venue ?? '',
-        groups: e.talent_groups ?? [],
-        description: e.description ?? '',
-        status: e.status ?? 'upcoming',
-        attachment: e.attachment ?? undefined,
-      }));
-      setCreatedEvents(events.filter((e: any) => e.status !== 'pending'));
-      setEngagementRequests(events.filter((e: any) => e.status === 'pending').map((e: any) => ({
-        ...e,
-        requestedBy: e.requester_name ?? '',
-      })));
-    }).catch(() => {});
+    loadEngagementData().catch(() => {
+      toast.error('Failed to load engagements');
+    });
+    loadScholarshipRenewals().catch(() => {
+      toast.error('Failed to load scholarship renewals');
+    });
   }, []);
 
-  // Map evaluations to scholarship renewal requests
-  const scholarshipRenewals = evaluations.map((evaluation) => {
-    const scholar = users.find(u => u.id === evaluation.traineeId);
-    if (!scholar) return null;
-    
-    return {
-      id: evaluation.id,
-      scholarName: evaluation.traineeName,
-      studentId: scholar.studentId || 'N/A',
-      talentGroup: evaluation.talentGroup || scholar.talentGroup || '',
-      course: scholar.course || 'N/A',
-      yearLevel: scholar.yearLevel || 'N/A',
-      evaluationScore: evaluation.rating,
-      scholarshipPercentage: evaluation.scholarshipPercentage,
-      attendanceRate: evaluation.sectionA ? Math.round((evaluation.sectionA.reportsRegularly / 5) * 100) : 0,
-      performanceRating: evaluation.adjectivalRating || 'N/A',
-      directorRemarks: evaluation.strengths || evaluation.notes || 'No remarks provided',
-      directorName: evaluation.ratedBy || 'Director',
-      academicGPA: 3.5,
-      submittedDate: new Date(evaluation.date).toLocaleDateString(),
-      renewalRecommendation: evaluation.recommendForRenewal ? 'Recommended for Renewal' : 'Not Recommended',
-      trainingCompleted: true,
-      engagementParticipation: 0,
-      documents: [],
-      evaluation: evaluation
-    };
-  }).filter(Boolean);
+  // Build scholarship renewal requests from backend renewal rows.
+  const scholarshipRenewals = renewalRows.map((renewal: any) => {
+    const userId = String(renewal?.user_id ?? renewal?.user?.id ?? '');
+    const scholar = users.find((u) => String(u.id) === userId);
+    const relatedEvaluations = evaluations
+      .filter((evaluation) => String(evaluation.traineeId) === userId)
+      .sort((a, b) => new Date(b.date as any).getTime() - new Date(a.date as any).getTime());
+    const latestEvaluation = relatedEvaluations[0];
 
-  const handleApproveRequest = (requestId: string) => {
-    const request = engagementRequests.find(r => r.id === requestId);
-    if (request) {
-      const newEvent = {
-        id: `e${Date.now()}`,
-        eventName: request.eventName,
-        date: request.date,
-        venue: request.venue,
-        groups: request.groups,
-        description: request.description,
-        status: 'upcoming' as const
-      };
-      setCreatedEvents(prev => [...prev, newEvent]);
+    const recommendation = latestEvaluation?.recommendForRenewal === true
+      ? 'Recommended for Renewal'
+      : latestEvaluation?.recommendForRenewal === false
+      ? 'Not Recommended'
+      : renewal?.status === 'approved'
+      ? 'Approved'
+      : renewal?.status === 'rejected'
+      ? 'Rejected'
+      : 'Pending Review';
+
+    return {
+      id: String(renewal?.id ?? ''),
+      scholarName: renewal?.user?.name || scholar?.name || 'Unknown Scholar',
+      studentId: renewal?.user?.student_id || scholar?.studentId || 'N/A',
+      talentGroup: renewal?.user?.talent_group || scholar?.talentGroup || '',
+      course: renewal?.user?.course || scholar?.course || 'N/A',
+      yearLevel: renewal?.user?.year_level || scholar?.yearLevel || 'N/A',
+      evaluationScore: latestEvaluation?.rating,
+      scholarshipPercentage: latestEvaluation?.scholarshipPercentage,
+      attendanceRate: latestEvaluation?.sectionA
+        ? Math.round((Number(latestEvaluation.sectionA.reportsRegularly || 0) / 5) * 100)
+        : undefined,
+      performanceRating: latestEvaluation?.adjectivalRating || 'N/A',
+      directorRemarks: latestEvaluation?.strengths || latestEvaluation?.notes || renewal?.review_notes || 'No remarks provided',
+      directorName: latestEvaluation?.ratedBy || 'Director',
+      academicGPA: Number(renewal?.gpa ?? 0),
+      submittedDate: renewal?.created_at ? new Date(renewal.created_at).toLocaleDateString() : 'N/A',
+      renewalRecommendation: recommendation,
+      trainingCompleted: Boolean(latestEvaluation),
+      documents: Array.isArray(renewal?.documents) ? renewal.documents : [],
+      status: renewal?.status || 'pending',
+      semester: renewal?.semester,
+      year: renewal?.year,
+      reviewedAt: renewal?.reviewed_at,
+      reviewNotes: renewal?.review_notes,
+      evaluation: latestEvaluation,
+    };
+  }).filter((row) => Boolean(row.id));
+
+  const handleApproveRequest = async (requestId: string) => {
+    try {
+      await engagementService.updateEngagement(requestId, { status: 'scheduled' });
+      await loadEngagementData();
       toast.success('Engagement request approved and added to upcoming events!');
-      setEngagementRequests(prev => prev.filter(r => r.id !== requestId));
+    } catch {
+      toast.error('Failed to approve engagement request');
     }
   };
 
-  const handleDeclineRequest = (requestId: string) => {
-    toast.error('Engagement request declined');
-    setEngagementRequests(prev => prev.filter(r => r.id !== requestId));
+  const handleDeclineRequest = async (requestId: string) => {
+    try {
+      await engagementService.updateEngagement(requestId, { status: 'rejected' });
+      await loadEngagementData();
+      toast.error('Engagement request declined');
+    } catch {
+      toast.error('Failed to decline engagement request');
+    }
+  };
+
+  const handleReviewRenewal = async (status: 'approved' | 'rejected') => {
+    if (!selectedRenewal?.id || isReviewingRenewal) return;
+
+    try {
+      setIsReviewingRenewal(true);
+      await scholarshipService.reviewRenewal(selectedRenewal.id, {
+        status,
+        review_notes: renewalReviewNotes.trim() || null,
+      });
+      await loadScholarshipRenewals();
+      setSelectedRenewal((prev: any) => prev ? ({
+        ...prev,
+        status,
+        reviewNotes: renewalReviewNotes.trim() || null,
+        reviewedAt: new Date().toISOString(),
+      }) : prev);
+      toast.success(status === 'approved' ? 'Renewal approved successfully' : 'Renewal rejected successfully');
+    } catch {
+      toast.error('Failed to update renewal status');
+    } finally {
+      setIsReviewingRenewal(false);
+    }
+  };
+
+  const handleUpdateScholar = async () => {
+    if (!selectedScholar?.id || isSavingScholar) return;
+    setIsSavingScholar(true);
+    try {
+      const payload: Record<string, string | null> = {};
+      if (scholarEditForm.name.trim())       payload.name         = scholarEditForm.name.trim();
+      if (scholarEditForm.phone.trim())      payload.phone        = scholarEditForm.phone.trim();
+      if (scholarEditForm.yearLevel.trim())  payload.year_level   = scholarEditForm.yearLevel.trim();
+      if (scholarEditForm.course.trim())     payload.course       = scholarEditForm.course.trim();
+      if (scholarEditForm.department.trim()) payload.department   = scholarEditForm.department.trim();
+      if (scholarEditForm.address.trim())    payload.address      = scholarEditForm.address.trim();
+      if (scholarEditForm.talentGroup)       payload.talent_group = scholarEditForm.talentGroup;
+      const response = await api.patch<{ data: any }>(`users/${selectedScholar.id}`, payload);
+      const updated = response.data?.data;
+      if (updated) {
+        setSelectedScholar(prev => prev ? ({
+          ...prev,
+          name:        updated.name         ?? prev.name,
+          phone:       updated.phone        ?? prev.phone,
+          yearLevel:   updated.year_level   ?? prev.yearLevel,
+          course:      updated.course       ?? prev.course,
+          department:  updated.department   ?? prev.department,
+          address:     updated.address      ?? prev.address,
+          talentGroup: updated.talent_group ?? prev.talentGroup,
+        }) : prev);
+      }
+      toast.success('Scholar profile updated');
+      setIsEditingScholar(false);
+    } catch {
+      toast.error('Failed to update scholar profile');
+    } finally {
+      setIsSavingScholar(false);
+    }
   };
 
   // Filter scholars
@@ -269,6 +616,14 @@ export function AdminDashboard({
     return acc;
   }, {} as Record<string, UserType[]>);
 
+  const tableSearchInputClass =
+    'h-[42px] rounded-[10px] border border-[#CBD5E1] bg-[#F8FAFC] text-[#0F172A] placeholder:text-[#94A3B8] focus-visible:ring-2 focus-visible:ring-[#CBD5E1] focus-visible:border-[#94A3B8]';
+
+  const tableSelectTriggerClass =
+    'border border-[#CBD5E1] bg-[#F8FAFC] rounded-[10px] h-[42px] text-[#0F172A] focus-visible:ring-2 focus-visible:ring-[#CBD5E1] focus-visible:border-[#94A3B8]';
+  const directorCardClass = 'bg-white border-[1.6px] border-[#E0E0E0] shadow-md rounded-lg';
+  const directorInteractiveCardClass = 'bg-white border-[1.6px] border-[#E0E0E0] shadow-md rounded-lg cursor-pointer hover:shadow-lg hover:border-[#7A1E1E] transition-all focus:outline-none focus:ring-2 focus:ring-[#7A1E1E]';
+
 
 
   return (
@@ -277,132 +632,107 @@ export function AdminDashboard({
       <SkipToContent />
 
       {/* ── Header ────────────────────────────────────────────────────────────── */}
-      <header className="bg-white border-b shadow-sm sticky top-0 z-50" role="banner">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between py-4">
-            {/* Logo + Title */}
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <img 
-                  src={uncLogo} 
-                  alt="University of Nueva Caceres Logo" 
-                  className="w-12 h-12 object-contain"
-                />
-                <div>
-                  <h1 className="unc-burgundy-text">TalentTrackUNC</h1>
-                  <p className="text-xs text-muted-foreground">Admin Dashboard</p>
-                </div>
+      <header className="h-20 bg-white border-b border-[#E2E8F0] sticky top-0 z-50 flex items-center" role="banner">
+        <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div>
+              <div className="text-xl leading-tight">
+                <span className="font-bold text-[#0F172A]">Talent</span>
+                <span className="text-[#0F172A]">Track</span>
+                <span className="font-bold text-[#7A1E1E]">UNC</span>
+              </div>
+              <p className="text-xs text-[#64748B] mt-0.5">Admin Dashboard</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              className="relative h-9 w-9 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] hover:text-[#7A1E1E] hover:border-[#7A1E1E] transition-colors duration-150 flex items-center justify-center"
+              onClick={onNotificationsClick}
+              aria-label={
+                unreadNotifications > 0
+                  ? `Notifications — ${unreadNotifications} unread`
+                  : 'Notifications — no unread'
+              }
+            >
+              <Bell className="w-4 h-4" aria-hidden="true" />
+              {unreadNotifications > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center rounded-full bg-[#7A1E1E] text-white text-[9px] font-bold" aria-hidden="true">
+                  {unreadNotifications}
+                </span>
+              )}
+            </button>
+
+            <div className="hidden md:flex items-center gap-2.5 pl-3 border-l border-[#E2E8F0]">
+              <div className="w-8 h-8 rounded-full bg-[#F9EAEA] border border-[#7A1E1E]/20 flex items-center justify-center flex-shrink-0">
+                <User className="w-4 h-4 text-[#7A1E1E]" aria-hidden="true" />
+              </div>
+              <div className="text-right">
+                <p className="text-[13px] font-semibold text-[#0F172A] leading-tight">{user.name}</p>
+                <p className="text-[11px] text-[#64748B] leading-none mt-0.5">Admin</p>
               </div>
             </div>
-            
-            {/* Right: Notifications + User + Settings */}
-            <div className="flex items-center space-x-4">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="relative min-h-[44px] min-w-[44px]"
-                onClick={onNotificationsClick}
-                aria-label={
-                  unreadNotifications > 0
-                    ? `Notifications — ${unreadNotifications} unread`
-                    : 'Notifications — no unread'
-                }
-              >
-                <Bell className="w-5 h-5" aria-hidden="true" />
-                {unreadNotifications > 0 && (
-                  <Badge
-                    className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-[#7A1E1E] text-white text-xs"
-                    aria-hidden="true"
-                  >
-                    {unreadNotifications}
-                  </Badge>
-                )}
-              </Button>
-              
-              <div className="hidden md:block text-right">
-                <p className="text-sm font-medium">{user.name}</p>
-                <div className="flex items-center justify-end space-x-2">
-                  <Badge className="bg-[#6c757d] text-white">Admin</Badge>
-                </div>
-              </div>
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors min-h-[44px]"
-                    aria-label="Open settings menu"
-                  >
-                    <Settings className="w-4 h-4 mr-2" aria-hidden="true" />
-                    <span className="hidden sm:inline">Settings</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => onViewChange?.('settings', 'account')}>
-                    <User className="w-4 h-4 mr-2" aria-hidden="true" />Account Settings                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onViewChange?.('settings', 'security')}>
-                    <Lock className="w-4 h-4 mr-2" aria-hidden="true" />Security                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowLogoutConfirmation(true)} variant="destructive">
-                    <LogOut className="w-4 h-4 mr-2" aria-hidden="true" />Logout                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex items-center gap-1.5 border border-[#7A1E1E] rounded-lg px-3 py-1.5 text-sm font-medium text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors duration-200"
+                  aria-label="Open settings menu"
+                >
+                  <Settings className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span className="hidden sm:inline">Settings</span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onViewChange?.('settings', 'account')}>
+                  <User className="w-4 h-4 mr-2" aria-hidden="true" />Account Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onViewChange?.('settings', 'security')}>
+                  <Lock className="w-4 h-4 mr-2" aria-hidden="true" />Security
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowLogoutConfirmation(true)} variant="destructive">
+                  <LogOut className="w-4 h-4 mr-2" aria-hidden="true" />Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
 
       {/* ── Dashboard Navigation ───────────────────────────────────────────────── */}
-      <nav className="bg-white border-b" aria-label="Dashboard sections">
-        <div className="container mx-auto px-4 py-3">
-          <div
-            className="flex overflow-x-auto scrollbar-hide pb-1 gap-1"
-            role="tablist"
-            aria-label="Dashboard views"
-          >
-            <Button
-              role="tab"
-              variant={currentView === 'member-profile' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setCurrentView('member-profile')}
-              className={`shrink-0 whitespace-nowrap min-h-[44px] ${currentView === 'member-profile' ? 'bg-[#7A1E1E] text-white hover:bg-[#7A1E1E]' : ''}`}
-              aria-selected={currentView === 'member-profile'}
-              aria-controls="member-profile-panel"
-            >
-              <Users className="w-4 h-4 sm:mr-2" aria-hidden="true" /><span className="hidden sm:inline">Member Profile Dashboard</span>            </Button>
-            <Button
-              role="tab"
-              variant={currentView === 'engagement' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setCurrentView('engagement')}
-              className={`shrink-0 whitespace-nowrap min-h-[44px] ${currentView === 'engagement' ? 'bg-[#7A1E1E] text-white hover:bg-[#7A1E1E]' : ''}`}
-              aria-selected={currentView === 'engagement'}
-              aria-controls="engagement-panel"
-            >
-              <Calendar className="w-4 h-4 sm:mr-2" aria-hidden="true" /><span className="hidden sm:inline">Engagement Dashboard</span>            </Button>
-            <Button
-              role="tab"
-              variant={currentView === 'scholarship' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setCurrentView('scholarship')}
-              className={`shrink-0 whitespace-nowrap min-h-[44px] ${currentView === 'scholarship' ? 'bg-[#7A1E1E] text-white hover:bg-[#7A1E1E]' : ''}`}
-              aria-selected={currentView === 'scholarship'}
-              aria-controls="scholarship-panel"
-            >
-              <GraduationCap className="w-4 h-4 sm:mr-2" aria-hidden="true" /><span className="hidden sm:inline">Scholarship Dashboard</span>            </Button>
-            <Button
-              role="tab"
-              variant={currentView === 'documents' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setCurrentView('documents')}
-              className={`shrink-0 whitespace-nowrap min-h-[44px] ${currentView === 'documents' ? 'bg-[#7A1E1E] text-white hover:bg-[#7A1E1E]' : ''}`}
-              aria-selected={currentView === 'documents'}
-              aria-controls="documents-panel"
-            >
-              <FileText className="w-4 h-4 sm:mr-2" aria-hidden="true" /><span className="hidden sm:inline">Documents</span>            </Button>
+      <nav className="bg-white border-b border-[#E2E8F0]" aria-label="Admin dashboard sections">
+        <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px]">
+          <div className="flex gap-0 overflow-x-auto" role="tablist" aria-label="Dashboard views">
+            {(
+              [
+                { key: 'member-profile', icon: Users, label: 'Members' },
+                { key: 'engagement', icon: Calendar, label: 'Engagement' },
+                { key: 'scholarship', icon: GraduationCap, label: 'Scholarship' },
+                { key: 'documents', icon: FileText, label: 'Documents' },
+              ] as const
+            ).map(({ key, icon: Icon, label }) => {
+              const active = currentView === key;
+              return (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={active}
+                  aria-controls={`${key}-panel`}
+                  onClick={() => setCurrentView(key)}
+                  className={`relative flex items-center gap-2 px-4 py-3.5 text-[13px] font-medium whitespace-nowrap transition-colors duration-150 border-b-2 ${
+                    active
+                      ? 'border-[#7A1E1E] text-[#7A1E1E]'
+                      : 'border-transparent text-[#64748B] hover:text-[#0F172A] hover:border-[#E2E8F0]'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </nav>
@@ -437,7 +767,7 @@ export function AdminDashboard({
                   <Card
                     key={key}
                     role="listitem"
-                    className="bg-white border-[#E5E7EB] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all focus:outline-none focus:ring-2 focus:ring-[#7A1E1E]"
+                    className={directorInteractiveCardClass}
                     onClick={() => {
                       setGroupFilter(key);
                       toast.info(`${count} scholars in ${label}`);
@@ -452,9 +782,9 @@ export function AdminDashboard({
                     }}
                     aria-label={`${label}: ${count} scholars. Activate to filter list.`}
                   >
-                    <CardContent className="p-3 sm:p-6">
-                  <p className="text-[#6C757D] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">{label}</p>
-                  <p className="text-[#1A1A1A] text-[18px] sm:text-[24px] leading-[24px] sm:leading-[32px] font-bold">{count}</p>
+                    <CardContent className="p-2 sm:p-2">
+                  <p className="text-[10px] sm:text-[10px] text-[#6C757D] leading-tight">{label}</p>
+                  <p className="text-[#1A1A1A] text-[12px] sm:text-[14px] leading-tight font-bold">{count}</p>
                 </CardContent>
                   </Card>
                 );
@@ -462,7 +792,7 @@ export function AdminDashboard({
             </div>
 
             {/* Scholars List */}
-            <Card className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px]">
+            <Card className={directorCardClass}>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Users className="w-5 h-5" aria-hidden="true" />
@@ -482,7 +812,8 @@ export function AdminDashboard({
                     <Input
                       id="scholars-search"
                       placeholder="Search scholars..."
-                      className="pl-10 border-[#D1D5DC] bg-white h-[44px]"
+                      className={`${tableSearchInputClass} pl-11 pr-4 py-[12px]`}
+                      style={{ paddingLeft: '2.75rem' }}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -490,7 +821,7 @@ export function AdminDashboard({
                   <div>
                     <label htmlFor="scholars-group-filter" className="sr-only">Filter scholars by talent group</label>
                     <Select value={groupFilter} onValueChange={setGroupFilter}>
-                      <SelectTrigger id="scholars-group-filter" className="w-full sm:w-[180px] border-2 border-[#7A1E1E] bg-white h-[44px]" aria-label="Filter scholars by talent group">
+                      <SelectTrigger id="scholars-group-filter" className={`w-full sm:w-[180px] ${tableSelectTriggerClass}`} aria-label="Filter scholars by talent group">
                         <SelectValue placeholder="Filter by group" />
                       </SelectTrigger>
                       <SelectContent>
@@ -528,6 +859,9 @@ export function AdminDashboard({
                               onClick={() => {
                                 setSelectedScholar(scholar);
                                 setShowScholarProfile(true);
+                                if (scholar.id) {
+                                  void fetchScholarProfile(scholar.id);
+                                }
                               }}
                               tabIndex={0}
                               role="button"
@@ -537,6 +871,9 @@ export function AdminDashboard({
                                   e.preventDefault();
                                   setSelectedScholar(scholar);
                                   setShowScholarProfile(true);
+                                  if (scholar.id) {
+                                    void fetchScholarProfile(scholar.id);
+                                  }
                                 }
                               }}
                             >
@@ -582,86 +919,60 @@ export function AdminDashboard({
 
             {/* Stats Cards */}
             <div
-              className="grid grid-cols-3 gap-2 sm:gap-4"
+              className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4"
               role="list"
               aria-label="Engagement statistics"
             >
-              <Card 
-                role="listitem"
-                className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all focus:outline-none focus:ring-2 focus:ring-[#7A1E1E]"
-                onClick={() => { setEngagementTab('events'); setEventListFilter('upcoming'); }}
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEngagementTab('events'); setEventListFilter('upcoming'); } }}
-                aria-label={`Upcoming Events: ${createdEvents.filter(e => e.status === 'upcoming').length}. Activate to view list.`}
-              >
-                <CardContent className="p-3 sm:p-6">
-                  <div>
-                    
-                    <div>
-                      <p className="text-[#6B7280] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Upcoming Events</p>
-                      <p className="text-[#7A1E1E] text-[18px] sm:text-[24px] leading-[24px] sm:leading-[32px] font-bold">
-                        {createdEvents.filter(e => e.status === 'upcoming').length}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card 
-                role="listitem"
-                className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all focus:outline-none focus:ring-2 focus:ring-[#7A1E1E]"
+              <DashboardQuickStatCard
+                label="Upcoming Events"
+                value={createdEvents.filter(e => e.status === 'upcoming').length}
+                onClick={() => {
+                  setEngagementTab('events');
+                  setEventListFilter('upcoming');
+                }}
+              />
+              <DashboardQuickStatCard
+                label="Pending Requests"
+                value={engagementRequests.length}
                 onClick={() => setEngagementTab('requests')}
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEngagementTab('requests'); } }}
-                aria-label={`Pending Requests: ${engagementRequests.length}. Activate to view requests.`}
-              >
-                <CardContent className="p-3 sm:p-6">
-                  <p className="text-[#6C757D] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Pending Requests</p>
-                  <p className="text-[#1A1A1A] text-[18px] sm:text-[24px] leading-[24px] sm:leading-[32px] font-bold">{engagementRequests.length}</p>
-                </CardContent>
-              </Card>
-
-              <Card 
-                role="listitem"
-                className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all focus:outline-none focus:ring-2 focus:ring-[#7A1E1E]"
-                onClick={() => { setEngagementTab('events'); setEventListFilter('completed'); }}
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEngagementTab('events'); setEventListFilter('completed'); } }}
-                aria-label={`Completed Events: ${createdEvents.filter(e => e.status === 'completed').length}. Activate to view completed events.`}
-              >
-                <CardContent className="p-3 sm:p-6">
-                  <p className="text-[#6C757D] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Completed Events</p>
-                  <p className="text-[#1A1A1A] text-[18px] sm:text-[24px] leading-[24px] sm:leading-[32px] font-bold">
-                        {createdEvents.filter(e => e.status === 'completed').length}
-                      </p>
-                </CardContent>
-              </Card>
+              />
+              <DashboardQuickStatCard
+                label="Completed Events"
+                value={createdEvents.filter(e => e.status === 'completed').length}
+                onClick={() => {
+                  setEngagementTab('events');
+                  setEventListFilter('completed');
+                }}
+              />
             </div>
 
             {/* Engagement Sub-Tabs */}
             <div
-              className="flex overflow-x-auto scrollbar-hide gap-1 bg-[#F1F3F4] p-1 rounded-lg w-full max-w-full"
+              className="flex overflow-x-auto scrollbar-hide gap-2 pb-1"
               role="tablist"
               aria-label="Engagement sections"
             >
               {[
                 { key: 'create',   label: 'Create Engagement',    Icon: Plus },
-                { key: 'requests', label: 'Engagement Requests',  Icon: Clock },
+                { key: 'requests', label: 'Approval Queues',      Icon: Clock },
                 { key: 'events',   label: 'List of Engagements',  Icon: Calendar },
                 { key: 'reports',  label: 'Engagement Reports',   Icon: FileText },
               ].map(({ key, label, Icon }) => (
                 <Button
                   key={key}
                   role="tab"
-                  variant={engagementTab === key ? 'default' : 'ghost'}
-                  size="sm"
+                  variant={engagementTab === key ? 'default' : 'outline'}
                   onClick={() => setEngagementTab(key as any)}
-                  className={`min-h-[44px] shrink-0 whitespace-nowrap ${engagementTab === key ? 'bg-[#7A1E1E] text-white hover:bg-[#7A1E1E]' : ''}`}
+                  className={`shrink-0 whitespace-nowrap ${
+                    engagementTab === key
+                      ? 'bg-[#7A1E1E] text-white hover:bg-[#6A1919]'
+                      : 'border-[#E0E0E0] text-[#6C757D] hover:bg-[#F8F9FA]'
+                  }`}
                   aria-selected={engagementTab === key}
                   aria-controls={`engagement-${key}-panel`}
                 >
-                  <Icon className="w-4 h-4 sm:mr-2" aria-hidden="true" />
-                  <span className="hidden sm:inline">{label}</span>
+                  <Icon className="w-4 h-4 mr-2" aria-hidden="true" />
+                  <span>{label}</span>
                 </Button>
               ))}
             </div>
@@ -671,10 +982,11 @@ export function AdminDashboard({
               <Card
                 id="engagement-create-panel"
                 role="tabpanel"
-                className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px]"
+                className={directorCardClass}
               >
                 <CardHeader>
-                  <CardDescription className="text-[#6C757D] text-[16px] leading-[25.6px]">
+                  <CardTitle className="text-[#7A1E1E]">Create Engagement Request</CardTitle>
+                  <CardDescription className="text-[#6C757D] text-[13px] leading-[20px]">
                     Schedule a new engagement event
                   </CardDescription>
                 </CardHeader>
@@ -707,6 +1019,7 @@ export function AdminDashboard({
                             }
                           }}
                           onBlur={() => handleEngagementFieldBlur('eventName')}
+                          required
                           aria-required="true"
                           aria-invalid={engagementFormTouched.eventName && !!engagementFormErrors.eventName}
                           aria-describedby={engagementFormErrors.eventName ? 'event-name-error' : undefined}
@@ -716,52 +1029,131 @@ export function AdminDashboard({
                         )}
                       </div>
 
-                      {/* Venue */}
+                      {/* Event Type */}
                       <div>
-                        <label htmlFor="event-venue" className="text-[#1A1A1A] text-[14px] mb-2 block">
-                          Venue <span className="text-red-600" aria-hidden="true">*</span>
-                          <span className="sr-only">(required)</span>
+                        <label htmlFor="event-type" className="text-[#1A1A1A] text-[14px] mb-2 block">
+                          Event Type <span className="text-red-600" aria-hidden="true">*</span>
                         </label>
-                        <Input
-                          id="event-venue"
-                          placeholder="Enter venue location"
-                          className={`bg-white ${
-                            engagementFormTouched.venue && engagementFormErrors.venue
-                              ? 'border-red-600 border-2 focus:border-red-600 focus:ring-red-600'
-                              : 'border-[#D1D5DC]'
-                          }`}
-                          value={venue}
-                          onChange={(e) => {
-                            setVenue(e.target.value);
-                            if (engagementFormTouched.venue) {
-                              setEngagementFormErrors(prev => ({ ...prev, venue: validateEngagementField('venue', e.target.value) }));
-                            }
-                          }}
-                          onBlur={() => handleEngagementFieldBlur('venue')}
+                        <select
+                          id="event-type"
+                          value={eventType}
+                          onChange={(e) => setEventType(e.target.value as 'performance' | 'workshop' | 'competition' | 'rehearsal')}
+                          className="w-full border border-[#D1D5DC] rounded-md px-3 py-2 bg-white"
+                          required
                           aria-required="true"
-                          aria-invalid={engagementFormTouched.venue && !!engagementFormErrors.venue}
-                          aria-describedby={engagementFormErrors.venue ? 'venue-error' : undefined}
-                        />
+                        >
+                          <option value="performance">Performance</option>
+                          <option value="workshop">Workshop</option>
+                          <option value="competition">Competition</option>
+                          <option value="rehearsal">Rehearsal</option>
+                        </select>
+                      </div>
+
+                      {/* Venue — PSGC cascading picker */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          Venue <span style={{ color: '#DC2626' }} aria-hidden="true">*</span>
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {/* Region */}
+                          <div className="space-y-1">
+                            <label htmlFor="venue-region" className="text-xs text-muted-foreground">Region</label>
+                            <Select
+                              value={venueAddress.region || undefined}
+                              onValueChange={(v) => setVenueAddress(prev => ({ ...prev, region: v, province: '', city: '', barangay: '' }))}
+                            >
+                              <SelectTrigger id="venue-region" className={`h-10 text-sm border-2 ${engagementFormTouched.venue && engagementFormErrors.venue ? 'border-red-600' : 'border-gray-200'}`} onBlur={() => handleEngagementFieldBlur('venue')}>
+                                <SelectValue placeholder="Select region" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {regionOptions.map(r => <SelectItem key={r.code} value={r.name}>{r.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {/* Province */}
+                          <div className="space-y-1">
+                            <label htmlFor="venue-province" className="text-xs text-muted-foreground">Province</label>
+                            <Select
+                              value={venueAddress.province || undefined}
+                              onValueChange={(v) => setVenueAddress(prev => ({ ...prev, province: v, city: '', barangay: '' }))}
+                              disabled={!venueAddress.region || provinceOptions.length === 0}
+                            >
+                              <SelectTrigger id="venue-province" className={`h-10 text-sm border-2 ${engagementFormTouched.venue && engagementFormErrors.venue ? 'border-red-600' : 'border-gray-200'}`}>
+                                <SelectValue placeholder="Select province" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {provinceOptions.map(p => <SelectItem key={p.code} value={p.name}>{p.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {/* City / Municipality */}
+                          <div className="space-y-1">
+                            <label htmlFor="venue-city" className="text-xs text-muted-foreground">City / Municipality</label>
+                            <Select
+                              value={venueAddress.city || undefined}
+                              onValueChange={(v) => setVenueAddress(prev => ({ ...prev, city: v, barangay: '' }))}
+                              disabled={!venueAddress.region || (provinceOptions.length > 0 && !venueAddress.province)}
+                            >
+                              <SelectTrigger id="venue-city" className={`h-10 text-sm border-2 ${engagementFormTouched.venue && engagementFormErrors.venue ? 'border-red-600' : 'border-gray-200'}`}>
+                                <SelectValue placeholder="Select city" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {cityOptions.map(c => <SelectItem key={c.code} value={c.name}>{c.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {/* Barangay */}
+                          <div className="space-y-1">
+                            <label htmlFor="venue-barangay" className="text-xs text-muted-foreground">Barangay</label>
+                            <Select
+                              value={venueAddress.barangay || undefined}
+                              onValueChange={(v) => setVenueAddress(prev => ({ ...prev, barangay: v }))}
+                              disabled={!venueAddress.city}
+                            >
+                              <SelectTrigger id="venue-barangay" className={`h-10 text-sm border-2 ${engagementFormTouched.venue && engagementFormErrors.venue ? 'border-red-600' : 'border-gray-200'}`}>
+                                <SelectValue placeholder="Select barangay" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {barangayOptions.map(b => <SelectItem key={b.code} value={b.name}>{b.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        {/* Street */}
+                        <div className="mt-3">
+                          <Input
+                            id="venue-street"
+                            placeholder="Street / Building / Landmark"
+                            value={venueAddress.street}
+                            onChange={(e) => setVenueAddress(prev => ({ ...prev, street: e.target.value }))}
+                            onBlur={() => handleEngagementFieldBlur('venue')}
+                            className={engagementFormTouched.venue && engagementFormErrors.venue ? 'border-red-600' : ''}
+                          />
+                        </div>
+                        {isLoadingVenueOptions && <p className="text-xs text-muted-foreground mt-1">Loading locations…</p>}
+                        {venue && <p className="text-xs text-muted-foreground mt-1">Full venue: {venue}</p>}
                         {engagementFormTouched.venue && engagementFormErrors.venue && (
                           <p id="venue-error" role="alert" className="text-red-600 text-[12px] mt-1">{engagementFormErrors.venue}</p>
                         )}
                       </div>
 
                       {/* Date + Time */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
                         <div>
-                          <label htmlFor="event-date" className="text-[#1A1A1A] text-[14px] mb-2 block">
-                            Date <span className="text-red-600" aria-hidden="true">*</span>
-                            <span className="sr-only">(required)</span>
+                          <label htmlFor="event-date" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            Date <span style={{ color: '#DC2626' }} aria-hidden="true">*</span>
                           </label>
                           <Input
                             id="event-date"
                             type="date"
-                            className={`bg-white cursor-pointer ${
-                              engagementFormTouched.eventDate && engagementFormErrors.eventDate
-                                ? 'border-red-600 border-2 focus:border-red-600 focus:ring-red-600'
-                                : 'border-[#D1D5DC]'
-                            }`}
+                            min={getTodayDateValue()}
+                            style={{
+                              width: '100%', height: 40, padding: '0 12px',
+                              fontSize: 14, color: '#0F172A',
+                              border: '1px solid #E2E8F0', borderRadius: 8,
+                              outline: 'none', background: '#F8FAFC',
+                              boxSizing: 'border-box', colorScheme: 'light'
+                            }}
                             value={eventDate}
                             onChange={(e) => {
                               setEventDate(e.target.value);
@@ -770,7 +1162,7 @@ export function AdminDashboard({
                               }
                             }}
                             onBlur={() => handleEngagementFieldBlur('eventDate')}
-                            style={{ colorScheme: 'light' }}
+                            required
                             aria-required="true"
                             aria-invalid={engagementFormTouched.eventDate && !!engagementFormErrors.eventDate}
                             aria-describedby={engagementFormErrors.eventDate ? 'event-date-error' : undefined}
@@ -780,18 +1172,19 @@ export function AdminDashboard({
                           )}
                         </div>
                         <div>
-                          <label htmlFor="event-time" className="text-[#1A1A1A] text-[14px] mb-2 block">
-                            Time <span className="text-red-600" aria-hidden="true">*</span>
-                            <span className="sr-only">(required)</span>
+                          <label htmlFor="event-time" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            Time <span style={{ color: '#DC2626' }} aria-hidden="true">*</span>
                           </label>
                           <Input
                             id="event-time"
                             type="time"
-                            className={`bg-white cursor-pointer ${
-                              engagementFormTouched.eventTime && engagementFormErrors.eventTime
-                                ? 'border-red-600 border-2 focus:border-red-600 focus:ring-red-600'
-                                : 'border-[#D1D5DC]'
-                            }`}
+                            style={{
+                              width: '100%', height: 40, padding: '0 12px',
+                              fontSize: 14, color: '#0F172A',
+                              border: '1px solid #E2E8F0', borderRadius: 8,
+                              outline: 'none', background: '#F8FAFC',
+                              boxSizing: 'border-box', colorScheme: 'light'
+                            }}
                             value={eventTime}
                             onChange={(e) => {
                               setEventTime(e.target.value);
@@ -800,7 +1193,7 @@ export function AdminDashboard({
                               }
                             }}
                             onBlur={() => handleEngagementFieldBlur('eventTime')}
-                            style={{ colorScheme: 'light' }}
+                            required
                             aria-required="true"
                             aria-invalid={engagementFormTouched.eventTime && !!engagementFormErrors.eventTime}
                             aria-describedby={engagementFormErrors.eventTime ? 'event-time-error' : undefined}
@@ -813,61 +1206,184 @@ export function AdminDashboard({
 
                       {/* Description */}
                       <div>
-                        <label htmlFor="event-description" className="text-[#1A1A1A] text-[14px] mb-2 block">Description</label>
+                        <label htmlFor="event-description" className="text-[#1A1A1A] text-[14px] mb-2 block">
+                          Description <span className="text-red-600" aria-hidden="true">*</span>
+                          <span className="sr-only">(required)</span>
+                        </label>
                         <Textarea
                           id="event-description"
                           placeholder="Enter event description"
-                          className="border-[#D1D5DC] bg-white"
+                          className={`bg-white ${
+                            engagementFormTouched.description && engagementFormErrors.description
+                              ? 'border-red-600 border-2 focus:border-red-600 focus:ring-red-600'
+                              : 'border-[#D1D5DC]'
+                          }`}
                           rows={4}
                           value={description}
-                          onChange={(e) => setDescription(e.target.value)}
+                          onChange={(e) => {
+                            setDescription(e.target.value);
+                            if (engagementFormTouched.description) {
+                              setEngagementFormErrors(prev => ({ ...prev, description: validateEngagementField('description', e.target.value) }));
+                            }
+                          }}
+                          onBlur={() => handleEngagementFieldBlur('description')}
+                          required
+                          aria-required="true"
+                          aria-invalid={engagementFormTouched.description && !!engagementFormErrors.description}
+                          aria-describedby={engagementFormErrors.description ? 'event-description-error' : undefined}
                         />
+                        {engagementFormTouched.description && engagementFormErrors.description && (
+                          <p id="event-description-error" role="alert" className="text-red-600 text-[12px] mt-1">{engagementFormErrors.description}</p>
+                        )}
+                      </div>
+
+                      {/* Organizer Information */}
+                      <div className="space-y-4 pt-4 border-t border-[#E0E0E0]">
+                        <h4 className="text-[#1A1A1A] text-[14px] font-medium">Organizer Information</h4>
+
+                        <div>
+                          <label htmlFor="event-organization" className="text-[#1A1A1A] text-[14px] mb-2 block">
+                            Organization Name <span className="text-red-600" aria-hidden="true">*</span>
+                            <span className="sr-only">(required)</span>
+                          </label>
+                          <Input
+                            id="event-organization"
+                            placeholder="Enter organization name"
+                            className={`bg-white ${
+                              engagementFormTouched.organizationName && engagementFormErrors.organizationName
+                                ? 'border-red-600 border-2 focus:border-red-600 focus:ring-red-600'
+                                : 'border-[#D1D5DC]'
+                            }`}
+                            value={organizationName}
+                            onChange={(e) => {
+                              setOrganizationName(e.target.value);
+                              if (engagementFormTouched.organizationName) {
+                                setEngagementFormErrors(prev => ({ ...prev, organizationName: validateEngagementField('organizationName', e.target.value) }));
+                              }
+                            }}
+                            onBlur={() => handleEngagementFieldBlur('organizationName')}
+                            required
+                            aria-required="true"
+                            aria-invalid={engagementFormTouched.organizationName && !!engagementFormErrors.organizationName}
+                            aria-describedby={engagementFormErrors.organizationName ? 'event-organization-error' : undefined}
+                          />
+                          {engagementFormTouched.organizationName && engagementFormErrors.organizationName && (
+                            <p id="event-organization-error" role="alert" className="text-red-600 text-[12px] mt-1">{engagementFormErrors.organizationName}</p>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label htmlFor="event-contact-person" className="text-[#1A1A1A] text-[14px] mb-2 block">Contact Person</label>
+                            <Input
+                              id="event-contact-person"
+                              placeholder="Enter contact person"
+                              className="border-[#D1D5DC] bg-white"
+                              value={contactPerson}
+                              onChange={(e) => setContactPerson(e.target.value)}
+                            />
+                          </div>
+
+                          <div>
+                            <label htmlFor="event-contact-email" className="text-[#1A1A1A] text-[14px] mb-2 block">Contact Email</label>
+                            <Input
+                              id="event-contact-email"
+                              type="email"
+                              placeholder="email@example.com"
+                              className={`bg-white ${
+                                engagementFormTouched.contactEmail && engagementFormErrors.contactEmail
+                                  ? 'border-red-600 border-2 focus:border-red-600 focus:ring-red-600'
+                                  : 'border-[#D1D5DC]'
+                              }`}
+                              value={contactEmail}
+                              onChange={(e) => {
+                                setContactEmail(e.target.value);
+                                if (engagementFormTouched.contactEmail) {
+                                  setEngagementFormErrors(prev => ({ ...prev, contactEmail: validateEngagementField('contactEmail', e.target.value) }));
+                                }
+                              }}
+                              onBlur={() => handleEngagementFieldBlur('contactEmail')}
+                              aria-invalid={engagementFormTouched.contactEmail && !!engagementFormErrors.contactEmail}
+                              aria-describedby={engagementFormErrors.contactEmail ? 'event-contact-email-error' : undefined}
+                            />
+                            {engagementFormTouched.contactEmail && engagementFormErrors.contactEmail && (
+                              <p id="event-contact-email-error" role="alert" className="text-red-600 text-[12px] mt-1">{engagementFormErrors.contactEmail}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label htmlFor="event-contact-phone" className="text-[#1A1A1A] text-[14px] mb-2 block">Contact Phone</label>
+                          <Input
+                            id="event-contact-phone"
+                            placeholder="+63 XXX XXX XXXX"
+                            className={`bg-white ${
+                              engagementFormTouched.contactPhone && engagementFormErrors.contactPhone
+                                ? 'border-red-600 border-2 focus:border-red-600 focus:ring-red-600'
+                                : 'border-[#D1D5DC]'
+                            }`}
+                            value={contactPhone}
+                            onChange={(e) => {
+                              setContactPhone(e.target.value);
+                              if (engagementFormTouched.contactPhone) {
+                                setEngagementFormErrors(prev => ({ ...prev, contactPhone: validateEngagementField('contactPhone', e.target.value) }));
+                              }
+                            }}
+                            onBlur={() => handleEngagementFieldBlur('contactPhone')}
+                            aria-invalid={engagementFormTouched.contactPhone && !!engagementFormErrors.contactPhone}
+                            aria-describedby={engagementFormErrors.contactPhone ? 'event-contact-phone-error' : undefined}
+                          />
+                          {engagementFormTouched.contactPhone && engagementFormErrors.contactPhone && (
+                            <p id="event-contact-phone-error" role="alert" className="text-red-600 text-[12px] mt-1">{engagementFormErrors.contactPhone}</p>
+                          )}
+                        </div>
                       </div>
 
                       {/* Attachment */}
-                      <div>
-                        <label htmlFor="event-attachment" className="text-[#1A1A1A] text-[14px] mb-2 block">
-                          Attachment <span className="text-[#6C757D] text-[12px]">(Optional)</span>
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            id="event-attachment"
+                      <div className="space-y-2 pt-4 border-t border-[#E0E0E0]">
+                        <label className="text-[#1A1A1A] text-[14px] mb-2 block">Attachments</label>
+                        <p className="text-xs text-[#6C757D]">Upload supporting documents (PDF, DOC, DOCX, JPG, PNG - Max 5MB each)</p>
+                        <div className="border-2 border-dashed rounded-lg p-4">
+                          <input
                             type="file"
-                            className="border-[#D1D5DC] bg-white cursor-pointer"
-                            aria-describedby="attachment-hint"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                setAttachment(file.name);
-                                toast.success(`File "${file.name}" attached successfully`);
-                              }
-                            }}
+                            multiple
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            onChange={handleAttachmentUpload}
+                            className="hidden"
+                            id="event-attachments-upload"
                           />
-                          {attachment && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setAttachment('');
-                                toast.info('Attachment removed');
-                              }}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 min-h-[44px] min-w-[44px]"
-                              aria-label="Remove attachment"
-                            >
-                              <Trash2 className="w-4 h-4" aria-hidden="true" />
-                            </Button>
-                          )}
+                          <label htmlFor="event-attachments-upload" className="cursor-pointer">
+                            <div className="flex flex-col items-center">
+                              <Upload className="w-8 h-8 text-[#6c757d] mb-2" aria-hidden="true" />
+                              <p className="text-sm text-[#6c757d]">Click to upload files</p>
+                            </div>
+                          </label>
                         </div>
-                        {attachment && (
-                          <div className="mt-2 flex items-center text-sm text-[#6C757D]" aria-live="polite">
-                            <FileText className="w-4 h-4 mr-1" aria-hidden="true" />
-                            <span>{attachment}</span>
+
+                        {attachments.length > 0 && (
+                          <div className="space-y-2 mt-3">
+                            {attachments.map((file, idx) => (
+                              <div key={`${file.name}-${idx}`} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                <div className="flex items-center space-x-2">
+                                  <FileText className="w-4 h-4" aria-hidden="true" />
+                                  <div>
+                                    <p className="text-sm">{file.name}</p>
+                                    <p className="text-xs text-[#6c757d]">{formatFileSize(file.size)}</p>
+                                  </div>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeAttachmentAt(idx)}
+                                  aria-label={`Remove attachment ${file.name}`}
+                                >
+                                  <XCircle className="w-4 h-4 text-red-500" aria-hidden="true" />
+                                </Button>
+                              </div>
+                            ))}
                           </div>
                         )}
-                        <p id="attachment-hint" className="text-xs text-[#6C757D] mt-1">
-                          Upload formality documents, contracts, or event details (PDF, DOC, etc.)
-                        </p>
                       </div>
 
                       {/* Talent Groups */}
@@ -916,24 +1432,47 @@ export function AdminDashboard({
                         )}
                       </fieldset>
 
+                      <div className="p-3 bg-orange-50 rounded flex items-start space-x-2">
+                        <AlertCircle className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                        <p className="text-xs text-orange-800">
+                          This request will be sent to directors for review and approval before being finalized.
+                          You will be notified once a decision is made.
+                        </p>
+                      </div>
+
                       {/* Submit */}
-                      <Button
-                        type="submit"
-                        variant="default"
-                        size="sm"
-                        className="bg-[#7A1E1E] text-white hover:bg-[#7A1E1E] min-h-[44px] px-6"
-                        disabled={isCreatingEngagement}
-                        aria-busy={isCreatingEngagement}
-                        onClick={() => {
+                      <div className="flex justify-end">
+                        <Button
+                          type="submit"
+                          variant="default"
+                          size="sm"
+                          className="border border-[#CBD5E1] bg-[#F8FAFC] text-[#0F172A] hover:bg-[#F1F5F9] hover:border-[#94A3B8] min-h-[44px] px-6 rounded-[10px]"
+                          disabled={isCreatingEngagement}
+                          aria-busy={isCreatingEngagement}
+                          onClick={() => {
                           if (isCreatingEngagement) return;
                           
-                          setEngagementFormTouched({ eventName: true, venue: true, eventDate: true, eventTime: true, selectedGroups: true });
+                          setEngagementFormTouched({
+                            eventName: true,
+                            venue: true,
+                            eventDate: true,
+                            eventTime: true,
+                            description: true,
+                            organizationName: true,
+                            contactEmail: true,
+                            contactPhone: true,
+                            selectedGroups: true
+                          });
 
                           const errors = {
                             eventName:     validateEngagementField('eventName', eventName),
                             venue:         validateEngagementField('venue', venue),
                             eventDate:     validateEngagementField('eventDate', eventDate),
                             eventTime:     validateEngagementField('eventTime', eventTime),
+                            description:   validateEngagementField('description', description),
+                            organizationName: validateEngagementField('organizationName', organizationName),
+                            contactEmail:  validateEngagementField('contactEmail', contactEmail),
+                            contactPhone:  validateEngagementField('contactPhone', contactPhone),
                             selectedGroups:validateEngagementField('selectedGroups', selectedGroups)
                           };
                           setEngagementFormErrors(errors);
@@ -943,26 +1482,89 @@ export function AdminDashboard({
                           if (!venue.trim())           missingFields.push('Venue');
                           if (!eventDate)              missingFields.push('Date');
                           if (!eventTime)              missingFields.push('Time');
+                          if (!description.trim())     missingFields.push('Description');
+                          if (!organizationName.trim())missingFields.push('Organization Name');
                           if (selectedGroups.length === 0) missingFields.push('Talent Groups');
 
-                          if (missingFields.length > 0) {
-                            toast.error(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+                          const hasFormatErrors = Object.values(errors).some(Boolean);
+                          if (missingFields.length > 0 || hasFormatErrors) {
+                            if (missingFields.length > 0) {
+                              toast.error(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+                            } else {
+                              toast.error('Please fix the highlighted fields before submitting.');
+                            }
                             return;
                           }
                           
                           setIsCreatingEngagement(true);
-                          toast.success('Engagement event created successfully!');
-                          
-                          setEventName(''); setVenue(''); setEventDate(''); setEventTime('');
-                          setDescription(''); setSelectedGroups([]); setAttachment('');
-                          setEngagementFormTouched({ eventName: false, venue: false, eventDate: false, eventTime: false, selectedGroups: false });
-                          setEngagementFormErrors({ eventName: '', venue: '', eventDate: '', eventTime: '', selectedGroups: '' });
-                          setIsCreatingEngagement(false);
-                        }}
-                      >
-                        <CheckCircle className="w-4 h-4 mr-2" aria-hidden="true" />
-                        {isCreatingEngagement ? 'Creating…' : 'Schedule Event'}
-                      </Button>
+
+                          const createEngagement = async () => {
+                            await engagementService.createEngagement({
+                              event_name: eventName,
+                              venue,
+                              date: eventDate,
+                              time: eventTime,
+                              description,
+                              organization_name: organizationName,
+                              contact_person: contactPerson || null,
+                              contact_email: contactEmail || null,
+                              contact_phone: contactPhone || null,
+                              attachments: attachments.map((file) => ({
+                                name: file.name,
+                                size: file.size,
+                                type: file.type,
+                              })),
+                              talent_groups: selectedGroups,
+                              type: eventType,
+                              status: 'pending_director_approval' as any,
+                              is_required: false,
+                            });
+
+                            await loadEngagementData();
+                            toast.success('Engagement sent for director approval');
+
+                            setEventName(''); setVenue(''); setEventDate(''); setEventTime('');
+                            setEventType('performance');
+                            setVenueAddress({ region: '', province: '', city: '', barangay: '', street: '' });
+                            setDescription(''); setOrganizationName(''); setContactPerson(''); setContactEmail(''); setContactPhone('');
+                            setSelectedGroups([]); setAttachments([]);
+                            setEngagementFormTouched({
+                              eventName: false,
+                              venue: false,
+                              eventDate: false,
+                              eventTime: false,
+                              description: false,
+                              organizationName: false,
+                              contactEmail: false,
+                              contactPhone: false,
+                              selectedGroups: false
+                            });
+                            setEngagementFormErrors({
+                              eventName: '',
+                              venue: '',
+                              eventDate: '',
+                              eventTime: '',
+                              description: '',
+                              organizationName: '',
+                              contactEmail: '',
+                              contactPhone: '',
+                              selectedGroups: ''
+                            });
+                          };
+
+                          void createEngagement()
+                            .catch(() => {
+                              toast.error('Failed to create engagement event');
+                            })
+                            .finally(() => {
+                              setIsCreatingEngagement(false);
+                            });
+                          }}
+                        >
+                          <Send className="w-4 h-4 mr-2" aria-hidden="true" />
+                          {isCreatingEngagement ? 'Submitting…' : 'Submit for Approval'}
+                        </Button>
+                      </div>
                     </div>
                   </form>
                 </CardContent>
@@ -971,136 +1573,232 @@ export function AdminDashboard({
 
             {/* ── Engagement Requests ───────────────────────────────────────── */}
             {engagementTab === 'requests' && (
-              <Card
-                id="engagement-requests-panel"
-                role="tabpanel"
-                className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px]"
-              >
-                <CardHeader>
-                  <CardDescription className="text-[#6C757D] text-[16px] leading-[25.6px]">
-                    Review and approve event participation requests
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="max-h-[640px] overflow-y-auto pr-1">
-                    <div className="space-y-4" aria-live="polite" aria-label="Engagement requests">
-                      {engagementRequests.map(request => (
-                        <article
-                          key={request.id}
-                          className="bg-white border border-[#E0E0E0] rounded-lg p-4 relative"
-                          aria-label={`Engagement request: ${request.eventName}`}
-                        >
-                          <div className="flex items-start justify-between gap-2 mb-4">
-                            <div className="flex-1 min-w-0">
-                              <h3 className="text-[#1A1A1A] text-[14px] sm:text-[16px] font-medium mb-1 truncate">
-                                {request.eventName}
-                              </h3>
-                              <p className="text-[#6C757D] text-[12px] sm:text-[14px] truncate">
-                                Requested by: {request.requestedBy}
-                              </p>
-                            </div>
-                            <Badge className="bg-[#FEF9C2] text-[#894B00] border-0 flex items-center gap-1 shrink-0">
-                              <Clock className="w-3 h-3" aria-hidden="true" />
-                              <span>Pending</span>
-                            </Badge>
-                          </div>
-
-                          <div className="flex flex-wrap gap-x-4 gap-y-2 mb-3">
-                            <div className="flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5 text-[#6C757D] shrink-0" aria-hidden="true" />
-                              <span className="text-[#1A1A1A] text-[13px]">{request.date}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 min-w-0 max-w-[180px]">
-                              <MapPin className="w-3.5 h-3.5 text-[#6C757D] shrink-0" aria-hidden="true" />
-                              <span className="text-[#1A1A1A] text-[13px] truncate">{request.venue}</span>
-                            </div>
-                            <div className="flex items-center flex-wrap gap-1">
-                              {request.groups.map(group => (
-                                <Badge
-                                  key={group}
-                                  className="text-white text-[11px]"
-                                  style={{ backgroundColor: getTalentGroupColor(group) }}
+              <div id="engagement-requests-panel" role="tabpanel" className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    <Card id="queue-director-requests" className="border-[#E0E0E0]">
+                      <CardHeader>
+                        <CardTitle className="text-[#7A1E1E]">Director Requests For Admin Decision</CardTitle>
+                        <CardDescription>Accept or reject engagement requests submitted by directors</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ScrollArea className="h-[500px] pr-4">
+                          {engagementRequests.length > 0 ? (
+                            <div className="space-y-4" aria-live="polite" aria-label="Director requests pending admin decision">
+                              {engagementRequests.map((request) => (
+                                <article
+                                  key={request.id}
+                                  className="border rounded-lg p-4"
+                                  aria-label={`Engagement request: ${request.eventName}`}
                                 >
-                                  {getTalentGroupName(group)}
-                                </Badge>
+                                  <div className="flex items-start justify-between mb-3 gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="font-medium text-[#7A1E1E] truncate">{request.eventName}</h4>
+                                      <p className="text-sm text-[#6C757D] mt-1">{request.description}</p>
+                                      <p className="text-xs text-[#6C757D] mt-2 truncate">
+                                        From: {request.requestedBy || 'Unknown'}{request.organization ? ` (${request.organization})` : ''}
+                                      </p>
+                                    </div>
+                                    <Badge variant="secondary" className="shrink-0">Pending</Badge>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-sm text-[#6C757D]">
+                                    <div className="flex items-center">
+                                      <Calendar className="w-4 h-4 mr-1" aria-hidden="true" />
+                                      {request.date}
+                                    </div>
+                                    {request.time && (
+                                      <div className="flex items-center">
+                                        <Clock className="w-4 h-4 mr-1" aria-hidden="true" />
+                                        {request.time}
+                                      </div>
+                                    )}
+                                    <div className="flex items-center min-w-0">
+                                      <MapPin className="w-4 h-4 mr-1 shrink-0" aria-hidden="true" />
+                                      <span className="truncate">{request.venue}</span>
+                                    </div>
+                                  </div>
+
+                                  {request.groups?.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-3">
+                                      {request.groups.map((group: string) => (
+                                        <Badge
+                                          key={group}
+                                          className="text-white text-[11px]"
+                                          style={{ backgroundColor: getTalentGroupColor(group) }}
+                                        >
+                                          {getTalentGroupName(group)}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {request.attachment && (
+                                    <div className="mt-3 p-2 bg-gray-50 rounded border border-[#E0E0E0]">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <FileText className="w-3 h-3 shrink-0" aria-hidden="true" />
+                                          <span className="text-xs truncate">{request.attachment}</span>
+                                        </div>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 px-2"
+                                          onClick={() => {
+                                            setSelectedAttachment({
+                                              name: request.attachment!,
+                                              type: request.attachment!.toLowerCase().endsWith('.pdf') ? 'pdf' : 'document'
+                                            });
+                                            setShowAttachmentPreview(true);
+                                          }}
+                                          aria-label={`View attachment: ${request.attachment}`}
+                                        >
+                                          <Download className="w-3 h-3" aria-hidden="true" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="flex gap-2 mt-4">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleApproveRequest(request.id)}
+                                      className="flex-1 bg-green-600 hover:bg-green-700"
+                                      aria-label={`Accept engagement request: ${request.eventName}`}
+                                    >
+                                      <CheckCircle className="w-4 h-4 mr-1" aria-hidden="true" />
+                                      Accept
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => handleDeclineRequest(request.id)}
+                                      className="flex-1"
+                                      aria-label={`Reject engagement request: ${request.eventName}`}
+                                    >
+                                      <XCircle className="w-4 h-4 mr-1" aria-hidden="true" />
+                                      Reject
+                                    </Button>
+                                  </div>
+                                </article>
                               ))}
                             </div>
-                          </div>
-
-                          <p className="text-[#6C757D] text-[14px] leading-[20px] mb-4">
-                            {request.description}
-                          </p>
-
-                          {request.attachment && (
-                            <div className="mb-4 flex items-center gap-2 p-3 bg-[#F8F9FA] rounded-lg border border-[#E0E0E0] overflow-hidden">
-                              <FileText className="w-4 h-4 text-[#7A1E1E] shrink-0" aria-hidden="true" />
-                              <span className="text-[13px] text-[#1A1A1A] flex-1 truncate min-w-0">{request.attachment}</span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedAttachment({
-                                    name: request.attachment!,
-                                    type: request.attachment!.toLowerCase().endsWith('.pdf') ? 'pdf' : 'document'
-                                  });
-                                  setShowAttachmentPreview(true);
-                                }}
-                                className="min-h-[44px] text-[12px] min-w-[44px]"
-                                aria-label={`View attachment: ${request.attachment}`}
-                              >
-                                <Eye className="w-3 h-3 mr-1" aria-hidden="true" />
-                                View
-                              </Button>
+                          ) : (
+                            <div className="text-center py-8 text-muted-foreground">
+                              <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" aria-hidden="true" />
+                              <p>No engagement requests pending your decision</p>
                             </div>
                           )}
+                        </ScrollArea>
+                      </CardContent>
+                    </Card>
 
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              className="bg-[#7A1E1E] text-white hover:bg-[#6A1919] min-h-[44px] flex-1 sm:flex-none"
-                              onClick={() => handleApproveRequest(request.id)}
-                              aria-label={`Approve engagement request: ${request.eventName}`}
-                            >
-                              <CheckCircle className="w-4 h-4 sm:mr-2" aria-hidden="true" />
-                              <span className="hidden sm:inline">Approve</span>
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-2 border-[#6C757D] bg-transparent text-[#1A1A1A] hover:bg-[#F8F9FA] min-h-[44px] flex-1 sm:flex-none"
-                              onClick={() => handleDeclineRequest(request.id)}
-                              aria-label={`Decline engagement request: ${request.eventName}`}
-                            >
-                              <XCircle className="w-4 h-4 sm:mr-2" aria-hidden="true" />
-                              <span className="hidden sm:inline">Decline</span>
-                            </Button>
-                          </div>
-                        </article>
-                      ))}
+                    <Card id="section-awaiting-director" className="border-orange-200 bg-orange-50/50">
+                      <CardHeader>
+                        <CardTitle className="text-orange-700 flex items-center">
+                          <Send className="w-5 h-5 mr-2" aria-hidden="true" />
+                          Admin-Created Requests (Waiting Director Approval)
+                        </CardTitle>
+                        <CardDescription>
+                          These requests were created by admin and are waiting for directors to accept or reject
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ScrollArea className="h-[500px] pr-4">
+                          {adminCreatedForDirectorDecision.length > 0 ? (
+                            <div className="space-y-4" aria-live="polite" aria-label="Admin requests waiting director approval">
+                              {adminCreatedForDirectorDecision.map((request) => (
+                                <article key={request.id} className="border border-orange-200 rounded-lg p-4 bg-white">
+                                  <div className="flex items-start justify-between mb-3 gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="font-medium truncate">{request.eventName}</h4>
+                                      <p className="text-sm text-[#6C757D] mt-1">{request.description}</p>
+                                    </div>
+                                    <Badge className="bg-orange-500 text-white">Pending Director</Badge>
+                                  </div>
 
-                      {engagementRequests.length === 0 && (
-                        <EmptyState
-                          icon={<Clock className="w-12 h-12" />}
-                          title="No engagement requests"
-                          description="There are no pending engagement requests at the moment. Approved requests will appear in List of Engagements."
-                        />
-                      )}
-                    </div>
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-sm text-[#6C757D]">
+                                    <div className="flex items-center">
+                                      <Calendar className="w-4 h-4 mr-1" aria-hidden="true" />
+                                      {request.date}
+                                    </div>
+                                    {request.time && (
+                                      <div className="flex items-center">
+                                        <Clock className="w-4 h-4 mr-1" aria-hidden="true" />
+                                        {request.time}
+                                      </div>
+                                    )}
+                                    <div className="flex items-center min-w-0">
+                                      <MapPin className="w-4 h-4 mr-1 shrink-0" aria-hidden="true" />
+                                      <span className="truncate">{request.venue}</span>
+                                    </div>
+                                  </div>
+
+                                  {request.groups?.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-3">
+                                      {request.groups.map((group: string) => (
+                                        <Badge
+                                          key={group}
+                                          className="text-white text-[11px]"
+                                          style={{ backgroundColor: getTalentGroupColor(group) }}
+                                        >
+                                          {getTalentGroupName(group)}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {request.attachment && (
+                                    <div className="mt-3 p-2 bg-gray-50 rounded border border-[#E0E0E0]">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <FileText className="w-3 h-3 shrink-0" aria-hidden="true" />
+                                          <span className="text-xs truncate">{request.attachment}</span>
+                                        </div>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 px-2"
+                                          onClick={() => {
+                                            setSelectedAttachment({
+                                              name: request.attachment!,
+                                              type: request.attachment!.toLowerCase().endsWith('.pdf') ? 'pdf' : 'document'
+                                            });
+                                            setShowAttachmentPreview(true);
+                                          }}
+                                          aria-label={`View attachment: ${request.attachment}`}
+                                        >
+                                          <Download className="w-3 h-3" aria-hidden="true" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </article>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-muted-foreground">
+                              <Send className="w-12 h-12 mx-auto mb-3 opacity-50" aria-hidden="true" />
+                              <p>No admin-created requests waiting for directors</p>
+                            </div>
+                          )}
+                        </ScrollArea>
+                      </CardContent>
+                    </Card>
                   </div>
-                </CardContent>
-              </Card>
             )}
 
             {/* ── List of Engagements ───────────────────────────────────────── */}
             {engagementTab === 'events' && (
               <div id="engagement-events-panel" role="tabpanel" className="space-y-4">
-                <Card className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px]">
+                <Card className={directorCardClass}>
                   <CardHeader>
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                      <CardDescription className="text-[#6C757D] text-[16px] leading-[25.6px] flex-1">
+                      <div className="flex-1">
+                        <CardTitle className="text-[#7A1E1E]">List of Engagements</CardTitle>
+                        <CardDescription className="text-[#6C757D] text-[13px] leading-[20px] mt-1">
                         {eventListFilter === 'upcoming' && 'Events scheduled for the future'}
                         {eventListFilter === 'completed' && 'Past engagement events'}
-                      </CardDescription>
+                        </CardDescription>
+                      </div>
                       <div
                         className="flex space-x-1 bg-[#F1F3F4] p-1 rounded-lg"
                         role="group"
@@ -1110,7 +1808,7 @@ export function AdminDashboard({
                           variant={eventListFilter === 'upcoming' ? 'default' : 'ghost'}
                           size="sm"
                           onClick={() => setEventListFilter('upcoming')}
-                          className={`text-[12px] min-h-[44px] ${eventListFilter === 'upcoming' ? 'bg-[#7A1E1E] text-white hover:bg-[#7A1E1E]' : ''}`}
+                          className={`text-[12px] min-h-[44px] rounded-[10px] border ${eventListFilter === 'upcoming' ? 'bg-[#7A1E1E] text-white border-[#7A1E1E] hover:bg-[#7A1E1E]' : 'border-[#CBD5E1] bg-[#F8FAFC] text-[#0F172A] hover:bg-[#F1F5F9] hover:border-[#94A3B8]'}`}
                           aria-pressed={eventListFilter === 'upcoming'}
                         >
                           Upcoming
@@ -1119,7 +1817,7 @@ export function AdminDashboard({
                           variant={eventListFilter === 'completed' ? 'default' : 'ghost'}
                           size="sm"
                           onClick={() => setEventListFilter('completed')}
-                          className={`text-[12px] min-h-[44px] ${eventListFilter === 'completed' ? 'bg-[#7A1E1E] text-white hover:bg-[#7A1E1E]' : ''}`}
+                          className={`text-[12px] min-h-[44px] rounded-[10px] border ${eventListFilter === 'completed' ? 'bg-[#7A1E1E] text-white border-[#7A1E1E] hover:bg-[#7A1E1E]' : 'border-[#CBD5E1] bg-[#F8FAFC] text-[#0F172A] hover:bg-[#F1F5F9] hover:border-[#94A3B8]'}`}
                           aria-pressed={eventListFilter === 'completed'}
                         >
                           Completed
@@ -1150,7 +1848,7 @@ export function AdminDashboard({
                                 <div className="flex-1 min-w-0">
                                   <p className="text-[#1A1A1A] text-[14px] font-medium mb-1">{event.eventName}</p>
                                   <div className="flex flex-wrap gap-2 mb-2">
-                                    {event.groups.map(group => (
+                                    {event.groups.map((group: string) => (
                                       <Badge 
                                         key={group}
                                         className="text-white text-[11px]" 
@@ -1185,7 +1883,7 @@ export function AdminDashboard({
                                           });
                                           setShowAttachmentPreview(true);
                                         }}
-                                        className="min-h-[44px] text-[12px]"
+                                        className="min-h-[44px] text-[12px] border border-[#CBD5E1] bg-[#F8FAFC] text-[#0F172A] hover:bg-[#F1F5F9] hover:border-[#94A3B8] rounded-[10px]"
                                         aria-label={`View attachment for ${event.eventName}: ${event.attachment}`}
                                       >
                                         <Eye className="w-3 h-3 mr-1" aria-hidden="true" />
@@ -1223,10 +1921,11 @@ export function AdminDashboard({
               <Card
                 id="engagement-reports-panel"
                 role="tabpanel"
-                className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px]"
+                className={directorCardClass}
               >
                 <CardHeader>
-                  <CardDescription className="text-[#6C757D] text-[16px] leading-[25.6px]">
+                  <CardTitle className="text-[#7A1E1E]">Engagement Reports</CardTitle>
+                  <CardDescription className="text-[#6C757D] text-[13px] leading-[20px]">
                     Performance and participation reports for engagements
                   </CardDescription>
                 </CardHeader>
@@ -1236,20 +1935,20 @@ export function AdminDashboard({
                     <section aria-labelledby="engagement-summary-heading">
                       <h3 id="engagement-summary-heading" className="text-[#7A1E1E] text-[14px] font-medium mb-3">Engagement Summary</h3>
                       <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                        <div className="p-3 sm:p-4 bg-[#F8F9FA] rounded-lg border border-[#E0E0E0]">
+                        <div className="p-2 sm:p-2 bg-[#F8F9FA] rounded-lg border border-[#E2E8F0]">
                           <Calendar className="hidden sm:block w-4 h-4 text-[#7A1E1E] mb-1" aria-hidden="true" />
-                          <p className="text-[10px] sm:text-[12px] text-[#6C757D] leading-tight">Total Events</p>
-                          <p className="text-[18px] sm:text-[24px] font-bold text-[#1A1A1A] leading-tight">{createdEvents.length}</p>
+                          <p className="text-[10px] sm:text-[10px] text-[#6C757D] leading-tight">Total Events</p>
+                          <p className="text-[12px] sm:text-[14px] font-bold text-[#1A1A1A] leading-tight">{createdEvents.length}</p>
                         </div>
-                        <div className="p-3 sm:p-4 bg-[#F8F9FA] rounded-lg border border-[#E0E0E0]">
+                        <div className="p-2 sm:p-2 bg-[#F8F9FA] rounded-lg border border-[#E2E8F0]">
                           <Users className="hidden sm:block w-4 h-4 text-[#7A1E1E] mb-1" aria-hidden="true" />
-                          <p className="text-[10px] sm:text-[12px] text-[#6C757D] leading-tight">Groups Involved</p>
-                          <p className="text-[18px] sm:text-[24px] font-bold text-[#1A1A1A] leading-tight">4</p>
+                          <p className="text-[10px] sm:text-[10px] text-[#6C757D] leading-tight">Groups Involved</p>
+                          <p className="text-[12px] sm:text-[14px] font-bold text-[#1A1A1A] leading-tight">4</p>
                         </div>
-                        <div className="p-3 sm:p-4 bg-[#F8F9FA] rounded-lg border border-[#E0E0E0]">
+                        <div className="p-2 sm:p-2 bg-[#F8F9FA] rounded-lg border border-[#E2E8F0]">
                           <CheckCircle className="hidden sm:block w-4 h-4 text-[#00C950] mb-1" aria-hidden="true" />
-                          <p className="text-[10px] sm:text-[12px] text-[#6C757D] leading-tight">Success Rate</p>
-                          <p className="text-[18px] sm:text-[24px] font-bold text-[#00C950] leading-tight">100%</p>
+                          <p className="text-[10px] sm:text-[10px] text-[#6C757D] leading-tight">Success Rate</p>
+                          <p className="text-[12px] sm:text-[14px] font-bold text-[#00C950] leading-tight">100%</p>
                         </div>
                       </div>
                     </section>
@@ -1263,7 +1962,7 @@ export function AdminDashboard({
                         <div>
                           <label htmlFor="report-group-filter" className="sr-only">Filter report by talent group</label>
                           <Select value={reportGroupFilter} onValueChange={setReportGroupFilter}>
-                            <SelectTrigger id="report-group-filter" className="w-full sm:w-[200px] border-2 border-[#7A1E1E] bg-white h-[44px]">
+                            <SelectTrigger id="report-group-filter" className={`w-full sm:w-[200px] ${tableSelectTriggerClass}`}>
                               <SelectValue placeholder="Filter by group" />
                             </SelectTrigger>
                             <SelectContent>
@@ -1351,15 +2050,15 @@ export function AdminDashboard({
                   <Card
                     key={key}
                     role="listitem"
-                    className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all focus:outline-none focus:ring-2 focus:ring-[#7A1E1E]"
+                    className={directorInteractiveCardClass}
                     onClick={() => setScholarshipGroupFilter(key)}
                     tabIndex={0}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setScholarshipGroupFilter(key); } }}
                     aria-label={`${label}: ${count} renewal requests. Activate to filter.`}
                   >
-                    <CardContent className="p-3 sm:p-6">
-                  <p className="text-[#6C757D] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">{label}</p>
-                  <p className="text-[#1A1A1A] text-[18px] sm:text-[24px] leading-[24px] sm:leading-[32px] font-bold">{count}</p>
+                    <CardContent className="p-2 sm:p-2">
+                  <p className="text-[10px] sm:text-[10px] text-[#6C757D] leading-tight">{label}</p>
+                  <p className="text-[#1A1A1A] text-[12px] sm:text-[14px] leading-tight font-bold">{count}</p>
                 </CardContent>
                   </Card>
                 );
@@ -1367,7 +2066,7 @@ export function AdminDashboard({
             </div>
 
             {/* Scholarship Renewal Requests */}
-            <Card className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px]">
+            <Card className={directorCardClass}>
               <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div>
@@ -1383,7 +2082,7 @@ export function AdminDashboard({
                   <div>
                     <label htmlFor="scholarship-group-filter" className="sr-only">Filter scholarship renewals by talent group</label>
                     <Select value={scholarshipGroupFilter} onValueChange={setScholarshipGroupFilter}>
-                      <SelectTrigger id="scholarship-group-filter" className="w-full sm:w-[180px] border-2 border-[#7A1E1E] bg-white h-[44px]">
+                      <SelectTrigger id="scholarship-group-filter" className={`w-full sm:w-[180px] ${tableSelectTriggerClass}`}>
                         <SelectValue placeholder="Filter by group" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1398,7 +2097,9 @@ export function AdminDashboard({
                 </div>
               </CardHeader>
               <CardContent>
-                {(() => {
+                {renewalsLoading ? (
+                  <div className="text-[#6C757D] text-sm py-6">Loading scholarship renewal requests...</div>
+                ) : (() => {
                   const filteredRenewals = scholarshipRenewals.filter(renewal => 
                     renewal && (scholarshipGroupFilter === 'all' || renewal.talentGroup === scholarshipGroupFilter)
                   );
@@ -1438,9 +2139,10 @@ export function AdminDashboard({
                         <Button
                           size="sm"
                           variant="outline"
-                          className="border-2 border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white min-h-[44px]"
+                          className="border border-[#CBD5E1] bg-[#F8FAFC] text-[#0F172A] hover:bg-[#F1F5F9] hover:border-[#94A3B8] min-h-[44px] rounded-[10px]"
                           onClick={() => {
                             setSelectedRenewal(renewal);
+                            setRenewalReviewNotes(renewal.reviewNotes || '');
                             setShowRenewalDetails(true);
                           }}
                           aria-label={`View renewal details for ${renewal.scholarName}`}
@@ -1481,7 +2183,7 @@ export function AdminDashboard({
 
       {/* ── Scholar Profile Dialog ────────────────────────────────────────────── */}
       <Dialog open={showScholarProfile} onOpenChange={setShowScholarProfile}>
-        <DialogContent className="max-w-[95vw] sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-[700px] max-h-[90vh] overflow-y-auto border-[1.6px] border-[#E0E0E0] shadow-xl rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-[#7A1E1E] text-[20px] font-bold">Scholar Profile</DialogTitle>
             <DialogDescription className="text-[#6C757D] text-[14px]">
@@ -1490,7 +2192,14 @@ export function AdminDashboard({
           </DialogHeader>
           
           <ScrollArea className="h-[calc(80vh-150px)] pr-4">
-            {selectedScholar && (
+            {scholarProfileLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <div className="inline-block animate-spin h-8 w-8 border-4 border-[#7A1E1E] border-t-transparent rounded-full mb-3"></div>
+                  <p className="text-[#6C757D]">Loading scholar profile...</p>
+                </div>
+              </div>
+            ) : selectedScholar ? (
               <div className="space-y-6 pb-4">
                 {/* Scholar Header */}
                 <div className="flex items-center space-x-4 pb-4 border-b border-[#E0E0E0]">
@@ -1509,169 +2218,258 @@ export function AdminDashboard({
                 </div>
 
                 {/* Two Column Layout */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                  {/* Left Column */}
-                  <div className="space-y-6">
-                    <section aria-labelledby="personal-info-heading">
-                      <h4 id="personal-info-heading" className="text-[#7A1E1E] text-[16px] font-bold mb-3">Personal Information</h4>
-                      <dl className="space-y-3">
-                        {[
-                          { label: 'Student ID',    value: selectedScholar.studentId },
-                          { label: 'Email',         value: selectedScholar.email },
-                          { label: 'Phone',         value: selectedScholar.phone },
-                          { label: 'Address',       value: selectedScholar.address },
-                          { label: 'Date of Birth', value: selectedScholar.dateOfBirth ? new Date(selectedScholar.dateOfBirth).toLocaleDateString() : null },
-                          { label: 'Age',           value: selectedScholar.dateOfBirth && calculateAge(selectedScholar.dateOfBirth) !== null ? `${calculateAge(selectedScholar.dateOfBirth)} years old` : null },
-                          { label: 'Gender',        value: selectedScholar.gender },
-                        ].map(({ label, value }) => (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Left Column - Personal Information */}
+                  <section aria-labelledby="personal-info-heading" className="space-y-4">
+                    <h4 id="personal-info-heading" className="text-[#7A1E1E] text-[16px] font-bold">Personal Information</h4>
+                    <div className="p-4 bg-[#F8F9FA] rounded-lg border border-[#E0E0E0] space-y-3">
+                      {[
+                        { label: 'Full Name', value: selectedScholar.name },
+                        { label: 'Student ID', value: selectedScholar.studentId },
+                        { label: 'Email', value: selectedScholar.email },
+                        { label: 'Phone', value: selectedScholar.phone },
+                      ].map(({ label, value }) => (
+                        value && (
                           <div key={label}>
-                            <dt className="text-[#6C757D] text-[12px] font-medium">{label}</dt>
-                            <dd className="text-[#1A1A1A] text-[14px]">{value || 'Not provided'}</dd>
+                            <dt className="text-[#6C757D] text-[12px] font-medium mb-1">{label}</dt>
+                            <dd className="text-[#1A1A1A] text-[14px]">{value}</dd>
                           </div>
-                        ))}
-                      </dl>
-                    </section>
+                        )
+                      ))}
+                    </div>
+                  </section>
 
-                    <section aria-labelledby="emergency-contact-heading">
-                      <h4 id="emergency-contact-heading" className="text-[#7A1E1E] text-[16px] font-bold mb-3">Emergency Contact</h4>
-                      <dl className="space-y-3">
-                        <div>
-                          <dt className="text-[#6C757D] text-[12px] font-medium">Contact Name</dt>
-                          <dd className="text-[#1A1A1A] text-[14px]">{selectedScholar.emergencyContact || 'Not provided'}</dd>
+                  {/* Right Column - Educational Information */}
+                  <section aria-labelledby="educational-heading" className="space-y-4">
+                    <h4 id="educational-heading" className="text-[#7A1E1E] text-[16px] font-bold">Educational Information</h4>
+                    <div className="p-4 bg-[#F8F9FA] rounded-lg border border-[#E0E0E0] space-y-3">
+                      {[
+                        { label: 'Course', value: selectedScholar.course },
+                        { label: 'Year Level', value: selectedScholar.yearLevel },
+                        { label: 'Department', value: selectedScholar.department },
+                      ].map(({ label, value }) => (
+                        <div key={label}>
+                          <dt className="text-[#6C757D] text-[12px] font-medium mb-1">{label}</dt>
+                          <dd className="text-[#1A1A1A] text-[14px]">{value || 'Not provided'}</dd>
                         </div>
-                        <div>
-                          <dt className="text-[#6C757D] text-[12px] font-medium">Contact Phone</dt>
-                          <dd className="text-[#1A1A1A] text-[14px]">{selectedScholar.emergencyPhone || 'Not provided'}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-[#6C757D] text-[12px] font-medium">Relationship</dt>
-                          <dd className="text-[#1A1A1A] text-[14px]">{selectedScholar.emergencyContactRelationship || 'Not provided'}</dd>
-                        </div>
-                      </dl>
-                    </section>
-
-                    <section aria-labelledby="guardian-heading">
-                      <h4 id="guardian-heading" className="text-[#7A1E1E] text-[16px] font-bold mb-3">Guardian Information</h4>
-                      <dl className="space-y-3">
-                        <div>
-                          <dt className="text-[#6C757D] text-[12px] font-medium">Guardian's Name</dt>
-                          <dd className="text-[#1A1A1A] text-[14px]">{selectedScholar.guardianName || 'Not provided'}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-[#6C757D] text-[12px] font-medium">Guardian's Contact</dt>
-                          <dd className="text-[#1A1A1A] text-[14px]">{selectedScholar.guardianContact || 'Not provided'}</dd>
-                        </div>
-                      </dl>
-                    </section>
-                  </div>
-
-                  {/* Right Column */}
-                  <div className="space-y-6">
-                    <section aria-labelledby="medical-heading">
-                      <h4 id="medical-heading" className="text-[#7A1E1E] text-[16px] font-bold mb-3">Medical Information</h4>
-                      <dl className="space-y-3">
-                        <div>
-                          <dt className="text-[#6C757D] text-[12px] font-medium">Allergies</dt>
-                          <dd className="text-[#1A1A1A] text-[14px]">{selectedScholar.allergies || 'Not provided'}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-[#6C757D] text-[12px] font-medium">Medical Conditions</dt>
-                          <dd className="text-[#1A1A1A] text-[14px]">{selectedScholar.medicalConditions || 'Not provided'}</dd>
-                        </div>
-                      </dl>
-                    </section>
-
-                    <section aria-labelledby="educational-heading">
-                      <h4 id="educational-heading" className="text-[#7A1E1E] text-[16px] font-bold mb-3">Educational Information</h4>
-                      <dl className="space-y-3">
-                        <div>
-                          <dt className="text-[#6C757D] text-[12px] font-medium">Course</dt>
-                          <dd className="text-[#1A1A1A] text-[14px]">{selectedScholar.course || 'Not provided'}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-[#6C757D] text-[12px] font-medium">Year Level</dt>
-                          <dd className="text-[#1A1A1A] text-[14px]">{selectedScholar.yearLevel || 'Not provided'}</dd>
-                        </div>
-                      </dl>
-                    </section>
-                  </div>
+                      ))}
+                    </div>
+                  </section>
                 </div>
 
-                {/* Assigned Items Section */}
-                {selectedScholar.talentGroup !== 'dance-club' && (
-                <section className="border-t border-[#E0E0E0] pt-6" aria-labelledby="assigned-items-heading">
-                  <h4 id="assigned-items-heading" className="text-[#7A1E1E] text-[18px] font-bold mb-4 flex items-center">
-                    <Package className="w-5 h-5 mr-2" aria-hidden="true" />
-                    Assigned Items
-                  </h4>
-                  
-                  <div className={`grid gap-6 ${selectedScholar.talentGroup === 'marching-band' ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'}`}>
-                    {selectedScholar.talentGroup === 'marching-band' && (
-                      <div>
-                        <h5 className="text-[#6C757D] text-[14px] font-bold mb-3">Instrument</h5>
-                        {selectedScholar.assignedInstrument ? (
-                          <Card className="border-[#E5E7EB] bg-gradient-to-r from-[#7A1E1E]/5 to-transparent">
-                            <CardContent className="pt-4">
-                              <div className="space-y-2">
-                                <p className="font-medium text-[#1A1A1A] text-[14px]">{selectedScholar.assignedInstrument}</p>
-                                <div className="space-y-1">
-                                  <p className="text-[#6C757D] text-[11px]">Item ID: INST-001</p>
-                                  <p className="text-[#6C757D] text-[11px]">Condition: Good</p>
-                                  <p className="text-[#6C757D] text-[11px]">Issued: 2024-08-15</p>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ) : (
-                          <div className="text-[#6C757D] text-[14px]">Not assigned</div>
+                {/* Address Section */}
+                {selectedScholar.address && (
+                  <section aria-labelledby="address-heading" className="space-y-4">
+                    <h4 id="address-heading" className="text-[#7A1E1E] text-[16px] font-bold">Address</h4>
+                    <div className="p-4 bg-[#F8F9FA] rounded-lg border border-[#E0E0E0]">
+                      <p className="text-[#1A1A1A] text-[14px]">{selectedScholar.address}</p>
+                    </div>
+                  </section>
+                )}
+
+                {/* Connected Records */}
+                <section aria-labelledby="connected-records-heading" className="space-y-4">
+                  <h4 id="connected-records-heading" className="text-[#7A1E1E] text-[16px] font-bold">Connected Records</h4>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: 'Evaluations', value: scholarConnections.evaluations.length },
+                      { label: 'Renewals', value: scholarConnections.scholarshipRenewals.length },
+                      { label: 'Documents', value: scholarConnections.documents.length },
+                      { label: 'Engagements', value: scholarConnections.engagements.length },
+                    ].map((item) => (
+                      <div key={item.label} className="p-3 bg-[#F8F9FA] rounded-lg border border-[#E0E0E0]">
+                        <p className="text-[11px] text-[#6C757D]">{item.label}</p>
+                        <p className="text-[20px] font-bold text-[#1A1A1A]">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {scholarConnections.traineeProfile && (
+                    <div className="p-4 bg-[#F8F9FA] rounded-lg border border-[#E0E0E0]">
+                      <h5 className="text-[#1A1A1A] text-[14px] font-semibold mb-3">Trainee Profile History</h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
+                        <p><span className="text-[#6C757D]">Status:</span> {scholarConnections.traineeProfile.current_status || 'N/A'}</p>
+                        <p><span className="text-[#6C757D]">Completion:</span> {scholarConnections.traineeProfile.completion_rate ?? 0}%</p>
+                        <p><span className="text-[#6C757D]">Chapter:</span> {scholarConnections.traineeProfile.chapter || 'N/A'}</p>
+                        <p><span className="text-[#6C757D]">Joined:</span> {formatDateLabel(scholarConnections.traineeProfile.date_joined)}</p>
+                        {selectedScholar.talentGroup === 'marching-band' && (
+                          <p><span className="text-[#6C757D]">Instrument:</span> {scholarConnections.traineeProfile.instrument || 'N/A'}</p>
+                        )}
+                        {selectedScholar.talentGroup === 'glee-club' && (
+                          <p><span className="text-[#6C757D]">Voice:</span> {scholarConnections.traineeProfile.voice || 'N/A'}</p>
                         )}
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    <div>
-                      <h5 className="text-[#6C757D] text-[14px] font-bold mb-3">Uniform</h5>
-                      <Card className="border-[#E0E0E0]">
-                        <CardContent className="pt-4">
-                          <div className="space-y-2">
-                            <p className="font-medium text-[#1A1A1A] text-[14px]">Complete Set</p>
-                            <div className="space-y-1">
-                              <p className="text-[#6C757D] text-[11px]">ID: UNI-045</p>
-                              <p className="text-[#6C757D] text-[11px]">Condition: Good</p>
-                              <p className="text-[#6C757D] text-[11px]">Issued: 2024-08-20</p>
-                            </div>
-                            <div className="mt-3 pt-2 border-t border-[#E0E0E0]">
-                              <p className="text-[#6C757D] text-[10px]">4 items: Top, Pants, Headdress, Shoes</p>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-[#F8F9FA] rounded-lg border border-[#E0E0E0]">
+                      <h5 className="text-[#1A1A1A] text-[14px] font-semibold mb-3">Recent Evaluations</h5>
+                      {scholarConnections.evaluations.length > 0 ? (
+                        <ul className="space-y-2 max-h-48 overflow-y-auto">
+                          {scholarConnections.evaluations.map((evaluation: any) => (
+                            <li key={evaluation.id} className="p-2 bg-white rounded border border-[#E0E0E0]">
+                              <p className="text-[13px] font-medium text-[#1A1A1A]">Rating: {evaluation.rating ?? 'N/A'}</p>
+                              <p className="text-[12px] text-[#6C757D]">{evaluation.adjectival_rating || 'No adjectival rating'}</p>
+                              <p className="text-[12px] text-[#6C757D]">{formatDateLabel(evaluation.evaluation_date || evaluation.created_at)}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-[13px] text-[#6C757D]">No evaluations found.</p>
+                      )}
                     </div>
 
-                    {selectedScholar.talentGroup === 'marching-band' && (
-                      <div>
-                        <h5 className="text-[#6C757D] text-[14px] font-bold mb-3">Accessories</h5>
-                        <Card className="border-[#E0E0E0]">
-                          <CardContent className="pt-4">
-                            <div>
-                              <p className="text-[#1A1A1A] text-[13px] font-medium">Music Stand</p>
-                              <p className="text-[#6C757D] text-[10px]">ID: 089</p>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    )}
+                    <div className="p-4 bg-[#F8F9FA] rounded-lg border border-[#E0E0E0]">
+                      <h5 className="text-[#1A1A1A] text-[14px] font-semibold mb-3">Scholarship Renewals</h5>
+                      {scholarConnections.scholarshipRenewals.length > 0 ? (
+                        <ul className="space-y-2 max-h-48 overflow-y-auto">
+                          {scholarConnections.scholarshipRenewals.map((renewal: any) => (
+                            <li key={renewal.id} className="p-2 bg-white rounded border border-[#E0E0E0]">
+                              <p className="text-[13px] font-medium text-[#1A1A1A]">{renewal.semester || 'Semester N/A'} {renewal.year || ''}</p>
+                              <p className="text-[12px] text-[#6C757D]">Status: {renewal.status || 'pending'}</p>
+                              <p className="text-[12px] text-[#6C757D]">Submitted: {formatDateLabel(renewal.created_at)}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-[13px] text-[#6C757D]">No renewals found.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-[#F8F9FA] rounded-lg border border-[#E0E0E0]">
+                      <h5 className="text-[#1A1A1A] text-[14px] font-semibold mb-3">Documents</h5>
+                      {scholarConnections.documents.length > 0 ? (
+                        <ul className="space-y-2 max-h-48 overflow-y-auto">
+                          {scholarConnections.documents.map((doc: any) => (
+                            <li key={doc.id} className="p-2 bg-white rounded border border-[#E0E0E0]">
+                              <p className="text-[13px] font-medium text-[#1A1A1A]">{doc.title || doc.file_name || 'Untitled document'}</p>
+                              <p className="text-[12px] text-[#6C757D]">{doc.category || 'Uncategorized'} • {doc.file_type || 'File'}</p>
+                              <p className="text-[12px] text-[#6C757D]">Uploaded: {formatDateLabel(doc.created_at)}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-[13px] text-[#6C757D]">No documents found.</p>
+                      )}
+                    </div>
+
+                    <div className="p-4 bg-[#F8F9FA] rounded-lg border border-[#E0E0E0]">
+                      <h5 className="text-[#1A1A1A] text-[14px] font-semibold mb-3">Related Engagements</h5>
+                      {scholarConnections.engagements.length > 0 ? (
+                        <ul className="space-y-2 max-h-48 overflow-y-auto">
+                          {scholarConnections.engagements.map((engagement: any) => (
+                            <li key={engagement.id} className="p-2 bg-white rounded border border-[#E0E0E0]">
+                              <p className="text-[13px] font-medium text-[#1A1A1A]">{engagement.event_name || 'Untitled event'}</p>
+                              <p className="text-[12px] text-[#6C757D]">{engagement.venue || 'Venue N/A'} • {engagement.status || 'N/A'}</p>
+                              <p className="text-[12px] text-[#6C757D]">{formatDateLabel(engagement.date)}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-[13px] text-[#6C757D]">No engagements found.</p>
+                      )}
+                    </div>
                   </div>
                 </section>
+
+
+                {/* Role Badge */}
+                <div className="p-4 bg-blue-50 border-l-4 border-blue-600 rounded-lg">
+                  <p className="text-sm font-medium text-blue-900">Role: Scholar</p>
+                  <p className="text-xs text-blue-700 mt-1">This is a scholar account managed by the talent group director.</p>
+                </div>
+
+                {/* Admin Edit Section */}
+                {!isEditingScholar ? (
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white"
+                      onClick={() => {
+                        setScholarEditForm({
+                          name: selectedScholar?.name ?? '',
+                          phone: selectedScholar?.phone ?? '',
+                          yearLevel: selectedScholar?.yearLevel ?? '',
+                          course: selectedScholar?.course ?? '',
+                          department: selectedScholar?.department ?? '',
+                          address: selectedScholar?.address ?? '',
+                          talentGroup: selectedScholar?.talentGroup ?? '',
+                        });
+                        setIsEditingScholar(true);
+                      }}
+                    >
+                      Edit Profile
+                    </Button>
+                  </div>
+                ) : (
+                  <section aria-labelledby="edit-scholar-heading" className="p-4 bg-white rounded-lg border border-[#7A1E1E]/30 space-y-3">
+                    <h4 id="edit-scholar-heading" className="text-[#7A1E1E] text-[15px] font-bold">Edit Scholar Profile</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[
+                        { label: 'Name',       key: 'name',        placeholder: 'Full name' },
+                        { label: 'Phone',      key: 'phone',       placeholder: '+63 XXX XXX XXXX' },
+                        { label: 'Year Level', key: 'yearLevel',   placeholder: 'e.g., 2nd Year' },
+                        { label: 'Course',     key: 'course',      placeholder: 'e.g., BSED' },
+                        { label: 'Department', key: 'department',  placeholder: 'e.g., CAS' },
+                      ].map(({ label, key, placeholder }) => (
+                        <div key={key}>
+                          <label className="text-[12px] text-[#6C757D] block mb-1">{label}</label>
+                          <input
+                            type="text"
+                            className="w-full border border-[#D1D5DC] rounded-md px-3 py-1.5 text-[13px] bg-white"
+                            placeholder={placeholder}
+                            value={scholarEditForm[key as keyof typeof scholarEditForm]}
+                            onChange={(e) => setScholarEditForm(prev => ({ ...prev, [key]: e.target.value }))}
+                          />
+                        </div>
+                      ))}
+                      <div>
+                        <label className="text-[12px] text-[#6C757D] block mb-1">Talent Group</label>
+                        <select
+                          className="w-full border border-[#D1D5DC] rounded-md px-3 py-1.5 text-[13px] bg-white"
+                          value={scholarEditForm.talentGroup}
+                          onChange={(e) => setScholarEditForm(prev => ({ ...prev, talentGroup: e.target.value }))}
+                        >
+                          <option value="">— Unassigned —</option>
+                          <option value="marching-band">Marching Band</option>
+                          <option value="majorettes">Majorettes</option>
+                          <option value="glee-club">Glee Club</option>
+                          <option value="dance-club">Dance Club</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[12px] text-[#6C757D] block mb-1">Address</label>
+                      <textarea
+                        className="w-full border border-[#D1D5DC] rounded-md px-3 py-1.5 text-[13px] bg-white resize-none"
+                        rows={2}
+                        placeholder="Full address"
+                        value={scholarEditForm.address}
+                        onChange={(e) => setScholarEditForm(prev => ({ ...prev, address: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end pt-1">
+                      <Button size="sm" variant="outline" onClick={() => setIsEditingScholar(false)} disabled={isSavingScholar}>Cancel</Button>
+                      <Button size="sm" className="bg-[#7A1E1E] text-white hover:bg-[#6A1919]" onClick={() => void handleUpdateScholar()} disabled={isSavingScholar}>
+                        {isSavingScholar ? 'Saving…' : 'Save Changes'}
+                      </Button>
+                    </div>
+                  </section>
                 )}
               </div>
-            )}
+            ) : null}
           </ScrollArea>
         </DialogContent>
       </Dialog>
 
       {/* ── Event Details Dialog ──────────────────────────────────────────────── */}
       <Dialog open={showEventDetails} onOpenChange={setShowEventDetails}>
-        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto border-[1.6px] border-[#E0E0E0] shadow-xl rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-[#7A1E1E] text-[20px] font-bold">Event Participation Details</DialogTitle>
             <DialogDescription className="text-[#6C757D] text-[14px]">
@@ -1741,7 +2539,7 @@ export function AdminDashboard({
 
       {/* ── Renewal Details Dialog ────────────────────────────────────────────── */}
       <Dialog open={showRenewalDetails} onOpenChange={setShowRenewalDetails}>
-        <DialogContent className="max-w-[95vw] sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-[700px] max-h-[90vh] overflow-y-auto border-[1.6px] border-[#E0E0E0] shadow-xl rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-[#7A1E1E] text-[20px] font-bold">Scholarship Renewal Evaluation</DialogTitle>
             <DialogDescription className="text-[#6C757D] text-[14px]">
@@ -1942,6 +2740,45 @@ export function AdminDashboard({
                     </ul>
                   </section>
                 )}
+
+                <section aria-labelledby="renewal-admin-review-heading" className="p-4 bg-white rounded-lg border border-[#E0E0E0] space-y-3">
+                  <h3 id="renewal-admin-review-heading" className="text-[#7A1E1E] text-[16px] font-bold">Admin Review Decision</h3>
+                  <p className="text-[13px] text-[#6C757D]">
+                    Current status: <span className="font-medium text-[#1A1A1A] capitalize">{selectedRenewal.status || 'pending'}</span>
+                  </p>
+                  <div>
+                    <label htmlFor="renewal-review-notes" className="text-[#1A1A1A] text-[14px] mb-2 block">Review Notes</label>
+                    <Textarea
+                      id="renewal-review-notes"
+                      placeholder="Add optional notes for this renewal decision"
+                      value={renewalReviewNotes}
+                      onChange={(e) => setRenewalReviewNotes(e.target.value)}
+                      className="border-[#D1D5DC] bg-white"
+                      rows={3}
+                    />
+                  </div>
+                  {selectedRenewal.reviewedAt && (
+                    <p className="text-[12px] text-[#6C757D]">Reviewed at: {formatDateLabel(selectedRenewal.reviewedAt)}</p>
+                  )}
+                  <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+                    <Button
+                      type="button"
+                      onClick={() => void handleReviewRenewal('approved')}
+                      disabled={isReviewingRenewal}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" aria-hidden="true" />Approve Renewal
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => void handleReviewRenewal('rejected')}
+                      disabled={isReviewingRenewal}
+                    >
+                      <XCircle className="w-4 h-4 mr-2" aria-hidden="true" />Reject Renewal
+                    </Button>
+                  </div>
+                </section>
               </div>
             )}
           </ScrollArea>
@@ -1950,7 +2787,7 @@ export function AdminDashboard({
 
       {/* ── Attachment Preview Dialog ─────────────────────────────────────────── */}
       <Dialog open={showAttachmentPreview} onOpenChange={setShowAttachmentPreview}>
-        <DialogContent className="max-w-[95vw] sm:max-w-7xl h-[90vh] flex flex-col p-0">
+        <DialogContent className="max-w-[95vw] sm:max-w-7xl h-[90vh] flex flex-col p-0 border-[1.6px] border-[#E0E0E0] shadow-xl rounded-xl overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-[#E0E0E0]">
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-[#7A1E1E]" aria-hidden="true" />
@@ -2000,7 +2837,7 @@ export function AdminDashboard({
               onClick={() => {
                 toast.success(`Downloaded ${selectedAttachment?.name}`);
               }}
-              className="bg-[#7A1E1E] hover:bg-[#6A1919] min-h-[44px]"
+              className="border border-[#CBD5E1] bg-[#F8FAFC] text-[#0F172A] hover:bg-[#F1F5F9] hover:border-[#94A3B8] min-h-[44px] rounded-[10px]"
               aria-label={`Download ${selectedAttachment?.name}`}
             >
               <Download className="w-4 h-4 sm:mr-2" aria-hidden="true" /><span className="hidden sm:inline">Download</span>            </Button>
@@ -2010,7 +2847,7 @@ export function AdminDashboard({
 
       {/* ── Logout Confirmation Dialog ────────────────────────────────────────── */}
       <Dialog open={showLogoutConfirmation} onOpenChange={setShowLogoutConfirmation}>
-        <DialogContent className="max-w-[95vw] sm:max-w-md border-[#E0E0E0]">
+        <DialogContent className="max-w-[95vw] sm:max-w-md border-[1.6px] border-[#E0E0E0] shadow-xl rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-[#1A1A1A]">Confirm Logout</DialogTitle>
             <DialogDescription className="text-[#6C757D]">

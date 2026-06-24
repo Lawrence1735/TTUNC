@@ -50,7 +50,6 @@ import {
   UserCog
 } from './ui/icons';
 import { User as UserType, Application, TrainingRecord, Event, Announcement } from '../App';
-import uncLogo from 'figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png';
 import { getTalentGroupColor, getTalentGroupName } from './ui/unc-colors';
 import { DocumentsDashboard } from './DocumentsDashboardTabs';
 import { QuickStatsCard } from './ui/QuickStatsCard';
@@ -76,6 +75,8 @@ import type { Evaluation } from './types';
 import trainingClient from '../../api/trainingClient';
 import { applicationClient, ApplicationResponse } from '../../api/applicationClient';
 import engagementService from '../services/engagementService';
+import announcementService from '../services/announcementService';
+import { api } from '../services/api';
 
 interface DirectorDashboardProps {
   user: UserType;
@@ -128,7 +129,8 @@ interface EngagementRequest {
   time: string;
   venue: string;
   description: string;
-  status: 'pending' | 'accepted' | 'rejected';
+  type?: 'performance' | 'rehearsal' | 'workshop' | 'competition';
+  status: 'pending' | 'accepted' | 'rejected' | 'pending_admin_approval' | 'pending_director_approval' | 'scheduled';
   attendanceRecords?: AttendanceRecord[];
   attachment?: string; // Optional attachment for formality documents
 }
@@ -188,6 +190,8 @@ export function DirectorDashboardEnhanced({
   // Training module state
   const [selectedTrainee, setSelectedTrainee] = useState<UserType | null>(null);
   const [selectedScholar, setSelectedScholar] = useState<UserType | null>(null);
+  const [selectedScholarProfileLoading, setSelectedScholarProfileLoading] = useState(false);
+  const [scholarProfileApplicationsByUserId, setScholarProfileApplicationsByUserId] = useState<Record<string, ApplicationResponse>>({});
   const [selectedTraineePerformance, setSelectedTraineePerformance] = useState<UserType | null>(null);
   const [showTraineeDialog, setShowTraineeDialog] = useState(false);
   const [showScholarDialog, setShowScholarDialog] = useState(false);
@@ -228,6 +232,20 @@ export function DirectorDashboardEnhanced({
   // Attachment preview state
   const [showAttachmentPreview, setShowAttachmentPreview] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState<{ name: string; type: string } | null>(null);
+  const [loadingPerformanceData, setLoadingPerformanceData] = useState(false);
+  const [selectedScholarRenewalDocs, setSelectedScholarRenewalDocs] = useState<Array<{
+    id: string;
+    name: string;
+    uploadedDate: string;
+    source: string;
+  }>>([]);
+  const [selectedScholarAttendanceStats, setSelectedScholarAttendanceStats] = useState({
+    totalSessions: 0,
+    presentCount: 0,
+    absentCount: 0,
+    attendanceRate: 0,
+  });
+  const [selectedScholarCurrentScholarship, setSelectedScholarCurrentScholarship] = useState(0);
   
   // Form validation states for Request Event
   const [eventFormTouched, setEventFormTouched] = useState({
@@ -322,30 +340,30 @@ export function DirectorDashboardEnhanced({
     
     // Section A - Attendance and Punctuality (1-5 scale)
     sectionA: {
-      reportsOnTime: 5,
-      reportsRegularly: 5,
-      practicesOnTime: 5,
-      practicesRegularly: 5,
-      noUnnecessaryAbsence: 5,
-      mastersyTasks: 5,
-      maintainsCleanliness: 5
+      reportsOnTime: 0,
+      reportsRegularly: 0,
+      practicesOnTime: 0,
+      practicesRegularly: 0,
+      noUnnecessaryAbsence: 0,
+      mastersyTasks: 0,
+      maintainsCleanliness: 0
     },
     
     // Section B - Commitment & Dedication (1-5 scale)
     sectionB: {
-      improvementInterest: 5,
-      performanceInterest: 5,
-      workEthic: 5,
-      initiative: 5,
-      efficiency: 5
+      improvementInterest: 0,
+      performanceInterest: 0,
+      workEthic: 0,
+      initiative: 0,
+      efficiency: 0
     },
     
     // Section C - Interpersonal Skills (1-5 scale)
     sectionC: {
-      teamwork: 5,
-      tact: 5,
-      courtesy: 5,
-      disposition: 5
+      teamwork: 0,
+      tact: 0,
+      courtesy: 0,
+      disposition: 0
     },
     
     // Open text fields
@@ -441,13 +459,203 @@ export function DirectorDashboardEnhanced({
 
   // Trainee API state
   const [traineesList, setTraineesList] = useState<any[]>([]);
+
+  const refetchEngagementRequests = async () => {
+    try {
+      const [engagements, rehearsals] = await Promise.all([
+        engagementService.getEngagements(),
+        engagementService.getRehearsals(),
+      ]);
+      const combined = [...engagements, ...rehearsals];
+
+      setEngagementRequests(combined.map((e: any) => {
+        const backendStatus = String(e.status || 'scheduled');
+        const status: EngagementRequest['status'] =
+          backendStatus === 'pending_admin_approval' || backendStatus === 'pending_director_approval'
+            ? 'pending'
+            : backendStatus === 'scheduled'
+            ? 'accepted'
+            : backendStatus === 'rejected'
+            ? 'rejected'
+            : (backendStatus as EngagementRequest['status']);
+
+        return {
+          id: String(e.id),
+          eventName: e.event_name ?? e.title ?? '',
+          date: new Date(e.date),
+          time: e.time ?? '',
+          venue: e.venue ?? '',
+          description: e.description ?? '',
+          type: e.type ?? 'performance',
+          status,
+          attachment: Array.isArray(e.attachments) && e.attachments.length > 0
+            ? (typeof e.attachments[0] === 'string' ? e.attachments[0] : e.attachments[0]?.name)
+            : undefined,
+        };
+      }));
+    } catch {
+      // Non-blocking for dashboard load
+    }
+  };
+
+  const refetchLatestUpdates = async () => {
+    try {
+      const rows = await announcementService.getAnnouncements();
+      setLatestUpdates(rows.map((a: any) => ({
+        id: String(a.id),
+        category: a.category,
+        date: String(a.date).slice(0, 10),
+        icon: a.icon || 'trophy',
+        title: a.title,
+        description: a.description,
+        talentGroup: getTalentGroupName(a.talent_group || directorTalentGroup || ''),
+        createdBy: a.creator?.name || user.name,
+        createdAt: a.created_at ? new Date(a.created_at) : new Date(),
+      })));
+    } catch {
+      // Non-blocking for dashboard load
+    }
+  };
   const [traineesLoading, setTraineesLoading] = useState(true);
+  // Scholars fetched directly from API (self-sufficient — not relying on App.tsx users prop timing)
+  const [fetchedScholars, setFetchedScholars] = useState<UserType[]>([]);
+  const [scholarsLoading, setScholarsLoading] = useState(true);
 
   const normalizeAttendanceStatus = (value: any): 'present' | 'absent' | 'excused' => {
     if (value === 'present' || value === true) return 'present';
     if (value === 'excused') return 'excused';
     return 'absent';
   };
+
+  const loadScholarPerformanceContext = async (scholar: UserType) => {
+    setLoadingPerformanceData(true);
+
+    const scholarId = String(scholar.id || '');
+    const latestLocalEvaluation = [...evaluations]
+      .filter((evaluation) => String(evaluation.traineeId) === scholarId)
+      .sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return dateB - dateA;
+      })[0];
+
+    const localScholarship = Number(latestLocalEvaluation?.scholarshipPercentage);
+    const rawScholarship = Number((scholar as any).scholarshipPercentage ?? (scholar as any).scholarship_percentage);
+    const fallbackScholarship = Number.isFinite(localScholarship)
+      ? localScholarship
+      : Number.isFinite(rawScholarship)
+      ? rawScholarship
+      : 0;
+    setSelectedScholarCurrentScholarship(fallbackScholarship);
+
+    try {
+      // Attendance in scholar review comes only from engagement module records:
+      // rehearsals + engagements, not training attendance sessions.
+      const rehearsalTrackedSessions = engagementRequests.filter((engagement) =>
+        engagement.type === 'rehearsal' &&
+        Boolean(engagement.attendanceRecords?.some((record) => record.attendees?.[scholarId] !== undefined))
+      );
+
+      const rehearsalPresentCount = rehearsalTrackedSessions.filter((engagement) =>
+        Boolean(engagement.attendanceRecords?.some((record) =>
+          normalizeAttendanceStatus(record.attendees?.[scholarId]) === 'present'
+        ))
+      ).length;
+
+      const engagementTrackedSessions = engagementRequests.filter((engagement) =>
+        engagement.type !== 'rehearsal' &&
+        Boolean(engagement.attendanceRecords?.some((record) => record.attendees?.[scholarId] !== undefined))
+      );
+
+      const engagementPresentCount = engagementTrackedSessions.filter((engagement) =>
+        Boolean(engagement.attendanceRecords?.some((record) =>
+          normalizeAttendanceStatus(record.attendees?.[scholarId]) === 'present'
+        ))
+      ).length;
+
+      const totalSessions = rehearsalTrackedSessions.length + engagementTrackedSessions.length;
+      const presentCount = rehearsalPresentCount + engagementPresentCount;
+      const absentCount = Math.max(0, totalSessions - presentCount);
+      const attendanceRate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 1000) / 10 : 0;
+
+      setSelectedScholarAttendanceStats({
+        totalSessions,
+        presentCount,
+        absentCount,
+        attendanceRate,
+      });
+
+      // Evaluation documents from member-submitted scholarship renewal records.
+      const renewalsResponse = await api.get<any>('scholarship/renewals', {
+        params: { user_id: Number(scholar.id) },
+      });
+
+      const renewals = Array.isArray(renewalsResponse.data?.data) ? renewalsResponse.data.data : [];
+      const renewalDocs = renewals.flatMap((renewal: any) => {
+        const docs = Array.isArray(renewal?.documents) ? renewal.documents : [];
+        return docs.map((docName: string, index: number) => ({
+          id: `renewal-${renewal.id}-${index}`,
+          name: String(docName),
+          uploadedDate: renewal.created_at,
+          source: `${renewal.semester || 'Semester'} ${renewal.year || ''}`.trim(),
+        }));
+      });
+
+      setSelectedScholarRenewalDocs(renewalDocs);
+
+      // Current scholarship should come from the latest final evaluation when available.
+      const backendTrainee = traineesList.find(
+        (t: any) => String(t?.user_id) === scholarId || String(t?.id) === scholarId
+      );
+
+      let scholarshipRows: any[] = [];
+      if (backendTrainee?.id) {
+        scholarshipRows = await trainingClient.getEvaluations({ trainee_id: Number(backendTrainee.id) });
+      } else {
+        const allEvaluations = await trainingClient.getEvaluations();
+        scholarshipRows = allEvaluations.filter((row: any) => {
+          const relatedUserId = row?.trainee?.user_id ?? row?.trainee?.userId ?? row?.user_id;
+          return String(relatedUserId || '') === scholarId;
+        });
+      }
+
+      if (scholarshipRows.length > 0) {
+        const latestEvaluation = [...scholarshipRows]
+          .sort((a: any, b: any) => {
+            const dateA = new Date(a?.evaluation_date || a?.evaluationDate || a?.created_at || 0).getTime();
+            const dateB = new Date(b?.evaluation_date || b?.evaluationDate || b?.created_at || 0).getTime();
+            if (dateA !== dateB) return dateB - dateA;
+            return Number(b?.id || 0) - Number(a?.id || 0);
+          })[0];
+
+        const latestScholarship = Number(
+          latestEvaluation?.scholarshipPercentage ?? latestEvaluation?.scholarship_percentage
+        );
+
+        if (Number.isFinite(latestScholarship)) {
+          setSelectedScholarCurrentScholarship(latestScholarship);
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to load scholar performance context:', err?.response?.status, err?.message);
+      setSelectedScholarAttendanceStats({
+        totalSessions: 0,
+        presentCount: 0,
+        absentCount: 0,
+        attendanceRate: 0,
+      });
+      setSelectedScholarRenewalDocs([]);
+      setSelectedScholarCurrentScholarship(fallbackScholarship);
+    } finally {
+      setLoadingPerformanceData(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showPerformanceDialog && selectedScholarForPerformance) {
+      void loadScholarPerformanceContext(selectedScholarForPerformance);
+    }
+  }, [showPerformanceDialog, selectedScholarForPerformance, trainingAttendance, engagementRequests]);
 
   const resolveAttendanceTraineeId = (traineeKey: string | number, sourceList?: any[]): number | null => {
     const list = sourceList || traineesList;
@@ -463,19 +671,26 @@ export function DirectorDashboardEnhanced({
       const grouped: Record<string, AttendanceRecord> = {};
 
       rows.forEach((row: any) => {
-        const dateKey = String(row.session_date || '').slice(0, 10);
+        // apiClient transforms all keys to camelCase; support both forms for safety
+        const rawDate = row.sessionDate || row.session_date || '';
+        const dateKey = String(rawDate).slice(0, 10);
         if (!dateKey) return;
+
+        const noPractice = Boolean(row.noPractice ?? row.no_practice);
+        const traineeId  = row.traineeId   ?? row.trainee_id;
 
         if (!grouped[dateKey]) {
           grouped[dateKey] = {
             date: dateKey,
             attendees: {},
-            noPractice: Boolean(row.no_practice),
+            noPractice,
           };
         }
 
-        grouped[dateKey].noPractice = Boolean(grouped[dateKey].noPractice || row.no_practice);
-        grouped[dateKey].attendees[String(row.trainee_id)] = normalizeAttendanceStatus(row.status);
+        grouped[dateKey].noPractice = Boolean(grouped[dateKey].noPractice || noPractice);
+        if (traineeId != null) {
+          grouped[dateKey].attendees[String(traineeId)] = normalizeAttendanceStatus(row.status);
+        }
       });
 
       const mapped = Object.values(grouped).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -497,10 +712,10 @@ export function DirectorDashboardEnhanced({
         if (!backendTraineeId) return null;
         return {
           trainee_id: backendTraineeId,
-          attended: normalizeAttendanceStatus(status) === 'present',
+          status: normalizeAttendanceStatus(status),
         };
       })
-      .filter(Boolean) as Array<{ trainee_id: number; attended: boolean }>;
+      .filter(Boolean) as Array<{ trainee_id: number; status: 'present' | 'absent' | 'excused' }>;
 
     if (records.length === 0) return;
 
@@ -579,7 +794,9 @@ export function DirectorDashboardEnhanced({
   const refetchApplications = async () => {
     setApplicationsLoading(true);
     try {
-      const response = await applicationClient.getApplications();
+      const response = await applicationClient.getApplications({
+        talent_group: user?.talentGroup,
+      });
       setFetchedApplications(response.data || []);
       console.log('[DirectorDashboardEnhanced] Fetched applications:', response.data);
     } catch (err: any) {
@@ -590,30 +807,86 @@ export function DirectorDashboardEnhanced({
     }
   };
 
+  const loadScholarProfileContext = async (scholar: UserType) => {
+    const scholarId = String(scholar.id || '');
+    if (!scholarId) return;
+
+    // Reuse cached application data if we already fetched profile context.
+    if (scholarProfileApplicationsByUserId[scholarId]) return;
+
+    setSelectedScholarProfileLoading(true);
+    try {
+      const response = await applicationClient.getApplications({
+        talent_group: user?.talentGroup,
+        search: scholar.name,
+      });
+
+      const rows = Array.isArray(response.data) ? response.data : [];
+      const match = rows.find((row) => String(row.user_id || '') === scholarId)
+        || rows.find((row) => String(row.applicant_student_id || '') === String(scholar.studentId || ''));
+
+      if (match) {
+        setScholarProfileApplicationsByUserId((prev) => ({
+          ...prev,
+          [scholarId]: match,
+        }));
+      }
+    } catch (err: any) {
+      console.error('Failed to load scholar profile context:', err?.response?.status, err?.message);
+    } finally {
+      setSelectedScholarProfileLoading(false);
+    }
+  };
+
   // Fetch trainees from API on component mount
   useEffect(() => {
     refetchTrainees();
     refetchApplications();
+    // Fetch scholars directly — guarantees Members tab has data regardless of App.tsx prop timing
+    console.log('[DirectorDashboard] Fetching scholars');
+    const scholarParams = user?.talentGroup ? { talent_group: user.talentGroup } : {};
+    api.get<any[]>('users', { params: scholarParams }).then(r => {
+      console.log('[DirectorDashboard] scholars response:', r.status, 'count:', Array.isArray(r.data) ? r.data.length : r.data, r.data?.[0]);
+      const raw: any[] = Array.isArray(r.data) ? r.data : [];
+      const mapped: UserType[] = raw.map((u: any) => ({
+        id: String(u.id),
+        name: u.name,
+        email: u.email,
+        role: u.role as UserType['role'],
+        studentId: u.student_id ?? undefined,
+        phone: u.phone ?? undefined,
+        talentGroup: u.talent_group ?? undefined,
+        scholarshipPercentage: u.scholarship_percentage ?? u.scholarshipPercentage ?? undefined,
+        yearLevel: u.year_level ?? undefined,
+        course: u.course ?? undefined,
+        department: u.department ?? undefined,
+        address: u.address ?? undefined,
+        createdAt: u.created_at ?? undefined,
+        assignedInstrument: u.trainee?.instrument ?? undefined,
+        assignedVoice: u.trainee?.voice ?? undefined,
+      }));
+      console.log('[DirectorDashboard] mapped scholars:', mapped.length, mapped[0]);
+      setFetchedScholars(mapped);
+    }).catch(err => {
+      console.error('[DirectorDashboard] Failed to fetch scholars:', err?.response?.status, err?.message);
+    }).finally(() => setScholarsLoading(false));
     console.log('[DirectorDashboardEnhanced] Fetching trainees and applications on mount...');
-    engagementService.getEngagements().then((data: any[]) => {
-      setEngagementRequests(data.map((e: any) => ({
-        id: String(e.id),
-        eventName: e.event_name ?? e.title ?? '',
-        date: new Date(e.date),
-        time: e.time ?? '',
-        venue: e.venue ?? '',
-        description: e.description ?? '',
-        status: 'accepted' as const,
-      })));
-    }).catch(() => {});
-  }, []);
+    void refetchEngagementRequests();
+    void refetchLatestUpdates();
+  }, [user?.talentGroup]);
+
+  useEffect(() => {
+    if (showScholarDialog && selectedScholar) {
+      void loadScholarProfileContext(selectedScholar);
+    }
+  }, [showScholarDialog, selectedScholar]);
 
   // Talent group flags for conditional rendering (must be defined before inventory data)
   const directorTalentGroup = user.talentGroup || '';
 
   useEffect(() => {
-    console.log(`%c[Director] users updated: total=${users?.length}, scholars=${users?.filter(u=>u.role==='scholar').length}, directorGroup="${directorTalentGroup}", user.talentGroup="${user?.talentGroup}"`, 'color:#1E7A3E;font-weight:bold');
-  }, [users, directorTalentGroup]);
+    console.log(`%c[Director] scholars updated: total=${fetchedScholars?.length}, filtered=${fetchedScholars?.filter(u=>u.role==='scholar'&&u.talentGroup===directorTalentGroup).length}, directorGroup="${directorTalentGroup}", user.talentGroup="${user?.talentGroup}"`, 'color:#1E7A3E;font-weight:bold');
+  }, [fetchedScholars, directorTalentGroup]);
 
   const isMarchingBand = directorTalentGroup === 'marching-band';
   const isMajorettes = directorTalentGroup === 'majorettes';
@@ -661,10 +934,7 @@ export function DirectorDashboardEnhanced({
   const activeTrainees = traineesList.filter((t: any) =>
     (t.current_status === 'active' || t.current_status === 'in_progress')
   ).length;
-  const totalScholars = (users || []).filter(u => 
-    u.talentGroup === directorTalentGroup && 
-    u.role === 'scholar'
-  ).length;
+  const totalScholars = fetchedScholars.filter(u => u.role === 'scholar').length;
 
   // Calculate additional recruitment stats
   const scheduledInterviews = interviewSchedules.filter(i => i.status === 'scheduled').length;
@@ -744,24 +1014,59 @@ export function DirectorDashboardEnhanced({
     });
   }, [trainees, traineeInstruments, traineeChapters, traineeVoices, traineesList]);
 
-  // Calculate individual trainee attendance rate
-  const calculateTraineeAttendanceRate = (traineeId: string) => {
-    // Filter out no-practice days
-    const practiceDays = trainingAttendance.filter(record => !record.noPractice);
-    
-    if (practiceDays.length === 0) return 0;
-    
+  const getTraineeAttendanceKeys = (traineeId: string | number): string[] => {
+    const rawKey = String(traineeId);
+    const resolvedId = resolveAttendanceTraineeId(rawKey);
+    if (resolvedId == null) return [rawKey];
+
+    const resolvedKey = String(resolvedId);
+    return resolvedKey === rawKey ? [resolvedKey] : [resolvedKey, rawKey];
+  };
+
+  const calculateTraineeAttendanceStats = (traineeId: string | number) => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    const practiceDays = trainingAttendance.filter((record) => {
+      if (record.noPractice) return false;
+
+      const rawDate = String(record.date || '').trim();
+      if (!rawDate) return false;
+
+      const parsedDate = new Date(rawDate.includes('T') ? rawDate : `${rawDate}T00:00:00`);
+      if (Number.isNaN(parsedDate.getTime())) return false;
+
+      // Count only sessions that already happened (past or today).
+      return parsedDate.getTime() <= today.getTime();
+    });
+    if (practiceDays.length === 0) {
+      return { totalSessions: 0, presentCount: 0, absentCount: 0, excusedCount: 0, attendanceRate: 0 };
+    }
+
+    const keys = getTraineeAttendanceKeys(traineeId);
     let presentCount = 0;
     let excusedCount = 0;
-    
-    practiceDays.forEach(record => {
-      const status = record.attendees[traineeId];
+
+    practiceDays.forEach((record) => {
+      const rawStatus = keys
+        .map((key) => record.attendees?.[key])
+        .find((value) => value !== undefined);
+      const status = normalizeAttendanceStatus(rawStatus);
       if (status === 'present') presentCount++;
       if (status === 'excused') excusedCount++;
     });
-    
-    const totalDays = practiceDays.length - excusedCount;
-    return totalDays > 0 ? Math.round((presentCount / totalDays) * 100) : 0;
+
+    const totalSessions = practiceDays.length;
+    const effectiveSessions = totalSessions - excusedCount;
+    const absentCount = Math.max(0, effectiveSessions - presentCount);
+    const attendanceRate = effectiveSessions > 0 ? Math.round((presentCount / effectiveSessions) * 100) : 0;
+
+    return { totalSessions, presentCount, absentCount, excusedCount, attendanceRate };
+  };
+
+  // Calculate individual trainee attendance rate
+  const calculateTraineeAttendanceRate = (traineeId: string) => {
+    return calculateTraineeAttendanceStats(traineeId).attendanceRate;
   };
 
   // Calculate average attendance rate across all trainees
@@ -792,11 +1097,8 @@ export function DirectorDashboardEnhanced({
     }
   };
   
-  const scholars = users
-    .filter(u => 
-      u.role === 'scholar' && 
-      u.talentGroup === directorTalentGroup
-    )
+  const scholars = fetchedScholars
+    .filter(u => u.role === 'scholar')
     .filter(u => {
       if (statusFilter === 'all') return true;
       const scholarStatus = scholarAssignments[u.id!]?.status || 'active';
@@ -820,15 +1122,38 @@ export function DirectorDashboardEnhanced({
     });
 
   // Scholar stats
-  const allScholars = (users || []).filter(u => 
-    u.talentGroup === directorTalentGroup && 
-    u.role === 'scholar'
-  );
+  const allScholars = fetchedScholars.filter(u => u.role === 'scholar');
   
   const activeScholars = allScholars.filter(s => {
     const status = scholarAssignments[s.id!]?.status || 'active';
     return status === 'active';
   }).length;
+
+  const selectedScholarId = String(selectedScholar?.id || '');
+  const selectedScholarApplication = selectedScholarId
+    ? scholarProfileApplicationsByUserId[selectedScholarId]
+      || fetchedApplications.find((row) => String(row.user_id || '') === selectedScholarId)
+    : undefined;
+  const selectedScholarBirthdate = selectedScholar?.dateOfBirth
+    || selectedScholar?.birthdate
+    || selectedScholarApplication?.applicant_birthdate
+    || '';
+  const selectedScholarAge = selectedScholar?.age
+    || selectedScholarApplication?.applicant_age
+    || '';
+  const selectedScholarTalentGroup = selectedScholar?.talentGroup
+    || selectedScholarApplication?.talent_group
+    || '';
+  const selectedScholarScholarship = (() => {
+    const direct = Number(selectedScholar?.scholarshipPercentage);
+    if (Number.isFinite(direct)) return direct;
+
+    const latestEval = [...evaluations]
+      .filter((e) => String(e.traineeId) === selectedScholarId)
+      .sort((a, b) => new Date(b.date as any).getTime() - new Date(a.date as any).getTime())[0];
+    const fromEval = Number(latestEval?.scholarshipPercentage);
+    return Number.isFinite(fromEval) ? fromEval : 0;
+  })();
   
   const evaluatedScholars = allScholars.filter(s => 
     evaluations.some(e => e.traineeId === s.id && e.rating >= 75)
@@ -1052,14 +1377,20 @@ University of Nueva Caceres`
     try {
       // Call API to schedule the interview
       const scheduled_at = `${interviewForm.date} ${interviewForm.time}`;
-      await applicationClient.scheduleInterview(selectedApplication.id, {
+      const scheduledInterviewResponse = await applicationClient.scheduleInterview(selectedApplication.id, {
         scheduled_at,
         venue: interviewForm.venue,
         notes: interviewForm.notes
       });
 
+      const backendInterviewId = String(
+        scheduledInterviewResponse?.interview?.id ??
+        scheduledInterviewResponse?.id ??
+        selectedApplication.id
+      );
+
       const newInterview: InterviewSchedule = {
-        id: `int${Date.now()}`,
+        id: backendInterviewId,
         applicationId: selectedApplication.id,
         applicantName: selectedApplication.personalInfo.name,
         applicantEmail: selectedApplication.personalInfo.email,
@@ -1158,7 +1489,8 @@ University of Nueva Caceres`
 
   const calculateSectionAAverage = () => {
     const total = calculateSectionATotal();
-    return (total / 6).toFixed(2);
+    const count = Object.keys(evaluationForm.sectionA).length;
+    return (total / count).toFixed(2);
   };
 
   const calculateSectionBTotal = () => {
@@ -1168,7 +1500,8 @@ University of Nueva Caceres`
 
   const calculateSectionBAverage = () => {
     const total = calculateSectionBTotal();
-    return (total / 4).toFixed(2);
+    const count = Object.keys(evaluationForm.sectionB).length;
+    return (total / count).toFixed(2);
   };
 
   const calculateSectionCTotal = () => {
@@ -1178,7 +1511,8 @@ University of Nueva Caceres`
 
   const calculateSectionCAverage = () => {
     const total = calculateSectionCTotal();
-    return (total / 3).toFixed(2);
+    const count = Object.keys(evaluationForm.sectionC).length;
+    return (total / count).toFixed(2);
   };
 
   const calculateOverallRating = () => {
@@ -1206,10 +1540,8 @@ University of Nueva Caceres`
 
   // Auto-assign scholarship tier based on final score
   const getAutoScholarshipTier = (score: number): number => {
-    if (score >= 90) return 100; // Excellent: Full Scholarship
-    if (score >= 80) return 75;  // Very Good: Three-Quarter Scholarship
-    if (score >= 70) return 50;  // Good: Half Scholarship
-    return 25;                    // Needs Improvement: Quarter Scholarship
+    if (score >= 90) return 100; // Full Scholarship
+    return 50; // Half Scholarship
   };
 
   const handleSubmitEvaluation = async () => {
@@ -1218,17 +1550,38 @@ University of Nueva Caceres`
       return;
     }
 
+    const allRatings = [
+      ...Object.values(evaluationForm.sectionA),
+      ...Object.values(evaluationForm.sectionB),
+      ...Object.values(evaluationForm.sectionC),
+    ];
+
+    if (allRatings.some((value) => Number(value) <= 0)) {
+      toast.error('Please rate all criteria before submitting the final evaluation.');
+      return;
+    }
+
     try {
+      const backendTraineeId = resolveBackendTraineeId(String(selectedTrainee.id));
+      if (!backendTraineeId) {
+        toast.error('Unable to resolve trainee record. Please refresh and try again.');
+        return;
+      }
+
+      const evaluationDate = new Date().toISOString().slice(0, 10);
       const finalScore = calculateWeightedScore();
       const autoScholarshipTier = getAutoScholarshipTier(finalScore);
+      const recommendation = finalScore >= 75 ? 'continue' : finalScore >= 50 ? 'probation' : 'discontinue';
 
       // Prepare evaluation data for backend (snake_case)
       const evaluationData = {
-        trainee_id: selectedTrainee.id,
+        trainee_id: backendTraineeId,
+        rating: finalScore,
+        recommendation,
+        evaluation_date: evaluationDate,
         section_a: evaluationForm.sectionA,
         section_b: evaluationForm.sectionB,
         section_c: evaluationForm.sectionC,
-        overall_rating: calculateOverallRating(),
         adjectival_rating: getAdjectivalRating(),
         scholarship_percentage: autoScholarshipTier,
         strengths: evaluationForm.strengths,
@@ -1242,8 +1595,13 @@ University of Nueva Caceres`
       const savedEvaluation = await trainingClient.createEvaluation(evaluationData);
 
       // Create frontend object for state
+      const savedEvaluationId = savedEvaluation?.id;
+      if (!savedEvaluationId) {
+        throw new Error('Evaluation was saved but backend did not return an ID');
+      }
+
       const newEvaluation: Evaluation = {
-        id: savedEvaluation.id || `eval${evaluations.length + 1}`,
+        id: String(savedEvaluationId),
         traineeId: selectedTrainee.id!,
         traineeName: selectedTrainee.name,
         date: new Date(),
@@ -1281,7 +1639,7 @@ Your Evaluation Results:
 📝 Adjectival Rating: ${getAdjectivalRating()}
 ✅ Status: Qualified
 🎓 Recommendation: ${evaluationForm.recommendForRenewal ? 'Recommended for Renewal' : 'Not Recommended'}
-${evaluationForm.scholarshipPercentage ? `💰 Scholarship Grant: ${evaluationForm.scholarshipPercentage}%` : ''}
+💰 Scholarship Grant: ${autoScholarshipTier}%
 
 You have demonstrated excellent performance and dedication throughout your training period. You are now eligible to become a scholarship grantee.
 
@@ -1298,8 +1656,48 @@ ${groupName} Director
 University of Nueva Caceres`;
 
       toast.success(`${selectedTrainee.name} has PASSED with ${finalScore}% (${getAdjectivalRating()}) and is recommended for renewal! Moved to Member Profile.`);
-      // Email notification sent via backend service
-      onCompleteTraining(selectedTrainee.id!, 'qualified', evaluationForm.scholarshipPercentage);
+
+      // Promote trainee to scholar on the backend
+      const backendTraineeId = (selectedTrainee as any)._rawTrainee?.id;
+      if (backendTraineeId) {
+        try {
+          await trainingClient.promoteTrainee(backendTraineeId);
+        } catch (promoteErr: any) {
+          console.error('Promotion API call failed (non-fatal):', promoteErr);
+        }
+      }
+
+      // Update local state via parent callback (role → scholar)
+      onCompleteTraining(selectedTrainee.id!, 'qualified', autoScholarshipTier);
+
+      await refetchTrainees();
+
+      // Keep local scholars cache in sync so Member table shows current scholarship immediately.
+      setFetchedScholars((prev) => {
+        const targetId = String(selectedTrainee.id || '');
+        const hasExisting = prev.some((item) => String(item.id) === targetId);
+
+        if (hasExisting) {
+          return prev.map((item) =>
+            String(item.id) === targetId
+              ? {
+                  ...item,
+                  role: 'scholar',
+                  scholarshipPercentage: autoScholarshipTier,
+                }
+              : item
+          );
+        }
+
+        return [
+          ...prev,
+          {
+            ...selectedTrainee,
+            role: 'scholar',
+            scholarshipPercentage: autoScholarshipTier,
+          },
+        ];
+      });
       
       // Close trainee dialog when moved to Member Profile
       setShowTraineeDialog(false);
@@ -1323,26 +1721,26 @@ University of Nueva Caceres`;
       talentUnit: '',
       ratingPeriod: '',
       sectionA: {
-        reportsOnTime: 5,
-        reportsRegularly: 5,
-        practicesOnTime: 5,
-        practicesRegularly: 5,
-        noUnnecessaryAbsence: 5,
-        mastersyTasks: 5,
-        maintainsCleanliness: 5
+        reportsOnTime: 0,
+        reportsRegularly: 0,
+        practicesOnTime: 0,
+        practicesRegularly: 0,
+        noUnnecessaryAbsence: 0,
+        mastersyTasks: 0,
+        maintainsCleanliness: 0
       },
       sectionB: {
-        improvementInterest: 5,
-        performanceInterest: 5,
-        workEthic: 5,
-        initiative: 5,
-        efficiency: 5
+        improvementInterest: 0,
+        performanceInterest: 0,
+        workEthic: 0,
+        initiative: 0,
+        efficiency: 0
       },
       sectionC: {
-        teamwork: 5,
-        tact: 5,
-        courtesy: 5,
-        disposition: 5
+        teamwork: 0,
+        tact: 0,
+        courtesy: 0,
+        disposition: 0
       },
       strengths: '',
       improvements: '',
@@ -1508,13 +1906,10 @@ University of Nueva Caceres`;
   const isChapterLocked = (traineeId: string, chapterNum: number): boolean => {
     // Chapter 1 is always unlocked
     if (chapterNum === 1) return false;
-    
-    // Chapter is locked if the previous chapter hasn't passed evaluation
-    const prevChapterEval = chapterEvaluations[traineeId]?.[chapterNum - 1];
-    if (!prevChapterEval || !prevChapterEval.passed) {
-      return true;
-    }
-    return false;
+    // A chapter unlocks when the previous chapter is marked complete in traineeChapters.
+    // traineeChapters is persisted to the backend so it survives logout/reload.
+    const prevDone = Boolean(traineeChapters[traineeId]?.[chapterNum - 1]);
+    return !prevDone;
   };
 
   const hasUnfinishedChapters = (traineeId: string): boolean => {
@@ -1654,7 +2049,20 @@ University of Nueva Caceres`;
       // Save to backend
       await trainingClient.createEvaluation(chapterEvalData);
 
-      // Update frontend state
+      // If passed, auto-mark chapter as complete in traineeChapters and persist
+      if (passed) {
+        const nextChapters = {
+          ...(traineeChapters[traineeId] || {}),
+          [chapterNum]: true,
+        };
+        setTraineeChapters(prev => ({
+          ...prev,
+          [traineeId]: nextChapters,
+        }));
+        void persistTraineeTrainingState(traineeId, { chapters: nextChapters }).catch(() => {});
+      }
+
+      // Update frontend evaluation state
       setChapterEvaluations(prev => ({
         ...prev,
         [traineeId]: {
@@ -1763,19 +2171,27 @@ University of Nueva Caceres`;
 
   // Engagement handlers
   const handleAcceptEngagement = (engagementId: string) => {
-    setEngagementRequests(prev => prev.map(e => 
-      e.id === engagementId 
-        ? { ...e, status: 'accepted' as const, attendanceRecords: [{ date: e.date.toISOString().split('T')[0], attendees: {} }] }
-        : e
-    ));
-    toast.success('Engagement request accepted');
+    const acceptEngagement = async () => {
+      await engagementService.updateEngagement(engagementId, { status: 'scheduled' as any });
+      await refetchEngagementRequests();
+      toast.success('Engagement request accepted');
+    };
+
+    void acceptEngagement().catch(() => {
+      toast.error('Failed to accept engagement request');
+    });
   };
 
   const handleRejectEngagement = (engagementId: string) => {
-    setEngagementRequests(prev => prev.map(e => 
-      e.id === engagementId ? { ...e, status: 'rejected' as const } : e
-    ));
-    toast.success('Engagement request rejected');
+    const rejectEngagement = async () => {
+      await engagementService.updateEngagement(engagementId, { status: 'rejected' as any });
+      await refetchEngagementRequests();
+      toast.success('Engagement request rejected');
+    };
+
+    void rejectEngagement().catch(() => {
+      toast.error('Failed to reject engagement request');
+    });
   };
 
   const handleRequestEvent = () => {
@@ -1817,51 +2233,56 @@ University of Nueva Caceres`;
     // Set loading state
     setIsSubmittingEvent(true);
 
-    const newRequest: EngagementRequest = {
-      id: `eng${engagementRequests.length + 1}`,
-      eventName: eventRequestForm.eventName,
-      date: new Date(eventRequestForm.date),
-      time: eventRequestForm.time,
-      venue: eventRequestForm.venue,
-      description: eventRequestForm.description,
-      status: 'pending',
-      attachment: eventRequestForm.attachment || undefined
+    const submitEventRequest = async () => {
+      await engagementService.createEngagement({
+        event_name: eventRequestForm.eventName,
+        date: eventRequestForm.date,
+        time: eventRequestForm.time,
+        venue: eventRequestForm.venue,
+        description: eventRequestForm.description,
+        attachments: eventRequestForm.attachment ? [{ name: eventRequestForm.attachment }] : [],
+        talent_groups: directorTalentGroup ? [directorTalentGroup] : undefined,
+        type: 'performance',
+        status: 'pending_admin_approval' as any,
+        is_required: false,
+      } as any);
+
+      await refetchEngagementRequests();
+      toast.success('Event request submitted to admin for approval!');
+
+      setShowRequestEventDialog(false);
+      setEventRequestForm({
+        eventName: '',
+        date: '',
+        time: '',
+        venue: '',
+        description: '',
+        attachment: ''
+      });
+
+      setEventFormTouched({
+        eventName: false,
+        date: false,
+        time: false,
+        venue: false,
+        description: false
+      });
+      setEventFormErrors({
+        eventName: '',
+        date: '',
+        time: '',
+        venue: '',
+        description: ''
+      });
     };
 
-    setEngagementRequests([...engagementRequests, newRequest]);
-    
-    const groupName = getTalentGroupName(directorTalentGroup);
-    toast.success(`Event request submitted to admin for approval!`);
-    // Production: Event request would be persisted to database
-
-    setShowRequestEventDialog(false);
-    setEventRequestForm({
-      eventName: '',
-      date: '',
-      time: '',
-      venue: '',
-      description: '',
-      attachment: ''
-    });
-    
-    // Reset validation state
-    setEventFormTouched({
-      eventName: false,
-      date: false,
-      time: false,
-      venue: false,
-      description: false
-    });
-    setEventFormErrors({
-      eventName: '',
-      date: '',
-      time: '',
-      venue: '',
-      description: ''
-    });
-    
-    // Reset loading state
-    setIsSubmittingEvent(false);
+    void submitEventRequest()
+      .catch(() => {
+        toast.error('Failed to submit event request');
+      })
+      .finally(() => {
+        setIsSubmittingEvent(false);
+      });
   };
 
   const handleCreateLatestUpdate = () => {
@@ -1900,52 +2321,60 @@ University of Nueva Caceres`;
     // Set loading state
     setIsSubmittingUpdate(true);
 
-    const newUpdate: LatestUpdate = {
-      id: `update${latestUpdates.length + 1}`,
-      category: latestUpdateForm.category,
-      date: latestUpdateForm.date,
-      icon: latestUpdateForm.icon,
-      title: latestUpdateForm.title,
-      description: latestUpdateForm.description,
-      talentGroup: getTalentGroupName(directorTalentGroup),
-      createdBy: user.name,
-      createdAt: new Date()
+    const createLatestUpdate = async () => {
+      await announcementService.createAnnouncement({
+        category: latestUpdateForm.category,
+        date: latestUpdateForm.date,
+        icon: latestUpdateForm.icon,
+        title: latestUpdateForm.title,
+        description: latestUpdateForm.description,
+        talent_group: directorTalentGroup,
+      } as any);
+
+      await refetchLatestUpdates();
+
+      toast.success('Latest update posted successfully!');
+      setShowLatestUpdateDialog(false);
+      setLatestUpdateForm({
+        category: '',
+        date: '',
+        icon: 'trophy',
+        title: '',
+        description: ''
+      });
+
+      setUpdateFormTouched({
+        category: false,
+        date: false,
+        title: false,
+        description: false
+      });
+      setUpdateFormErrors({
+        category: '',
+        date: '',
+        title: '',
+        description: ''
+      });
     };
 
-    setLatestUpdates([...latestUpdates, newUpdate]);
-    
-    toast.success('Latest update posted successfully!');
-    // Production: Update would be persisted to database
-
-    setShowLatestUpdateDialog(false);
-    setLatestUpdateForm({
-      category: '',
-      date: '',
-      icon: 'trophy',
-      title: '',
-      description: ''
-    });
-    
-    // Reset validation state
-    setUpdateFormTouched({
-      category: false,
-      date: false,
-      title: false,
-      description: false
-    });
-    setUpdateFormErrors({
-      category: '',
-      date: '',
-      title: '',
-      description: ''
-    });
-    
-    // Reset loading state
-    setIsSubmittingUpdate(false);
+    void createLatestUpdate()
+      .catch(() => {
+        toast.error('Failed to post latest update');
+      })
+      .finally(() => {
+        setIsSubmittingUpdate(false);
+      });
   };
 
   const deleteLatestUpdate = (updateId: string) => {
-    setLatestUpdates(prev => prev.filter(update => update.id !== updateId));
+    const deleteUpdate = async () => {
+      await announcementService.deleteAnnouncement(updateId);
+      await refetchLatestUpdates();
+    };
+
+    void deleteUpdate().catch(() => {
+      toast.error('Failed to delete update');
+    });
   };
 
   const handleUpdateEdit = () => {
@@ -1963,13 +2392,25 @@ University of Nueva Caceres`;
       return;
     }
 
-    setLatestUpdates(prev => prev.map(update => 
-      update.id === editingUpdate.id ? editingUpdate : update
-    ));
+    const saveEditedUpdate = async () => {
+      await announcementService.updateAnnouncement(editingUpdate.id, {
+        category: editingUpdate.category,
+        date: editingUpdate.date,
+        icon: editingUpdate.icon,
+        title: editingUpdate.title,
+        description: editingUpdate.description,
+        talent_group: directorTalentGroup,
+      } as any);
 
-    toast.success('Update edited successfully!');
-    setShowEditUpdateDialog(false);
-    setEditingUpdate(null);
+      await refetchLatestUpdates();
+      toast.success('Update edited successfully!');
+      setShowEditUpdateDialog(false);
+      setEditingUpdate(null);
+    };
+
+    void saveEditedUpdate().catch(() => {
+      toast.error('Failed to edit update');
+    });
   };
 
   const handleToggleScholarStatus = (scholarId: string) => {
@@ -2004,7 +2445,7 @@ University of Nueva Caceres`;
     // Create inventory item
     if (onAddInventoryItem) {
       const newItem = {
-        id: `inv_uniform_${Date.now()}`,
+        id: '',
         userId: uniformForm.assignedTo || '',
         itemName: uniformForm.uniformName,
         type: 'uniform' as const,
@@ -2052,7 +2493,7 @@ University of Nueva Caceres`;
     // Create inventory item
     if (onAddInventoryItem) {
       const newItem = {
-        id: `inv_instrument_${Date.now()}`,
+        id: '',
         userId: instrumentForm.assignedTo || '',
         itemName: instrumentForm.instrumentName,
         type: 'instrument' as const,
@@ -2091,7 +2532,7 @@ University of Nueva Caceres`;
     
     // Add to accessories data (not assigned to individual scholars)
     const newAccessory = {
-      id: `acc-${Date.now()}`,
+      id: '',
       userId: '',
       itemName: accessoryForm.accessoryName,
       type: 'accessory' as const,
@@ -2192,13 +2633,8 @@ University of Nueva Caceres`;
       <header className="h-20 bg-white border-b border-[#E2E8F0] sticky top-0 z-50 flex items-center" role="banner">
         <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px] flex items-center justify-between">
 
-          {/* Left: crest + branding */}
+          {/* Left: branding */}
           <div className="flex items-center gap-3">
-            <img
-              src={uncLogo}
-              alt="University of Nueva Caceres Logo"
-              className="w-10 h-10 object-contain"
-            />
             <div>
               <div className="text-xl leading-tight">
                 <span className="font-bold text-[#0F172A]">Talent</span>
@@ -2440,10 +2876,13 @@ University of Nueva Caceres`;
               <Input
                 id="interview-date"
                 type="date"
+                min={new Date().toLocaleDateString('en-CA')}
                 value={interviewForm.date}
                 onChange={(e) => setInterviewForm({ ...interviewForm, date: e.target.value })}
                 className="border-[#D1D5DC] bg-white cursor-pointer"
                 style={{ colorScheme: 'light' }}
+                required
+                aria-required="true"
               />
             </div>
             <div>
@@ -2455,6 +2894,8 @@ University of Nueva Caceres`;
                 onChange={(e) => setInterviewForm({ ...interviewForm, time: e.target.value })}
                 className="border-[#D1D5DC] bg-white cursor-pointer"
                 style={{ colorScheme: 'light' }}
+                required
+                aria-required="true"
               />
             </div>
             <div>
@@ -2481,7 +2922,11 @@ University of Nueva Caceres`;
             <Button variant="outline" onClick={() => setShowInterviewDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleScheduleInterview} className="bg-[#7A1E1E] hover:bg-[#6A1919]">
+            <Button
+              onClick={handleScheduleInterview}
+              disabled={!interviewForm.date || !interviewForm.time}
+              className="bg-[#7A1E1E] hover:bg-[#6A1919] disabled:opacity-60 disabled:cursor-not-allowed"
+            >
               <Send className="w-4 h-4 mr-2" />
               Send Schedule
             </Button>
@@ -2751,8 +3196,12 @@ University of Nueva Caceres`;
                       <Label>Size</Label>
                       <Input
                         type="number"
+                        inputMode="decimal"
+                        min="1"
+                        max="20"
+                        step="0.5"
                         value={uniformForm.shoesSize}
-                        onChange={(e) => setUniformForm({ ...uniformForm, shoesSize: e.target.value })}
+                        onChange={(e) => setUniformForm({ ...uniformForm, shoesSize: e.target.value.replace(/[^0-9.]/g, '') })}
                         placeholder="e.g., 7"
                       />
                     </div>
@@ -2873,8 +3322,12 @@ University of Nueva Caceres`;
                       <Label>Size</Label>
                       <Input
                         type="number"
+                        inputMode="decimal"
+                        min="1"
+                        max="20"
+                        step="0.5"
                         value={uniformForm.shoesSize}
-                        onChange={(e) => setUniformForm({ ...uniformForm, shoesSize: e.target.value })}
+                        onChange={(e) => setUniformForm({ ...uniformForm, shoesSize: e.target.value.replace(/[^0-9.]/g, '') })}
                         placeholder="e.g., 7"
                       />
                     </div>
@@ -2949,8 +3402,12 @@ University of Nueva Caceres`;
                       <Label>Size</Label>
                       <Input
                         type="number"
+                        inputMode="decimal"
+                        min="1"
+                        max="20"
+                        step="0.5"
                         value={uniformForm.bandShoesSize}
-                        onChange={(e) => setUniformForm({ ...uniformForm, bandShoesSize: e.target.value })}
+                        onChange={(e) => setUniformForm({ ...uniformForm, bandShoesSize: e.target.value.replace(/[^0-9.]/g, '') })}
                         placeholder="e.g., 9"
                       />
                     </div>
@@ -2984,13 +3441,12 @@ University of Nueva Caceres`;
             const completedChapters = Object.values(chapters).filter(Boolean).length;
             const totalChapters = 30;
             const overallProgress = Math.round((completedChapters / totalChapters) * 100);
-            
-            const attendanceRate = calculateTraineeAttendanceRate(traineeId);
-            const totalSessions = trainingAttendance.length;
-            const presentCount = trainingAttendance.filter(date => 
-              date.attendees && date.attendees[traineeId]
-            ).length;
-            const absentCount = totalSessions - presentCount;
+
+            const attendanceStats = calculateTraineeAttendanceStats(traineeId);
+            const attendanceRate = attendanceStats.attendanceRate;
+            const totalSessions = attendanceStats.totalSessions;
+            const presentCount = attendanceStats.presentCount;
+            const absentCount = attendanceStats.absentCount;
 
             const instruments = [
               'Clarinet',
@@ -3272,7 +3728,11 @@ University of Nueva Caceres`;
                                     : 'border-[#e0e0e0] hover:border-[#7A1E1E]/30 cursor-pointer'
                                 }`}
                                 onClick={() => {
-                                  if (!isLocked && isChecked) {
+                                  if (isLocked) {
+                                    toast.info(`Chapter ${chapterNum} is locked. Complete and evaluate Chapter ${chapterNum - 1} first before proceeding.`);
+                                    return;
+                                  }
+                                  if (isChecked) {
                                     setSelectedChapterForEval({ traineeId, chapterNum });
                                     setChapterEvalForm({ score: evaluation?.score || 0, notes: evaluation?.notes || '', passed: evaluation?.passed || true });
                                     setShowChapterEvalDialog(true);
@@ -3298,12 +3758,11 @@ University of Nueva Caceres`;
                                     }`}
                                   >
                                     Chapter {chapterNum}: {getChapterTitle(chapterNum)}
-                                    {isLocked && <span className="text-xs text-[#999]">🔒 Locked</span>}
                                     {isChecked && hasPassed && <CheckCircle className="w-4 h-4 text-green-600" />}
                                     {isChecked && !hasPassed && evaluation && <span className="text-xs text-yellow-600">⚠ Needs Review</span>}
                                   </Label>
                                 </div>
-                                {isChecked && !isLocked && (
+                                {!isLocked && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -3315,7 +3774,7 @@ University of Nueva Caceres`;
                                       setShowChapterEvalDialog(true);
                                     }}
                                   >
-                                    Evaluate
+                                    {isChecked ? 'Re-evaluate' : 'Evaluate'}
                                   </Button>
                                 )}
                               </div>
@@ -3558,8 +4017,15 @@ University of Nueva Caceres`;
                   <Input
                     type="number"
                     min="1"
+                    max="9999"
+                    step="1"
+                    inputMode="numeric"
                     value={accessoryForm.quantity}
-                    onChange={(e) => setAccessoryForm({ ...accessoryForm, quantity: parseInt(e.target.value) || 1 })}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/\D/g, '');
+                      const parsed = parseInt(digitsOnly, 10);
+                      setAccessoryForm({ ...accessoryForm, quantity: Number.isNaN(parsed) ? 1 : Math.min(9999, Math.max(1, parsed)) });
+                    }}
                     placeholder="e.g., 10"
                   />
                 </div>
@@ -3898,10 +4364,19 @@ University of Nueva Caceres`;
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          if (confirm('Are you sure you want to clear all training dates? This will remove all attendance records.')) {
-                            setTrainingAttendance([]);
-                            toast.success('All training dates cleared');
+                          if (!confirm('Are you sure you want to clear all training dates? This will remove all attendance records.')) {
+                            return;
                           }
+
+                          const clearAllAttendance = async () => {
+                            await trainingClient.clearAttendance();
+                            await loadTrainingAttendanceFromBackend();
+                            toast.success('All training dates cleared');
+                          };
+
+                          void clearAllAttendance().catch((err: any) => {
+                            toast.error(err?.message || 'Failed to clear training dates');
+                          });
                         }}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                       >
@@ -3920,9 +4395,15 @@ University of Nueva Caceres`;
                               variant="ghost"
                               size="sm"
                               onClick={() => {
-                                const updated = trainingAttendance.filter((_, i) => i !== idx);
-                                setTrainingAttendance(updated);
-                                toast.success('Training date removed');
+                                const deleteAttendanceDate = async () => {
+                                  await trainingClient.deleteAttendanceSession(record.date);
+                                  await loadTrainingAttendanceFromBackend();
+                                  toast.success('Training date removed');
+                                };
+
+                                void deleteAttendanceDate().catch((err: any) => {
+                                  toast.error(err?.message || 'Failed to remove training date');
+                                });
                               }}
                               className="h-6 w-6 p-0 hover:bg-red-100 hover:text-red-600"
                             >
@@ -4445,23 +4926,44 @@ University of Nueva Caceres`;
 
       {/* Scholar Details Dialog */}
       <Dialog open={showScholarDialog} onOpenChange={setShowScholarDialog}>
-        <DialogContent className="max-w-[95vw] sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-[680px] max-h-[90vh] flex flex-col overflow-hidden" hideCloseButton>
           <DialogHeader>
-            <DialogTitle>Scholar Profile </DialogTitle>
-            <DialogDescription>
-              personal, academic, and scholarship information
+            <DialogTitle className="text-[#7A1E1E] text-[18px] font-bold">Scholar Profile</DialogTitle>
+            <DialogDescription className="text-[#6C757D] text-[13px]">
+              Complete scholar information
             </DialogDescription>
           </DialogHeader>
+            {selectedScholarProfileLoading && (
+              <div className="text-sm text-[#6c757d] px-1">Loading scholar profile details from backend...</div>
+            )}
           {selectedScholar && (
-            <ScrollArea className="max-h-[calc(90vh-180px)] pr-4">
+            <ScrollArea className="flex-1 overflow-y-auto pr-3">
               <div className="space-y-6">
+                <div className="flex items-center gap-4 pb-4 border-b border-[#E0E0E0]">
+                  <div className="w-16 h-16 rounded-lg bg-[#7A1E1E]/10 border-2 border-[#7A1E1E]/30 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    <User className="w-8 h-8 text-[#7A1E1E]" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-[#1A1A1A] text-[18px] font-bold truncate">{selectedScholar.name}</h3>
+                    <p className="text-[#6C757D] text-[13px] mt-0.5">{selectedScholar.studentId || 'No student ID'}</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="border-transparent text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white"
+                    onClick={() => setShowScholarDialog(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+
                 {/* Personal Information */}
                 <div>
-                  <h3 className="text-[#7A1E1E] mb-4 flex items-center gap-2">
+                  <h3 className="text-[#7A1E1E] text-[15px] font-bold mb-3 pb-1 border-b border-[#F0E0E0] flex items-center gap-2">
                     <User className="w-5 h-5" />
                     Personal Information
                   </h3>
-                  <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4 bg-[#F8F9FA] p-4 rounded-lg border border-[#E0E0E0]">
                     <div>
                       <Label className="text-sm text-[#6c757d] font-bold">Full Name</Label>
                       <p className="font-medium break-words">{selectedScholar.name}</p>
@@ -4480,23 +4982,23 @@ University of Nueva Caceres`;
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Gender</Label>
-                      <p className="font-medium">{selectedScholar.gender || 'Not provided'}</p>
+                      <p className="font-medium">{selectedScholar.gender || selectedScholarApplication?.applicant_gender || 'Not provided'}</p>
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Birthdate</Label>
-                      <p className="font-medium">{selectedScholar.dateOfBirth ? new Date(selectedScholar.dateOfBirth).toLocaleDateString() : selectedScholar.birthdate || 'Not provided'}</p>
+                      <p className="font-medium">{selectedScholarBirthdate ? new Date(selectedScholarBirthdate).toLocaleDateString() : 'Not provided'}</p>
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Age</Label>
-                      <p className="font-medium">{selectedScholar.age || 'Not provided'}</p>
+                      <p className="font-medium">{selectedScholarAge || 'Not provided'}</p>
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Social Media</Label>
-                      <p className="font-medium">{selectedScholar.socialMedia || 'Not provided'}</p>
+                      <p className="font-medium">{selectedScholar.socialMedia || (selectedScholarApplication as any)?.social_media || 'Not provided'}</p>
                     </div>
                     <div className="col-span-2">
                       <Label className="text-sm text-[#6c757d]">Home Address</Label>
-                      <p className="font-medium">{selectedScholar.address || 'Not provided'}</p>
+                      <p className="font-medium">{selectedScholar.address || selectedScholarApplication?.residing_address || selectedScholarApplication?.applicant_address || 'Not provided'}</p>
                     </div>
                   </div>
                 </div>
@@ -4505,26 +5007,26 @@ University of Nueva Caceres`;
 
                 {/* Academic Information */}
                 <div>
-                  <h3 className="text-[#7A1E1E] mb-4 flex items-center gap-2">
+                  <h3 className="text-[#7A1E1E] text-[15px] font-bold mb-3 pb-1 border-b border-[#F0E0E0] flex items-center gap-2">
                     <GraduationCap className="w-5 h-5" />
                     Academic Information
                   </h3>
-                  <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4 bg-[#F8F9FA] p-4 rounded-lg border border-[#E0E0E0]">
                     <div>
                       <Label className="text-sm text-[#6c757d]">Year Level</Label>
-                      <p className="font-medium">{selectedScholar.yearLevel || 'Not provided'}</p>
+                      <p className="font-medium">{selectedScholar.yearLevel || selectedScholarApplication?.applicant_year_level || 'Not provided'}</p>
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Status</Label>
-                      <Badge className="bg-[#7A1E1E]">Active</Badge>
+                      <Badge className="bg-[#7A1E1E]">{selectedScholar.role === 'scholar' ? 'Active' : selectedScholar.role}</Badge>
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Course/Program</Label>
-                      <p className="font-medium">{selectedScholar.course || 'Not provided'}</p>
+                      <p className="font-medium">{selectedScholar.course || selectedScholarApplication?.applicant_course || 'Not provided'}</p>
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Department</Label>
-                      <p className="font-medium">{selectedScholar.department || 'Not provided'}</p>
+                      <p className="font-medium">{selectedScholar.department || selectedScholarApplication?.applicant_department || 'Not provided'}</p>
                     </div>
                   </div>
                 </div>
@@ -4533,16 +5035,16 @@ University of Nueva Caceres`;
 
                 {/* Scholarship Information */}
                 <div>
-                  <h3 className="text-[#7A1E1E] mb-4 flex items-center gap-2">
+                  <h3 className="text-[#7A1E1E] text-[15px] font-bold mb-3 pb-1 border-b border-[#F0E0E0] flex items-center gap-2">
                     <Star className="w-5 h-5" />
                     Scholarship Information
                   </h3>
-                  <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4 bg-[#F8F9FA] p-4 rounded-lg border border-[#E0E0E0]">
                     <div>
                       <Label className="text-sm text-[#6c757d]">Talent Group</Label>
                       <p className="font-medium">{getTalentGroupName(selectedScholar.talentGroup || '')}</p>
                     </div>
-                    {isGleeClub && (
+                    {selectedScholarTalentGroup === 'glee-club' && (
                       <div>
                         <Label className="text-sm text-[#6c757d]">Assigned Voice</Label>
                         <p className="font-medium">{traineeVoices[selectedScholar.id!] || 'Not assigned'}</p>
@@ -4550,7 +5052,7 @@ University of Nueva Caceres`;
                     )}
                     <div>
                       <Label className="text-sm text-[#6c757d]">Scholarship Percentage</Label>
-                      <p className="font-medium text-[#7A1E1E] text-xl">{evaluations.find(e => e.traineeId === selectedScholar.id)?.rating || 0}%</p>
+                      <p className="font-medium text-[#7A1E1E] text-xl">{selectedScholarScholarship}%</p>
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Account Role</Label>
@@ -4558,22 +5060,13 @@ University of Nueva Caceres`;
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Member Status</Label>
-                      <div className="flex items-center gap-2">
-                        <Badge className={scholarAssignments[selectedScholar.id!]?.status === 'active' ? 'bg-green-600' : 'bg-gray-500'}>
-                          {scholarAssignments[selectedScholar.id!]?.status === 'active' ? 'Active' : 'Inactive'}
-                        </Badge>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleToggleScholarStatus(selectedScholar.id!)}
-                        >
-                          Toggle Status
-                        </Button>
-                      </div>
+                      <Badge className={selectedScholar.role === 'scholar' ? 'bg-green-600' : 'bg-gray-500'}>
+                        {selectedScholar.role === 'scholar' ? 'Active' : 'Inactive'}
+                      </Badge>
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Join Date</Label>
-                      <p className="font-medium">September 1, 2024</p>
+                      <p className="font-medium">{(selectedScholar as any).createdAt ? new Date((selectedScholar as any).createdAt).toLocaleDateString() : (selectedScholarApplication?.applied_at ? new Date(selectedScholarApplication.applied_at).toLocaleDateString() : 'Not provided')}</p>
                     </div>
                   </div>
                 </div>
@@ -4582,26 +5075,26 @@ University of Nueva Caceres`;
 
                 {/* Emergency Contact Information */}
                 <div>
-                  <h3 className="text-[#7A1E1E] mb-4 flex items-center gap-2">
+                  <h3 className="text-[#7A1E1E] text-[15px] font-bold mb-3 pb-1 border-b border-[#F0E0E0] flex items-center gap-2">
                     <Phone className="w-5 h-5" />
                     Emergency Contact Information
                   </h3>
-                  <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4 bg-[#F8F9FA] p-4 rounded-lg border border-[#E0E0E0]">
                     <div>
                       <Label className="text-sm text-[#6c757d]">Emergency Contact Name</Label>
-                      <p className="font-medium">{selectedScholar.emergencyContactName || 'Not provided'}</p>
+                      <p className="font-medium">{selectedScholar.emergencyContactName || selectedScholarApplication?.guardian_name || 'Not provided'}</p>
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Relationship</Label>
-                      <p className="font-medium">{selectedScholar.emergencyContactRelationship || 'Not provided'}</p>
+                      <p className="font-medium">{selectedScholar.emergencyContactRelationship || selectedScholarApplication?.guardian_relationship || 'Not provided'}</p>
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Emergency Contact Number</Label>
-                      <p className="font-medium">{selectedScholar.emergencyContactPhone || 'Not provided'}</p>
+                      <p className="font-medium">{selectedScholar.emergencyContactPhone || selectedScholarApplication?.guardian_phone || 'Not provided'}</p>
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Alternative Contact</Label>
-                      <p className="font-medium">Not provided</p>
+                      <p className="font-medium">{selectedScholar.emergencyPhone || selectedScholarApplication?.applicant_phone || 'Not provided'}</p>
                     </div>
                   </div>
                 </div>
@@ -4655,24 +5148,28 @@ University of Nueva Caceres`;
                     Attendance
                   </h3>
 
-                  {/* Rehearsal Attendance */}
+                  {/* Rehearsal Attendance (from engagement module only) */}
                   <div className="mb-4">
                     <p className="text-sm font-medium text-[#1a1a1a] mb-2">Rehearsal / Practice</p>
                     {(() => {
                       const scholarId = selectedScholar.id!;
-                      const practiceDays = trainingAttendance.filter(r => !r.noPractice);
-                      const presentCount = practiceDays.filter(r => {
-                        const val = r.attendees[scholarId];
-                        return val === true || val === 'present';
-                      }).length;
-                      const rate = practiceDays.length > 0 ? Math.round((presentCount / practiceDays.length) * 100) : null;
-                      if (practiceDays.length === 0) {
-                        return <div className="text-center text-[#6c757d] py-4 bg-gray-50 rounded-lg text-sm">No rehearsal sessions recorded yet</div>;
+                      const rehearsalSessions = acceptedEngagements.filter(e =>
+                        e.type === 'rehearsal' && e.attendanceRecords && e.attendanceRecords.length > 0
+                      );
+                      const presentCount = rehearsalSessions.filter(e =>
+                        e.attendanceRecords!.some(r => {
+                          const val = r.attendees[scholarId];
+                          return val === true || val === 'present';
+                        })
+                      ).length;
+                      const rate = rehearsalSessions.length > 0 ? Math.round((presentCount / rehearsalSessions.length) * 100) : null;
+                      if (rehearsalSessions.length === 0) {
+                        return <div className="text-center text-[#6c757d] py-4 bg-gray-50 rounded-lg text-sm">No rehearsal attendance recorded yet</div>;
                       }
                       return (
                         <div className="bg-gray-50 p-4 rounded-lg">
                           <div className="flex items-center gap-6 mb-3">
-                            <div><p className="text-[#6c757d] text-xs">Sessions</p><p className="text-[#1a1a1a] font-bold">{practiceDays.length}</p></div>
+                            <div><p className="text-[#6c757d] text-xs">Sessions</p><p className="text-[#1a1a1a] font-bold">{rehearsalSessions.length}</p></div>
                             <div><p className="text-[#6c757d] text-xs">Present</p><p className="text-[#1a1a1a] font-bold">{presentCount}</p></div>
                             <div>
                               <p className="text-[#6c757d] text-xs">Rate</p>
@@ -4680,11 +5177,13 @@ University of Nueva Caceres`;
                             </div>
                           </div>
                           <div className="space-y-1 max-h-[160px] overflow-y-auto">
-                            {practiceDays.map(record => {
-                              const val = record.attendees[scholarId];
-                              const present = val === true || val === 'present';
+                            {rehearsalSessions.map(record => {
+                              const present = record.attendanceRecords!.some(r => {
+                                const val = r.attendees[scholarId];
+                                return val === true || val === 'present';
+                              });
                               return (
-                                <div key={record.date} className="flex items-center justify-between text-sm py-1 border-b border-gray-100 last:border-0">
+                                <div key={record.id} className="flex items-center justify-between text-sm py-1 border-b border-gray-100 last:border-0">
                                   <span>{new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                   <Badge className={`text-xs ${present ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{present ? 'Present' : 'Absent'}</Badge>
                                 </div>
@@ -4701,7 +5200,9 @@ University of Nueva Caceres`;
                     <p className="text-sm font-medium text-[#1a1a1a] mb-2">Engagements</p>
                     {(() => {
                       const scholarId = selectedScholar.id!;
-                      const engagementsWithAttendance = acceptedEngagements.filter(e => e.attendanceRecords && e.attendanceRecords.length > 0);
+                      const engagementsWithAttendance = acceptedEngagements.filter(e =>
+                        e.type !== 'rehearsal' && e.attendanceRecords && e.attendanceRecords.length > 0
+                      );
                       if (engagementsWithAttendance.length === 0) {
                         return <div className="text-center text-[#6c757d] py-4 bg-gray-50 rounded-lg text-sm">No engagement attendance recorded yet</div>;
                       }
@@ -4745,15 +5246,15 @@ University of Nueva Caceres`;
                 {!isDanceClub && <Separator />}
 
                 {/* Assigned Instruments */}
-                {isMarchingBand && (
+                {selectedScholarTalentGroup === 'marching-band' && (
                   <div>
                     <h3 className="text-[#7A1E1E] mb-3 flex items-center gap-2">
                       <Music className="w-5 h-5" />
                       Assigned Instruments
                     </h3>
-                    {inventoryItems.filter(item => item.userId === selectedScholar.id && item.type === 'instrument').length > 0 ? (
+                    {inventoryItems.filter(item => String(item.userId) === String(selectedScholar.id) && item.type === 'instrument').length > 0 ? (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                        {inventoryItems.filter(item => item.userId === selectedScholar.id && item.type === 'instrument').map((instrument) => (
+                        {inventoryItems.filter(item => String(item.userId) === String(selectedScholar.id) && item.type === 'instrument').map((instrument) => (
                           <div key={instrument.id} className="border rounded-lg p-4 bg-white shadow-sm">
                             <p className="font-medium">{instrument.itemName || instrument.name}</p>
                             <div className="text-sm text-[#6c757d] mt-2 space-y-1">
@@ -4773,6 +5274,11 @@ University of Nueva Caceres`;
                             </Badge>
                           </div>
                         ))}
+                      </div>
+                    ) : selectedScholar.assignedInstrument ? (
+                      <div className="border rounded-lg p-4 bg-white shadow-sm">
+                        <p className="font-medium">{selectedScholar.assignedInstrument}</p>
+                        <div className="text-sm text-[#6c757d] mt-2">Assigned during trainee phase (from backend trainee record)</div>
                       </div>
                     ) : (
                       <div className="text-center text-[#6c757d] py-6 bg-gray-50 rounded-lg">
@@ -5013,7 +5519,7 @@ University of Nueva Caceres`;
               <div className="pt-4 border-t">
                 <Label>Update Quantity</Label>
                 <div className="flex gap-2 mt-2">
-                  <Input type="number" placeholder="Enter new quantity" className="flex-1" />
+                  <Input type="number" min="1" max="9999" step="1" inputMode="numeric" placeholder="Enter new quantity" className="flex-1" />
                   <Button className="bg-[#7A1E1E] hover:bg-[#6A1919]">
                     Update
                   </Button>
@@ -5248,12 +5754,8 @@ University of Nueva Caceres`;
                       <p className="text-sm font-medium">{selectedScholarForPerformance.studentId}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-[#6c757d]">Talent Group</p>
-                      <p className="text-sm font-medium">{getTalentGroupName(selectedScholarForPerformance.talentGroup || '')}</p>
-                    </div>
-                    <div>
                       <p className="text-xs text-[#6c757d]">Current Scholarship</p>
-                      <p className="text-sm font-medium text-[#7A1E1E]">{selectedScholarForPerformance.scholarshipPercentage || 0}%</p>
+                      <p className="text-sm font-medium text-[#7A1E1E]">{selectedScholarCurrentScholarship}%</p>
                     </div>
                   </div>
                 </div>
@@ -5269,28 +5771,28 @@ University of Nueva Caceres`;
                       <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div>
                           <p className="text-xs text-[#6c757d]">Total Sessions</p>
-                          <p className="text-xl font-bold">24</p>
+                          <p className="text-xl font-bold">{selectedScholarAttendanceStats.totalSessions}</p>
                         </div>
                         <Calendar className="w-6 h-6 text-[#6c757d]" />
                       </div>
                       <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div>
                           <p className="text-xs text-[#6c757d]">Present</p>
-                          <p className="text-xl font-bold">21</p>
+                          <p className="text-xl font-bold">{selectedScholarAttendanceStats.presentCount}</p>
                         </div>
                         <CheckCircle className="w-6 h-6 text-green-600" />
                       </div>
                       <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div>
                           <p className="text-xs text-[#6c757d]">Absent</p>
-                          <p className="text-xl font-bold">3</p>
+                          <p className="text-xl font-bold">{selectedScholarAttendanceStats.absentCount}</p>
                         </div>
                         <XCircle className="w-6 h-6 text-red-500" />
                       </div>
                       <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div>
                           <p className="text-xs text-[#6c757d]">Rate</p>
-                          <p className="text-xl font-bold text-[#7A1E1E]">87.5%</p>
+                          <p className="text-xl font-bold text-[#7A1E1E]">{selectedScholarAttendanceStats.attendanceRate}%</p>
                         </div>
                         <TrendingUp className="w-6 h-6 text-[#7A1E1E]" />
                       </div>
@@ -5298,7 +5800,10 @@ University of Nueva Caceres`;
                     <div>
                       <p className="text-xs text-[#6c757d] mb-1">Attendance Requirement: 80%</p>
                       <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div className="bg-[#7A1E1E] h-2.5 rounded-full" style={{ width: '87.5%' }} />
+                        <div
+                          className="bg-[#7A1E1E] h-2.5 rounded-full"
+                          style={{ width: `${Math.max(0, Math.min(100, selectedScholarAttendanceStats.attendanceRate))}%` }}
+                        />
                       </div>
                     </div>
                   </div>
@@ -5313,88 +5818,96 @@ University of Nueva Caceres`;
                     Evaluation Documents
                   </h3>
 
-                  {(() => {
-                    const currentDate = new Date('2026-01-03');
-                    const currentMonth = currentDate.getMonth() + 1;
-                    const currentYear = currentDate.getFullYear();
-                    let requiredSemester = '';
-                    let academicYear = '';
-                    if (currentMonth >= 8 && currentMonth <= 12) {
-                      requiredSemester = 'FIRST_SEMESTER';
-                      academicYear = `${currentYear}-${currentYear + 1}`;
-                    } else if (currentMonth >= 1 && currentMonth <= 5) {
-                      requiredSemester = 'SECOND_SEMESTER';
-                      academicYear = `${currentYear - 1}-${currentYear}`;
-                    } else {
-                      requiredSemester = 'SUMMER';
-                      academicYear = `${currentYear}-${currentYear + 1}`;
-                    }
-                    const scholarDocuments = [
-                      { id: 1, name: 'MATRICULATION_1ST_YEAR_2ND_SEM.pdf', type: 'pdf', uploadedDate: '2025-12-15', category: 'Matriculation' },
-                      { id: 4, name: 'SECOND_SEMESTER_GRADES_2025-2026.pdf', type: 'pdf', uploadedDate: '2025-12-20', category: 'Grades', semester: 'SECOND_SEMESTER', year: '2025-2026' },
-                    ];
-                    const currentSemesterGrades = scholarDocuments.find(
-                      doc => doc.category === 'Grades' && doc.semester === requiredSemester && doc.year === academicYear
-                    );
-                    const hasCurrentSemesterGrades = !!currentSemesterGrades;
-                    const attendanceMet = 87.5 >= 80;
-                    const isReadyForEvaluation = hasCurrentSemesterGrades && attendanceMet;
+                  {/* Uploaded Documents */}
+                  <div className="bg-white border border-[#e0e0e0] rounded-lg p-3 sm:p-4 mb-3">
+                    <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      Uploaded Documents ({selectedScholarRenewalDocs.length})
+                    </h4>
 
-                    return (
-                      <>
-                        {/* Uploaded Documents */}
-                        <div className="bg-white border border-[#e0e0e0] rounded-lg p-3 sm:p-4 mb-3">
-                          <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                            <FileText className="w-4 h-4" />
-                            Uploaded Documents ({scholarDocuments.length})
-                          </h4>
-                          <div className="space-y-2">
-                            {scholarDocuments.map((doc) => (
-                              <div key={doc.id} className="flex items-center gap-2 p-2 sm:p-3 bg-gray-50 rounded-lg">
-                                <FileText className="w-4 h-4 text-[#7A1E1E] shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium truncate">{doc.name}</p>
-                                  <p className="text-xs text-[#6c757d]">{doc.category} · {new Date(doc.uploadedDate).toLocaleDateString()}</p>
-                                </div>
-                                <Button size="sm" variant="outline" className="shrink-0 px-2 text-xs h-7"
-                                  onClick={() => toast.info(`Opening preview for ${doc.name}`)}>
-                                  <Eye className="w-3 h-3 sm:mr-1" />
-                                  <span className="hidden sm:inline">Preview</span>
-                                </Button>
-                              </div>
-                            ))}
+                    {loadingPerformanceData ? (
+                      <p className="text-xs text-[#6c757d]">Loading renewal submissions...</p>
+                    ) : selectedScholarRenewalDocs.length === 0 ? (
+                      <p className="text-xs text-[#6c757d]">No renewal documents submitted yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {selectedScholarRenewalDocs.map((doc) => (
+                          <div key={doc.id} className="flex items-center gap-2 p-2 sm:p-3 bg-gray-50 rounded-lg">
+                            <FileText className="w-4 h-4 text-[#7A1E1E] shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate">{doc.name}</p>
+                              <p className="text-xs text-[#6c757d]">
+                                {doc.source} · {doc.uploadedDate ? new Date(doc.uploadedDate).toLocaleDateString() : 'Date N/A'}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="shrink-0 px-2 text-xs h-7"
+                              onClick={() => {
+                                const lower = doc.name.toLowerCase();
+                                const inferredType = lower.endsWith('.pdf') ? 'pdf' : 'document';
+                                setSelectedAttachment({ name: doc.name, type: inferredType });
+                                setShowAttachmentPreview(true);
+                              }}
+                            >
+                              <Eye className="w-3 h-3 sm:mr-1" />
+                              <span className="hidden sm:inline">Preview</span>
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Readiness status */}
+                  {(() => {
+                    const attendanceMet = selectedScholarAttendanceStats.attendanceRate >= 80;
+                    const hasRenewalDocs = selectedScholarRenewalDocs.length > 0;
+                    const isReadyForEvaluation = attendanceMet && hasRenewalDocs;
+
+                    if (isReadyForEvaluation) {
+                      return (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 rounded-full bg-green-600 flex items-center justify-center shrink-0">
+                              <CheckCircle className="w-5 h-5 text-white" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-green-700 mb-1">Ready for Evaluation</p>
+                              <p className="text-xs text-green-700">Attendance and renewal documents are complete.</p>
+                            </div>
                           </div>
                         </div>
+                      );
+                    }
 
-                        {/* Readiness status */}
-                        {!isReadyForEvaluation && (
-                          <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
-                            <div className="flex items-start gap-3">
-                              <div className="w-9 h-9 rounded-full bg-red-500 flex items-center justify-center shrink-0">
-                                <XCircle className="w-5 h-5 text-white" />
+                    return (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 rounded-full bg-red-500 flex items-center justify-center shrink-0">
+                            <XCircle className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-red-700 mb-1">Not Ready for Evaluation</p>
+                            <p className="text-xs text-red-600 mb-2">Requirements not fully met</p>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                {attendanceMet
+                                  ? <><CheckCircle className="w-3.5 h-3.5 text-green-600 shrink-0" /><span className="text-xs text-[#6c757d]">Attendance met ({selectedScholarAttendanceStats.attendanceRate}% ≥ 80%)</span></>
+                                  : <><XCircle className="w-3.5 h-3.5 text-red-600 shrink-0" /><span className="text-xs text-red-600">Attendance not met ({selectedScholarAttendanceStats.attendanceRate}% &lt; 80%)</span></>
+                                }
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold text-red-700 mb-1">Not Ready for Evaluation</p>
-                                <p className="text-xs text-red-600 mb-2">Requirements not fully met</p>
-                                <div className="space-y-1.5">
-                                  <div className="flex items-center gap-2">
-                                    {attendanceMet
-                                      ? <><CheckCircle className="w-3.5 h-3.5 text-green-600 shrink-0" /><span className="text-xs text-[#6c757d]">Attendance met (87.5% ≥ 80%)</span></>
-                                      : <><XCircle className="w-3.5 h-3.5 text-red-600 shrink-0" /><span className="text-xs text-red-600">Attendance not met</span></>
-                                    }
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    {hasCurrentSemesterGrades
-                                      ? <><CheckCircle className="w-3.5 h-3.5 text-green-600 shrink-0" /><span className="text-xs text-[#6c757d]">{requiredSemester.replace(/_/g, ' ')} grades submitted</span></>
-                                      : <><XCircle className="w-3.5 h-3.5 text-red-600 shrink-0" /><span className="text-xs text-red-600">{requiredSemester.replace(/_/g, ' ')} grades not submitted</span></>
-                                    }
-                                  </div>
-                                </div>
+                              <div className="flex items-center gap-2">
+                                {hasRenewalDocs
+                                  ? <><CheckCircle className="w-3.5 h-3.5 text-green-600 shrink-0" /><span className="text-xs text-[#6c757d]">Renewal documents submitted</span></>
+                                  : <><XCircle className="w-3.5 h-3.5 text-red-600 shrink-0" /><span className="text-xs text-red-600">No renewal documents submitted</span></>
+                                }
                               </div>
                             </div>
                           </div>
-                        )}
-                      </>
+                        </div>
+                      </div>
                     );
                   })()}
                 </div>
@@ -5405,6 +5918,7 @@ University of Nueva Caceres`;
           {/* Sticky Footer */}
           <div className="px-4 sm:px-6 py-3 border-t border-[#E0E0E0] shrink-0 flex justify-end">
             <Button
+              disabled={loadingPerformanceData || selectedScholarRenewalDocs.length === 0 || selectedScholarAttendanceStats.attendanceRate < 80}
               onClick={() => {
                 setShowPerformanceDialog(false);
                 setSelectedTrainee(selectedScholarForPerformance);

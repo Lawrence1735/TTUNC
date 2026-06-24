@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { TabsContent } from './ui/tabs';
@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Input } from './ui/input';
 import { Calendar, FileText, Search, ChevronRight, ChevronDown, TrendingUp } from './ui/icons';
 import { toast } from 'sonner';
+import { DashboardQuickStatCard } from './ui/DashboardQuickStatCard';
 
 interface DirectorTrainingTabProps {
   trainees: any[];
@@ -62,6 +63,25 @@ export function DirectorTrainingTab({
   const [selectedAttendanceDate, setSelectedAttendanceDate] = useState<string>(() => new Date().toLocaleDateString('en-CA'));
   const [calendarViewDate, setCalendarViewDate] = useState(() => ({ year: new Date().getFullYear(), month: new Date().getMonth() }));
 
+  // When attendance data loads, auto-select the most recent date if current selection has no record
+  useEffect(() => {
+    if (trainingAttendance.length === 0) return;
+    const hasMatch = trainingAttendance.some(
+      r => new Date(r.date).toLocaleDateString('en-CA') === selectedAttendanceDate
+    );
+    if (!hasMatch) {
+      // Pick the most recent training date
+      const sorted = [...trainingAttendance].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const latest = sorted[0];
+      const latestDateStr = new Date(latest.date).toLocaleDateString('en-CA');
+      setSelectedAttendanceDate(latestDateStr);
+      // Navigate the calendar to that month
+      const d = new Date(latest.date);
+      setCalendarViewDate({ year: d.getFullYear(), month: d.getMonth() });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trainingAttendance]);
+
   const toggleEvaluationExpanded = (evaluationId: string) => {
     const newSet = new Set(expandedEvaluations);
     if (newSet.has(evaluationId)) {
@@ -86,11 +106,14 @@ export function DirectorTrainingTab({
   }, [trainees, traineeInstruments, traineeChapters, traineeVoices]);
 
   const getTraineeCompletion = (trainee: any): number => {
+    const backendCompletion = Number(trainee?.completionRate ?? trainee?._rawTrainee?.completion_rate ?? 0);
     const chapterData = traineeChapters[trainee.id!];
     if (chapterData !== undefined) {
-      return Math.round((Object.values(chapterData).filter(Boolean).length / 30) * 100);
+      const chapterPercent = Math.round((Object.values(chapterData).filter(Boolean).length / 30) * 100);
+      // Prefer the most current progress snapshot from backend while preserving chapter-level detail when higher.
+      return Math.max(chapterPercent, Number.isFinite(backendCompletion) ? backendCompletion : 0);
     }
-    return Number(trainee?.completionRate ?? 0);
+    return Number.isFinite(backendCompletion) ? backendCompletion : 0;
   };
 
   const quickStats = useMemo(() => {
@@ -112,19 +135,27 @@ export function DirectorTrainingTab({
     };
   }, [trainees, traineeChapters, trainingCompletionRate]);
 
+  const traineeManagementRef = useRef<HTMLDivElement | null>(null);
+  const attendanceRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
           <TabsContent value="training" id="tab-panel-training" role="tabpanel" aria-label="Training" className="space-y-6">
-            {/* Quick Stats - Compact inline design matching DirectorRecruitment */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", width: "55%", maxWidth: "500px" }}>
-              {[
-                { label: "Active Trainees", val: quickStats.activeTrainees },
-                { label: "Completion Rate", val: `${quickStats.completionRate}%` }
-              ].map(({ label, val }) => (
-                <div key={label} style={{ background: "#fff", borderRadius: 10, border: "1px solid #E5E7EB", boxShadow: "0 1px 6px rgba(0,0,0,0.06)", padding: "12px 14px", display: "flex", flexDirection: "column", justifyContent: "center", boxSizing: "border-box" }}>
-                  <p style={{ fontSize: 10, color: "#94A3B8", marginTop: 0, marginBottom: 6, marginLeft: 0, marginRight: 0 }}>{label}</p>
-                  <p style={{ fontSize: 18, fontWeight: 700, color: val === 0 || val === "0%" ? "#94A3B8" : "#0F172A", lineHeight: 1.2, marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0 }}>{val}</p>
-                </div>
-              ))}
+            {/* Quick Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-[640px]">
+              <DashboardQuickStatCard
+                label="Active Trainees"
+                value={quickStats.activeTrainees}
+                onClick={() => scrollToSection(traineeManagementRef)}
+              />
+              <DashboardQuickStatCard
+                label="Completion Rate"
+                value={`${quickStats.completionRate}%`}
+                onClick={() => scrollToSection(attendanceRef)}
+              />
             </div>
 
             {droppedTrainees.length > 0 && (
@@ -158,6 +189,7 @@ export function DirectorTrainingTab({
             )}
 
             {/* Trainee Management Table */}
+            <div ref={traineeManagementRef}>
             <Card className="border-[1.6px] border-[#e0e0e0] shadow-md">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -171,13 +203,14 @@ export function DirectorTrainingTab({
                 {/* Search Bar */}
                 <div className="mb-4">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#6c757d]" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#6c757d]" />
                     <Input
                       type="text"
                       placeholder="Search by trainee name..."
                       value={traineeSearchTerm}
                       onChange={(e) => setTraineeSearchTerm(e.target.value)}
-                      className="pl-10 pr-4 py-2.5"
+                      className="pl-11 pr-4 py-2.5"
+                      style={{ paddingLeft: '2.75rem' }}
                     />
                   </div>
                 </div>
@@ -187,6 +220,7 @@ export function DirectorTrainingTab({
                     if (!traineeSearchTerm.trim()) return true;
                     return trainee.name.toLowerCase().includes(traineeSearchTerm.toLowerCase().trim());
                   });
+
                   if (filtered.length === 0) {
                     return <p className="text-center text-[#6c757d] py-8">No trainees found</p>;
                   }
@@ -200,10 +234,7 @@ export function DirectorTrainingTab({
                           // Date Joined: trainee.dateJoined from User model in database
                           // Instrument: trainee assigned instrument (from traineeInstruments state or trainee object)
                           
-                          const chapterData = traineeChapters[trainee.id!];
-                          const trainingCompletion = chapterData !== undefined
-                            ? Math.round((Object.values(chapterData).filter(Boolean).length / 30) * 100)
-                            : (trainee.completionRate ?? 0);
+                          const trainingCompletion = getTraineeCompletion(trainee);
                           
                           const instrument = trainee.instrument || trainee.assignedInstrument || traineeInstruments[trainee.id!] || traineeVoices[trainee.id!] || '—';
                           
@@ -250,11 +281,8 @@ export function DirectorTrainingTab({
                           </TableHeader>
                           <TableBody>
                             {filtered.map((trainee) => {
-                              // IMPORTANT: Use backend data directly when available
-                              const chapterData = traineeChapters[trainee.id!];
-                              const trainingCompletion = chapterData !== undefined
-                                ? Math.round((Object.values(chapterData).filter(Boolean).length / 30) * 100)
-                                : (trainee.completionRate ?? 0);
+                              // IMPORTANT: Use resolved completion from backend/chapter progress.
+                              const trainingCompletion = getTraineeCompletion(trainee);
                               
                               const instrument = trainee.instrument || trainee.assignedInstrument || traineeInstruments[trainee.id!] || traineeVoices[trainee.id!] || '—';
                               
@@ -264,7 +292,7 @@ export function DirectorTrainingTab({
                               
                               return (
                                 <TableRow key={trainee.id} className="hover:bg-gray-50">
-                                  <TableCell className="font-medium cursor-pointer text-[#7A1E1E] hover:underline"
+                                  <TableCell className="font-medium cursor-pointer text-[#1a1a1a] hover:underline"
                                     onClick={() => { setSelectedTrainee(trainee); setShowTraineeDialog(true); }}>
                                     {trainee.name}
                                   </TableCell>
@@ -293,8 +321,10 @@ export function DirectorTrainingTab({
                 })()}
               </CardContent>
             </Card>
+            </div>
 
             {/* Training Attendance - Modern 2-column design */}
+            <div ref={attendanceRef}>
             <Card className="border-[1.6px] border-[#e0e0e0] shadow-md overflow-hidden">
               <CardHeader className="border-b border-[#e0e0e0]">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -395,10 +425,13 @@ export function DirectorTrainingTab({
                               const isToday = dateStr === todayStr;
                               const isSelected = dateStr === selectedAttendanceDate;
                               const hasRecord = datesWithRecords.has(dateStr);
+                              const isFutureDate = dateStr > todayStr;
+                              const isClickable = hasRecord && !isFutureDate;
                               return (
                                 <div key={day} className="flex flex-col items-center">
                                   <button
-                                    onClick={() => { if (hasRecord) setSelectedAttendanceDate(dateStr); }}
+                                    onClick={() => { if (isClickable) setSelectedAttendanceDate(dateStr); }}
+                                    title={isFutureDate ? 'Cannot view attendance for a future session' : undefined}
                                     className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-medium transition-all ${
                                       isSelected
                                         ? 'bg-[#7A1E1E] text-white font-bold'
@@ -406,6 +439,8 @@ export function DirectorTrainingTab({
                                         ? 'bg-amber-100 text-amber-800 font-bold hover:bg-amber-200 cursor-pointer'
                                         : isToday
                                         ? 'bg-amber-50 text-amber-600 font-bold'
+                                        : isFutureDate && hasRecord
+                                        ? 'text-slate-300 cursor-not-allowed'
                                         : hasRecord
                                         ? 'text-[#1a1a1a] hover:bg-white cursor-pointer'
                                         : 'text-slate-300 cursor-default'
@@ -503,36 +538,48 @@ export function DirectorTrainingTab({
                             <p className="text-xs text-slate-300 mt-1">This date was marked as no practice</p>
                           </div>
                         ) : (
-                          <div className="overflow-x-auto">
-                            <table className="w-full">
+                          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-[0_1px_8px_rgba(15,23,42,0.04)]">
+                            <table className="w-full border-collapse">
                               <thead>
-                                <tr className="bg-slate-50 border-b border-[#e0e0e0]">
-                                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Name</th>
-                                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Session Date</th>
-                                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Today's Accomplishment</th>
+                                <tr className="bg-[#EEF2F7] border-b border-slate-300">
+                                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Name</th>
+                                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Session Date</th>
+                                  <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Today's Accomplishment</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-[#f5f5f5]">
+                              <tbody className="divide-y divide-slate-200">
+                                {selectedAttendanceDate !== todayStr && (
+                                  <tr>
+                                    <td colSpan={4} className="px-5 py-3">
+                                      <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                        <span className="font-semibold">⚠</span>
+                                        {selectedAttendanceDate > todayStr
+                                          ? 'Attendance cannot be marked — this session has not happened yet.'
+                                          : 'Attendance period has ended — this is a read-only view of a past session.'}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
                                 {trainees.map((trainee, idx) => {
                                   const attendanceKey = getAttendanceKey(trainee);
                                   const currentStatus = (selectedRecord.attendees?.[attendanceKey] || 'absent') as 'present' | 'absent' | 'excused';
+                                  const isEditableSession = selectedAttendanceDate === todayStr;
                                   const allPracticeDays = trainingAttendance.filter(r => !r.noPractice);
                                   const totalSessions = allPracticeDays.length;
                                   const presentTotal = allPracticeDays.filter(r => r.attendees?.[attendanceKey] === 'present').length;
                                   const overallRate = totalSessions > 0 ? Math.round((presentTotal / totalSessions) * 100) : 0;
                                   const instrument = trainee.instrument || traineeInstruments[trainee.id!] || traineeVoices[trainee.id!] || '';
-                                  const chapterData = traineeChapters[trainee.id!] || {};
-                                  const completedModules = Object.values(chapterData).filter(Boolean).length;
                                   const totalModules = 30;
-                                  const modulePercent = Math.round((completedModules / totalModules) * 100);
+                                  const modulePercent = getTraineeCompletion(trainee);
+                                  const completedModules = Math.round((Math.min(100, Math.max(0, modulePercent)) / 100) * totalModules);
 
                                   // Session timestamp display
                                   const sessionDate = new Date(selectedAttendanceDate);
                                   const sessionDateStr = sessionDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
                                   return (
-                                    <tr key={trainee.id} className="hover:bg-slate-50/60 transition-colors">
+                                    <tr key={trainee.id} className="hover:bg-slate-50 transition-colors">
                                       {/* Name */}
                                       <td className="px-5 py-4">
                                         <p className="text-sm font-semibold text-[#1a1a1a] leading-tight">{trainee.name}</p>
@@ -550,7 +597,10 @@ export function DirectorTrainingTab({
                                           ]).map(({ status, label, active }) => (
                                             <button
                                               key={status}
+                                              disabled={!isEditableSession}
+                                              title={!isEditableSession ? (selectedAttendanceDate > todayStr ? 'Session has not happened yet' : 'Attendance period ended') : undefined}
                                               onClick={() => {
+                                                if (!isEditableSession) return;
                                                 const updated = trainingAttendance.map(r =>
                                                   new Date(r.date).toLocaleDateString('en-CA') === selectedAttendanceDate
                                                     ? { ...r, attendees: { ...r.attendees, [attendanceKey]: status } }
@@ -565,7 +615,9 @@ export function DirectorTrainingTab({
                                                 }
                                               }}
                                               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                                                currentStatus === status
+                                                !isEditableSession
+                                                  ? (currentStatus === status ? `${active} opacity-60 cursor-not-allowed` : 'text-slate-300 cursor-not-allowed')
+                                                  : currentStatus === status
                                                   ? active
                                                   : 'text-slate-400 hover:text-slate-600 hover:bg-white/60'
                                               }`}
@@ -593,26 +645,32 @@ export function DirectorTrainingTab({
 
                                       {/* Today's Accomplishment — module progress */}
                                       <td className="px-5 py-4">
-                                        <div className="flex items-center justify-between mb-1">
-                                          <span className="text-xs font-semibold text-[#1a1a1a]">
-                                            {completedModules}/{totalModules} Modules
-                                          </span>
-                                          <span className={`text-xs font-bold ml-3 ${
-                                            modulePercent === 100 ? 'text-green-600' :
-                                            modulePercent >= 50  ? 'text-[#7A1E1E]' : 'text-slate-400'
-                                          }`}>{modulePercent}%</span>
-                                        </div>
-                                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden w-36">
-                                          <div
-                                            className={`h-full rounded-full transition-all ${
-                                              modulePercent === 100 ? 'bg-green-400' :
-                                              modulePercent >= 50  ? 'bg-[#7A1E1E]' : 'bg-slate-300'
-                                            }`}
-                                            style={{ width: `${modulePercent}%` }}
-                                          />
-                                        </div>
-                                        {modulePercent === 100 && (
-                                          <p className="text-[10px] text-green-600 font-semibold mt-1">All modules complete ✓</p>
+                                        {isEditableSession ? (
+                                          <>
+                                            <div className="flex items-center justify-between mb-1">
+                                              <span className="text-xs font-semibold text-[#1a1a1a]">
+                                                {completedModules}/{totalModules} Modules
+                                              </span>
+                                              <span className={`text-xs font-bold ml-3 ${
+                                                modulePercent === 100 ? 'text-green-600' :
+                                                modulePercent >= 50  ? 'text-[#7A1E1E]' : 'text-slate-400'
+                                              }`}>{modulePercent}%</span>
+                                            </div>
+                                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden w-36">
+                                              <div
+                                                className={`h-full rounded-full transition-all ${
+                                                  modulePercent === 100 ? 'bg-green-400' :
+                                                  modulePercent >= 50  ? 'bg-[#7A1E1E]' : 'bg-slate-300'
+                                                }`}
+                                                style={{ width: `${modulePercent}%` }}
+                                              />
+                                            </div>
+                                            {modulePercent === 100 && (
+                                              <p className="text-[10px] text-green-600 font-semibold mt-1">All modules complete ✓</p>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <p className="text-sm text-slate-500">Accomplishment is only shown for today's session.</p>
                                         )}
                                       </td>
                                     </tr>
@@ -629,6 +687,7 @@ export function DirectorTrainingTab({
                 })()}
               </CardContent>
             </Card>
+            </div>
 
             {/* Recent Evaluations */}
             <Card className="border-[1.6px] border-[#e0e0e0] shadow-md">

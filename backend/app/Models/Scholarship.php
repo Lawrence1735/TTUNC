@@ -9,6 +9,7 @@ class Scholarship extends Model
 {
     protected $fillable = [
         'user_id',
+        'evaluation_id',
         'semester',
         'year',
         'gpa',
@@ -27,5 +28,10 @@ class Scholarship extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function evaluation(): BelongsTo
+    {
+        return $this->belongsTo(Evaluation::class);
     }
 }

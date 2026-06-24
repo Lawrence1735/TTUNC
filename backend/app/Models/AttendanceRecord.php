@@ -12,9 +12,10 @@ class AttendanceRecord extends Model
 
     protected $fillable = [
         'trainee_id',
+        'user_id',
         'session_date',
         'no_practice',
-        'status',
+        'status', // present | absent | excused
         'notes',
     ];
 
@@ -26,5 +27,10 @@ class AttendanceRecord extends Model
     public function trainee(): BelongsTo
     {
         return $this->belongsTo(Trainee::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }

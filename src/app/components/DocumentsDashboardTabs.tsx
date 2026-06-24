@@ -21,12 +21,16 @@ import {
   GraduationCap,
   FileSignature,
   ClipboardCheck,
-  ChevronRight
+  ChevronRight,
+  Trash2,
+  Plus,
+  CheckCircle
 } from './ui/icons';
 import { User as UserType } from '../App';
 import uncLogo from 'figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png';
 import { getTalentGroupColor, getTalentGroupName } from './ui/unc-colors';
 import documentService from '../services/documentService';
+import { DashboardQuickStatCard } from './ui/DashboardQuickStatCard';
 
 interface DocumentsDashboardProps {
   user: UserType;
@@ -60,8 +64,19 @@ export function DocumentsDashboard({ user, onLogout, onNavigateBack, contentOnly
   const [activeTab, setActiveTab] = useState<string>('scholarship-contract');
 
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadCategory, setUploadCategory] = useState('scholarship-contract');
+  const [uploadTalentGroup, setUploadTalentGroup] = useState('');
+  const [uploadRelatedTo, setUploadRelatedTo] = useState('');
+  const [isDeletingDocument, setIsDeletingDocument] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
-  useEffect(() => {
+  const isAdminOrDirector = user.role === 'admin' || user.role === 'director';
+
+  const loadDocuments = () =>
     documentService.getDocuments().then(apiDocs => {
       setDocuments(apiDocs.map(d => ({
         id: String(d.id),
@@ -79,7 +94,8 @@ export function DocumentsDashboard({ user, onLogout, onNavigateBack, contentOnly
         fileUrl: d.file_path ?? undefined,
       })));
     }).catch(() => {});
-  }, []);
+
+  useEffect(() => { void loadDocuments(); }, []);
 
   const categories = [
     { value: 'scholarship-contract', label: 'Scholarship Contracts', icon: FileSignature },
@@ -125,7 +141,20 @@ export function DocumentsDashboard({ user, onLogout, onNavigateBack, contentOnly
   };
 
   const handleDownloadDocument = (doc: Document) => {
-    toast.success(`Downloading ${doc.fileName}...`);
+    if (!doc.fileUrl) {
+      toast.error('No file is attached to this document record.');
+      return;
+    }
+
+    const backendBase = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+    const normalizedPath = String(doc.fileUrl).replace(/^\/+/, '');
+    const storagePath = normalizedPath.startsWith('storage/') ? normalizedPath : `storage/${normalizedPath}`;
+    const downloadUrl = normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')
+      ? normalizedPath
+      : `${backendBase}/${storagePath}`;
+
+    window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+    toast.success(`Opening ${doc.fileName}...`);
   };
 
   const getCategoryIcon = (category: string) => {
@@ -167,6 +196,60 @@ export function DocumentsDashboard({ user, onLogout, onNavigateBack, contentOnly
     setShowPreviewDialog(true);
   };
 
+  const handleUploadDocument = async () => {
+    if (!uploadFile || !uploadTitle.trim()) return;
+    setIsUploading(true);
+    try {
+      await documentService.uploadDocument(uploadFile, {
+        title: uploadTitle.trim(),
+        category: uploadCategory as Document['category'],
+        talent_group: uploadTalentGroup || null,
+        related_to: uploadRelatedTo.trim() || null,
+      });
+      await loadDocuments();
+      toast.success('Document uploaded successfully');
+      setShowUploadDialog(false);
+      setUploadFile(null);
+      setUploadTitle('');
+      setUploadCategory('scholarship-contract');
+      setUploadTalentGroup('');
+      setUploadRelatedTo('');
+    } catch {
+      toast.error('Failed to upload document');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeleteDocument = async (id: string) => {
+    setIsDeletingDocument(true);
+    try {
+      await documentService.deleteDocument(id);
+      setDocuments(prev => prev.filter(d => d.id !== id));
+      setShowPreviewDialog(false);
+      toast.success('Document deleted');
+    } catch {
+      toast.error('Failed to delete document');
+    } finally {
+      setIsDeletingDocument(false);
+    }
+  };
+
+  const handleUpdateDocumentStatus = async (id: string, status: Document['status']) => {
+    if (!status) return;
+    setIsUpdatingStatus(true);
+    try {
+      await documentService.updateDocument(id, { status });
+      setDocuments(prev => prev.map(d => d.id === id ? { ...d, status } : d));
+      setSelectedDocument(prev => prev && prev.id === id ? { ...prev, status } : prev);
+      toast.success(`Document marked as ${status}`);
+    } catch {
+      toast.error('Failed to update document status');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
   const renderDocumentTable = (docs: Document[]) => {
     if (docs.length === 0) {
       return (
@@ -189,11 +272,23 @@ export function DocumentsDashboard({ user, onLogout, onNavigateBack, contentOnly
               onClick={() => openDocPreview(doc)}
             >
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <FileText className="h-4 w-4 text-[#6c757d] shrink-0" />
                   <span className="text-sm text-[#1a1a1a] truncate">{doc.fileName}</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-[#6c757d] shrink-0" />
+                <div className="flex items-center gap-1 shrink-0">
+                  {isAdminOrDirector && (
+                    <button
+                      type="button"
+                      className="p-1 rounded text-red-500 hover:bg-red-50"
+                      onClick={(e) => { e.stopPropagation(); void handleDeleteDocument(doc.id); }}
+                      aria-label={`Delete ${doc.fileName}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <ChevronRight className="w-4 h-4 text-[#6c757d]" />
+                </div>
               </div>
               <div className="mt-1.5 flex items-center gap-2 flex-wrap pl-6">
                 {!restrictToGroup && (
@@ -219,6 +314,7 @@ export function DocumentsDashboard({ user, onLogout, onNavigateBack, contentOnly
                 <TableHead>Related To</TableHead>
                 <TableHead>Uploaded By</TableHead>
                 <TableHead>Date</TableHead>
+                {isAdminOrDirector && <TableHead className="w-16 text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -242,6 +338,18 @@ export function DocumentsDashboard({ user, onLogout, onNavigateBack, contentOnly
                   <TableCell className="text-sm">
                     {doc.uploadedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </TableCell>
+                  {isAdminOrDirector && (
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="p-1 rounded text-red-500 hover:bg-red-50"
+                        onClick={() => void handleDeleteDocument(doc.id)}
+                        aria-label={`Delete ${doc.fileName}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -255,49 +363,44 @@ export function DocumentsDashboard({ user, onLogout, onNavigateBack, contentOnly
     return (
       <div className="space-y-4">
         {/* Quick Stats */}
-        <div className={`grid grid-cols-2 gap-2 sm:gap-4 ${restrictToGroup ? 'lg:grid-cols-4' : 'md:grid-cols-3'}`}>
-          <Card 
-            className="bg-white border-[#E5E7EB] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
+        <div className={`grid grid-cols-2 gap-4 ${restrictToGroup ? 'lg:grid-cols-4' : 'md:grid-cols-3'}`}>
+          <DashboardQuickStatCard
+            label="Scholarship Contracts"
+            value={scholarshipContracts}
             onClick={() => setActiveTab('scholarship-contract')}
-          >
-            <CardContent className="p-2 sm:p-3">
-              <p className="text-[#6B7280] text-[12px] leading-[16px]">Scholarship Contracts</p>
-              <p className="text-[#1A1A1A] text-[18px] leading-[24px] font-bold">{scholarshipContracts}</p>
-            </CardContent>
-          </Card>
-          
-          <Card 
-            className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
+          />
+
+          <DashboardQuickStatCard
+            label="Event Documents"
+            value={eventDocuments}
             onClick={() => setActiveTab('event-documents')}
-          >
-            <CardContent className="p-2 sm:p-3">
-              <p className="text-[#6C757D] text-[12px] leading-[16px]">Event Documents</p>
-              <p className="text-[#1A1A1A] text-[18px] leading-[24px] font-bold">{eventDocuments}</p>
-            </CardContent>
-          </Card>
-          
-          <Card 
-            className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
+          />
+
+          <DashboardQuickStatCard
+            label="Performance Reports"
+            value={performanceReports}
             onClick={() => setActiveTab('performance-report')}
-          >
-            <CardContent className="p-2 sm:p-3">
-              <p className="text-[#6C757D] text-[12px] leading-[16px]">Performance Reports</p>
-              <p className="text-[#1A1A1A] text-[18px] leading-[24px] font-bold">{performanceReports}</p>
-            </CardContent>
-          </Card>
+          />
 
           {restrictToGroup && (
-            <Card 
-              className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
+            <DashboardQuickStatCard
+              label="Scholar Records"
+              value={scholarRecords}
               onClick={() => setActiveTab('scholar-records')}
-            >
-              <CardContent className="p-2 sm:p-3">
-                <p className="text-[#6C757D] text-[12px] leading-[16px]">Scholar Records</p>
-                <p className="text-[#1A1A1A] text-[18px] leading-[24px] font-bold">{scholarRecords}</p>
-              </CardContent>
-            </Card>
+            />
           )}
         </div>
+
+        {isAdminOrDirector && (
+          <div className="flex justify-end">
+            <Button
+              onClick={() => setShowUploadDialog(true)}
+              className="bg-[#7A1E1E] text-white hover:bg-[#6A1919]"
+            >
+              <Plus className="w-4 h-4 mr-2" aria-hidden="true" /> Upload Document
+            </Button>
+          </div>
+        )}
 
         {/* Documents Tabs */}
         <div className="flex overflow-x-auto scrollbar-hide gap-2 pb-1 mb-6">
@@ -350,7 +453,8 @@ export function DocumentsDashboard({ user, onLogout, onNavigateBack, contentOnly
                       placeholder="Search documents..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 border-[#D1D5DC] bg-white h-[40px]"
+                      className="pl-11 border-[#D1D5DC] bg-white h-[40px]"
+                      style={{ paddingLeft: '2.75rem' }}
                     />
                   </div>
                   {!restrictToGroup && (
@@ -379,7 +483,8 @@ export function DocumentsDashboard({ user, onLogout, onNavigateBack, contentOnly
                       placeholder="Search documents..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 border-[#D1D5DC] bg-white h-[40px]"
+                      className="pl-11 border-[#D1D5DC] bg-white h-[40px]"
+                      style={{ paddingLeft: '2.75rem' }}
                     />
                   </div>
                   {!restrictToGroup && (
@@ -408,7 +513,8 @@ export function DocumentsDashboard({ user, onLogout, onNavigateBack, contentOnly
                       placeholder="Search documents..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 border-[#D1D5DC] bg-white h-[40px]"
+                      className="pl-11 border-[#D1D5DC] bg-white h-[40px]"
+                      style={{ paddingLeft: '2.75rem' }}
                     />
                   </div>
                   {!restrictToGroup && (
@@ -438,7 +544,8 @@ export function DocumentsDashboard({ user, onLogout, onNavigateBack, contentOnly
                         placeholder="Search scholar records..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10 border-[#D1D5DC] bg-white h-[40px]"
+                        className="pl-11 border-[#D1D5DC] bg-white h-[40px]"
+                        style={{ paddingLeft: '2.75rem' }}
                       />
                     </div>
                   </div>
@@ -534,17 +641,140 @@ export function DocumentsDashboard({ user, onLogout, onNavigateBack, contentOnly
                   </div>
                 )}
 
-                <div className="flex justify-end gap-2 pt-4 border-t border-[#E0E0E0]">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleDownloadDocument(selectedDocument)}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
-                  </Button>
+                <div className="space-y-3 pt-4 border-t border-[#E0E0E0]">
+                  {isAdminOrDirector && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm text-[#6C757D] mr-1">Status:</span>
+                      {selectedDocument.status !== 'approved' && (
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white h-8" onClick={() => void handleUpdateDocumentStatus(selectedDocument.id, 'approved')} disabled={isUpdatingStatus}>
+                          <CheckCircle className="w-3.5 h-3.5 mr-1" /> Approve
+                        </Button>
+                      )}
+                      {selectedDocument.status !== 'completed' && (
+                        <Button size="sm" variant="outline" className="h-8" onClick={() => void handleUpdateDocumentStatus(selectedDocument.id, 'completed')} disabled={isUpdatingStatus}>
+                          Mark Complete
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    {isAdminOrDirector ? (
+                      <Button variant="destructive" size="sm" onClick={() => void handleDeleteDocument(selectedDocument.id)} disabled={isDeletingDocument}>
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                      </Button>
+                    ) : <span />}
+                    <Button variant="outline" onClick={() => handleDownloadDocument(selectedDocument)}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Upload Document Dialog */}
+        <Dialog
+          open={showUploadDialog}
+          onOpenChange={(open) => {
+            setShowUploadDialog(open);
+            if (!open) {
+              setUploadFile(null);
+              setUploadTitle('');
+              setUploadCategory('scholarship-contract');
+              setUploadTalentGroup('');
+              setUploadRelatedTo('');
+            }
+          }}
+        >
+          <DialogContent className="max-w-[95vw] sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-[#7A1E1E]">Upload Document</DialogTitle>
+              <DialogDescription>Upload a new document to the system</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div>
+                <label className="text-sm font-medium text-[#1A1A1A] block mb-1">
+                  File <span className="text-red-600" aria-hidden="true">*</span>
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                  className="block w-full text-sm text-[#1A1A1A] file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-[#7A1E1E]/10 file:text-[#7A1E1E] hover:file:bg-[#7A1E1E]/20"
+                />
+                {uploadFile && (
+                  <p className="text-xs text-[#6C757D] mt-1">{uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)</p>
+                )}
+              </div>
+              <div>
+                <label className="text-sm font-medium text-[#1A1A1A] block mb-1">
+                  Title <span className="text-red-600" aria-hidden="true">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Document title"
+                  value={uploadTitle}
+                  onChange={(e) => setUploadTitle(e.target.value)}
+                  className="w-full border border-[#D1D5DC] rounded-md px-3 py-2 bg-white text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-[#1A1A1A] block mb-1">
+                  Category <span className="text-red-600" aria-hidden="true">*</span>
+                </label>
+                <select
+                  value={uploadCategory}
+                  onChange={(e) => setUploadCategory(e.target.value)}
+                  className="w-full border border-[#D1D5DC] rounded-md px-3 py-2 bg-white text-sm"
+                >
+                  <option value="scholarship-contract">Scholarship Contract</option>
+                  <option value="event-request">Event Request</option>
+                  <option value="event-approval">Event Approval</option>
+                  <option value="performance-report">Performance Report</option>
+                  <option value="scholar-records">Scholar Records</option>
+                </select>
+              </div>
+              {!restrictToGroup && (
+                <div>
+                  <label className="text-sm font-medium text-[#1A1A1A] block mb-1">Talent Group</label>
+                  <select
+                    value={uploadTalentGroup}
+                    onChange={(e) => setUploadTalentGroup(e.target.value)}
+                    className="w-full border border-[#D1D5DC] rounded-md px-3 py-2 bg-white text-sm"
+                  >
+                    <option value="">— All Groups —</option>
+                    <option value="marching-band">Marching Band</option>
+                    <option value="majorettes">Majorettes</option>
+                    <option value="glee-club">Glee Club</option>
+                    <option value="dance-club">Dance Club</option>
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="text-sm font-medium text-[#1A1A1A] block mb-1">Related To</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Foundation Day 2026"
+                  value={uploadRelatedTo}
+                  onChange={(e) => setUploadRelatedTo(e.target.value)}
+                  className="w-full border border-[#D1D5DC] rounded-md px-3 py-2 bg-white text-sm"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setShowUploadDialog(false)} disabled={isUploading}>
+                  Cancel
+                </Button>
+                <Button
+                  className="bg-[#7A1E1E] text-white hover:bg-[#6A1919]"
+                  onClick={() => void handleUploadDocument()}
+                  disabled={isUploading || !uploadFile || !uploadTitle.trim()}
+                >
+                  {isUploading ? 'Uploading…' : 'Upload'}
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

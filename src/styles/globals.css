@@ -1,6 +1,9 @@
 /* Import Accessibility Enhancements */
 @import './accessibility.css';
 
+/* Import Inter Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 /* Tailwind CSS v4 - Core Directives */
 @import 'tailwindcss';
 
@@ -169,7 +172,7 @@
   body {
     background: var(--background);
     color: var(--foreground);
-    font-family: Arial, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     min-height: 100vh;
     line-height: 1.6;
   }

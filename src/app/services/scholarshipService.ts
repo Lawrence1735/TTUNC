@@ -35,15 +35,23 @@ export interface SubmitRenewalPayload {
   documents?: string[];
 }
 
+export interface ReviewRenewalPayload {
+  status: 'approved' | 'rejected';
+  review_notes?: string | null;
+}
+
 const scholarshipService = {
   getBenefits: () =>
     api.get<{ data: Benefit[] }>('scholarship/benefits').then(r => r.data.data),
 
-  getRenewals: () =>
-    api.get<{ data: ScholarshipRenewal[] }>('scholarship/renewals').then(r => r.data.data),
+  getRenewals: (params?: { user_id?: number }) =>
+    api.get<{ data: ScholarshipRenewal[] }>('scholarship/renewals', { params }).then(r => r.data.data),
 
   submitRenewal: (payload: SubmitRenewalPayload) =>
     api.post<{ data: ScholarshipRenewal }>('scholarship/renewals', payload).then(r => r.data.data),
+
+  reviewRenewal: (id: number | string, payload: ReviewRenewalPayload) =>
+    api.patch<{ data: ScholarshipRenewal }>(`scholarship/renewals/${id}/review`, payload).then(r => r.data.data),
 };
 
 export default scholarshipService;

@@ -14,12 +14,13 @@ class Trainee extends Model
 
     protected $fillable = [
         'user_id',
-        'completion_rate',
+        'application_id',    // FK to applications — null for old members seeded directly
+        'completion_rate',   // cached % — update on chapters_completed save
         'current_status',
-        'chapter',
+        'chapter',           // human-readable label for current chapter (e.g. "Chapter 5")
         'chapters_completed',
-        'instrument',
-        'voice',
+        'instrument',        // source of truth for marching-band classification
+        'voice',             // source of truth for glee-club classification
         'deactivation_note',
         'total_expected_sessions',
         'date_joined',
@@ -33,6 +34,11 @@ class Trainee extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function application(): BelongsTo
+    {
+        return $this->belongsTo(Application::class);
     }
 
     public function attendanceRecords(): HasMany

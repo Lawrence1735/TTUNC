@@ -1,1 +1,0 @@
-import{as as a}from"./index-lh3aEpyf.js";const n={getEngagements:()=>a.get("engagements").then(e=>e.data.data),getRehearsals:()=>a.get("engagements/rehearsals").then(e=>e.data.data),createEngagement:e=>a.post("engagements",e).then(t=>t.data.data)};export{n as e};

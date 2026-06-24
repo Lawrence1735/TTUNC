@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Input } from './ui/input';
 import { Shirt, Music, Package, TrendingUp, Users, Eye, CheckCircle, FileText, Search, ChevronRight } from './ui/icons';
+import { DashboardQuickStatCard } from './ui/DashboardQuickStatCard';
 
 interface DirectorMemberProfileTabProps {
   activeScholars: number;
@@ -97,48 +98,55 @@ export function DirectorMemberProfileTab({
   setSelectedAccessory,
   setShowViewAccessoryDialog,
 }: DirectorMemberProfileTabProps) {
+  const getScholarshipPercentage = (scholar: any): number => {
+    const directValue = Number(scholar?.scholarshipPercentage ?? scholar?.scholarship_percentage);
+    if (Number.isFinite(directValue)) return directValue;
+
+    const latestEvaluation = [...evaluations]
+      .filter((evaluation: any) => String(evaluation?.traineeId) === String(scholar?.id))
+      .sort((a: any, b: any) => {
+        const dateA = new Date(a?.date || a?.evaluation_date || a?.evaluationDate || 0).getTime();
+        const dateB = new Date(b?.date || b?.evaluation_date || b?.evaluationDate || 0).getTime();
+        if (dateA !== dateB) return dateB - dateA;
+        return Number(b?.id || 0) - Number(a?.id || 0);
+      })[0];
+
+    const evaluationValue = Number(
+      latestEvaluation?.scholarshipPercentage ?? latestEvaluation?.scholarship_percentage
+    );
+    return Number.isFinite(evaluationValue) ? evaluationValue : 0;
+  };
+
   return (
           <TabsContent value="member-profile" id="tab-panel-member-profile" role="tabpanel" aria-label="Member Profile" className="space-y-6">
-            {/* Quick Stats - 4 Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
-              <Card 
-                className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
-              >
-                <CardContent className="p-2 sm:p-3">
-                  <p className="text-[#6C757D] text-[10px] sm:text-[12px] leading-[14px] sm:leading-[16px]">Active Scholars</p>
-                  <p className="text-[#1A1A1A] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">{activeScholars}</p>
-                </CardContent>
-              </Card>
-              
-              <Card 
-                className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
-              >
-                <CardContent className="p-2 sm:p-3">
-                  <p className="text-[#6C757D] text-[10px] sm:text-[12px] leading-[14px] sm:leading-[16px]">Renewal Rate</p>
-                  <p className="text-[#1A1A1A] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">{renewalRate}%</p>
-                </CardContent>
-              </Card>
-              
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <DashboardQuickStatCard
+                label="Active Scholars"
+                value={activeScholars}
+                onClick={() => setStatusFilter('active')}
+              />
+
+              <DashboardQuickStatCard
+                label="Renewal Rate"
+                value={`${renewalRate}%`}
+                onClick={() => setStatusFilter('all')}
+              />
+
               {!isDanceClub && (
-              <Card 
-                className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
-              >
-                <CardContent className="p-2 sm:p-3">
-                  <p className="text-[#6C757D] text-[10px] sm:text-[12px] leading-[14px] sm:leading-[16px]">Assigned Uniforms</p>
-                  <p className="text-[#1A1A1A] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">24</p>
-                </CardContent>
-              </Card>
+                <DashboardQuickStatCard
+                  label="Assigned Uniforms"
+                  value={24}
+                  onClick={() => setInventoryTab('uniforms')}
+                />
               )}
-              
+
               {isMarchingBand && (
-                <Card 
-                  className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
-                >
-                  <CardContent className="p-2 sm:p-3">
-                  <p className="text-[#6C757D] text-[10px] sm:text-[12px] leading-[14px] sm:leading-[16px]">Assigned Instruments</p>
-                  <p className="text-[#1A1A1A] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">18</p>
-                </CardContent>
-                </Card>
+                <DashboardQuickStatCard
+                  label="Assigned Instruments"
+                  value={18}
+                  onClick={() => setInventoryTab('instruments')}
+                />
               )}
             </div>
 
@@ -169,13 +177,14 @@ export function DirectorMemberProfileTab({
                 {/* Search Bar */}
                 <div className="mb-4">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#6c757d]" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#6c757d]" />
                     <Input
                       type="text"
                       placeholder="Search by name or student ID..."
                       value={scholarSearchTerm}
                       onChange={(e) => setScholarSearchTerm(e.target.value)}
-                      className="px-[35px] py-[12px]"
+                      className="pl-11 pr-4 py-[12px]"
+                      style={{ paddingLeft: '2.75rem' }}
                     />
                   </div>
                 </div>
@@ -190,7 +199,7 @@ export function DirectorMemberProfileTab({
                     <div className="md:hidden space-y-2 overflow-y-auto max-h-[640px]">
                       {scholars.map((scholar) => {
                         const scholarStatus = scholarAssignments[scholar.id!]?.status || 'active';
-                        const scholarshipPercentage = scholar.scholarshipPercentage || 0;
+                        const scholarshipPercentage = getScholarshipPercentage(scholar);
                         const readyForEval = isReadyForEvaluation(scholar.id!);
                         return (
                           <div key={scholar.id} className="border border-[#e0e0e0] rounded-lg overflow-hidden">
@@ -211,7 +220,14 @@ export function DirectorMemberProfileTab({
                             </div>
                             <div
                               className="px-3 py-2 bg-gray-50 border-t border-[#e0e0e0] flex items-center justify-between cursor-pointer hover:bg-[#7A1E1E]/5 active:bg-[#7A1E1E]/10 transition-colors"
-                              onClick={() => { setSelectedScholarForPerformance(scholar); setShowPerformanceDialog(true); }}
+                              onClick={() => {
+                                const resolvedScholarship = getScholarshipPercentage(scholar);
+                                setSelectedScholarForPerformance({
+                                  ...scholar,
+                                  scholarshipPercentage: resolvedScholarship,
+                                });
+                                setShowPerformanceDialog(true);
+                              }}
                             >
                               <span className="text-xs text-[#7A1E1E]">View Performance & Evaluate</span>
                               <TrendingUp className="w-3 h-3 text-[#7A1E1E]" />
@@ -236,7 +252,7 @@ export function DirectorMemberProfileTab({
                         <TableBody>
                           {scholars.map((scholar) => {
                             const scholarStatus = scholarAssignments[scholar.id!]?.status || 'active';
-                            const scholarshipPercentage = scholar.scholarshipPercentage || 0;
+                            const scholarshipPercentage = getScholarshipPercentage(scholar);
                             const readyForEval = isReadyForEvaluation(scholar.id!);
                             const instrument = scholar.assignedInstrument || traineeVoices[scholar.id!] || '—';
                             return (
@@ -253,7 +269,14 @@ export function DirectorMemberProfileTab({
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => { setSelectedScholarForPerformance(scholar); setShowPerformanceDialog(true); }}
+                                    onClick={() => {
+                                      const resolvedScholarship = getScholarshipPercentage(scholar);
+                                      setSelectedScholarForPerformance({
+                                        ...scholar,
+                                        scholarshipPercentage: resolvedScholarship,
+                                      });
+                                      setShowPerformanceDialog(true);
+                                    }}
                                     className="border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white"
                                   >
                                     <TrendingUp className="w-3 h-3 mr-1" />
@@ -282,46 +305,46 @@ export function DirectorMemberProfileTab({
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-[0_1px_8px_rgba(15,23,42,0.04)]">
                     <table className="w-full border-collapse">
                       <thead>
-                        <tr className="border-b-2 border-[#7A1E1E]">
-                          <th className="text-left p-3 bg-gray-50">Section</th>
-                          <th className="text-left p-3 bg-gray-50">Criteria Items</th>
-                          <th className="text-center p-3 bg-gray-50">Items</th>
+                        <tr className="border-b border-slate-300 bg-[#EEF2F7]">
+                          <th className="text-left px-4 py-3 text-slate-800 font-medium">Section</th>
+                          <th className="text-left px-4 py-3 text-slate-800 font-medium">Criteria Items</th>
+                          <th className="text-center px-4 py-3 text-slate-800 font-medium">Items</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <tr className="border-b">
-                          <td className="p-3 font-medium">Section A: Attendance & Punctuality</td>
-                          <td className="p-3 text-sm text-[#6c757d]">
+                        <tr className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3.5 font-medium text-slate-800">Section A: Attendance & Punctuality</td>
+                          <td className="px-4 py-3.5 text-sm text-slate-600">
                             Reports on time, reports regularly, practices on time/regularly, no unnecessary absence, mastery of tasks, maintains cleanliness
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="px-4 py-3.5 text-center">
                             <Badge className="bg-[#7A1E1E]">7 items</Badge>
                           </td>
                         </tr>
-                        <tr className="border-b">
-                          <td className="p-3 font-medium">Section B: Commitment & Dedication</td>
-                          <td className="p-3 text-sm text-[#6c757d]">
+                        <tr className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3.5 font-medium text-slate-800">Section B: Commitment & Dedication</td>
+                          <td className="px-4 py-3.5 text-sm text-slate-600">
                             Improvement interest, performance interest, work ethic, initiative, resource efficiency
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="px-4 py-3.5 text-center">
                             <Badge className="bg-[#7A1E1E]">5 items</Badge>
                           </td>
                         </tr>
-                        <tr className="border-b">
-                          <td className="p-3 font-medium">Section C: Interpersonal Skills</td>
-                          <td className="p-3 text-sm text-[#6c757d]">
+                        <tr className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3.5 font-medium text-slate-800">Section C: Interpersonal Skills</td>
+                          <td className="px-4 py-3.5 text-sm text-slate-600">
                             Teamwork, tact, courtesy and respect, pleasant disposition
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="px-4 py-3.5 text-center">
                             <Badge className="bg-[#7A1E1E]">4 items</Badge>
                           </td>
                         </tr>
-                        <tr className="bg-gray-50">
-                          <td colSpan={2} className="p-3 font-medium text-right">TOTAL EVALUATION ITEMS</td>
-                          <td className="p-3 text-center">
+                        <tr className="bg-slate-50">
+                          <td colSpan={2} className="px-4 py-3.5 font-medium text-right text-slate-800">TOTAL EVALUATION ITEMS</td>
+                          <td className="px-4 py-3.5 text-center">
                             <Badge className="bg-green-600">16 items</Badge>
                           </td>
                         </tr>
@@ -333,12 +356,11 @@ export function DirectorMemberProfileTab({
                     <div className="p-3 bg-blue-50 border-l-4 border-blue-600 rounded">
                       <p className="text-sm font-medium">Rating Scale for Each Criterion:</p>
                       <p className="text-sm text-[#6c757d] mt-2">
-                        Each item is rated on a scale of 1-5:
+                        Each item uses the current evaluation scale values:
                       </p>
                       <ul className="text-sm text-[#6c757d] mt-2 space-y-1 ml-4">
                         <li>• <span className="font-medium">5</span> - Outstanding</li>
                         <li>• <span className="font-medium">4</span> - Very Satisfactory</li>
-                        <li>• <span className="font-medium">3</span> - Satisfactory</li>
                         <li>• <span className="font-medium">2</span> - Fair</li>
                         <li>• <span className="font-medium">1</span> - Needs Improvement</li>
                       </ul>
@@ -348,9 +370,7 @@ export function DirectorMemberProfileTab({
                       <p className="text-sm font-medium">Scholarship Percentage Options:</p>
                       <ul className="text-sm text-[#6c757d] mt-2 space-y-1 ml-4">
                         <li>• <span className="font-medium">100%</span> - Full scholarship grant</li>
-                        <li>• <span className="font-medium">75%</span> - Three-quarter scholarship grant</li>
                         <li>• <span className="font-medium">50%</span> - Half scholarship grant</li>
-                        <li>• <span className="font-medium">25%</span> - Quarter scholarship grant</li>
                       </ul>
                     </div>
 

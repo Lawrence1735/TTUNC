@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Calendar, MapPin, Clock, Users, LogOut, Bell, Music, User, Award, Settings as SettingsIcon, Lock } from './ui/icons';
 import { toast } from 'sonner';
 import type { User as UserType, Notification } from '../App';
-import uncLogo from 'figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png';
 import { getTalentGroupName } from './ui/unc-colors';
 import { 
   DropdownMenu,
@@ -21,6 +20,7 @@ import {
 // ── Accessibility components (WCAG 2.1 AA / ISO 9241 / ISO 25010) ──────────────
 import { SkipToContent, EmptyState } from './accessibility';
 import engagementService, { type Engagement as ApiEngagement } from '../services/engagementService';
+import { DashboardQuickStatCard } from './ui/DashboardQuickStatCard';
 
 interface EngagementDashboardProps {
   user: UserType;
@@ -44,6 +44,8 @@ export function EngagementDashboard({
   const [hiddenNotifIds, setHiddenNotifIds] = useState<string[]>([]);
   const [engagements, setEngagements] = useState<ApiEngagement[]>([]);
   const [rehearsals, setRehearsals] = useState<ApiEngagement[]>([]);
+  const [selectedSession, setSelectedSession] = useState<ApiEngagement | null>(null);
+  const [showSessionDetails, setShowSessionDetails] = useState(false);
 
   useEffect(() => {
     engagementService.getEngagements().then(setEngagements).catch(() => {});
@@ -59,6 +61,46 @@ export function EngagementDashboard({
   const upcomingRehearsals = rehearsals.filter(r => r.date >= today);
   const pastRehearsals = rehearsals.filter(r => r.date < today);
 
+  const sortSessions = (rows: ApiEngagement[]) => {
+    return [...rows].sort((a, b) => {
+      const aDate = new Date(`${a.date}T${a.time || '00:00'}`).getTime();
+      const bDate = new Date(`${b.date}T${b.time || '00:00'}`).getTime();
+      const aIsUpcoming = a.date >= today ? 0 : 1;
+      const bIsUpcoming = b.date >= today ? 0 : 1;
+      if (aIsUpcoming !== bIsUpcoming) return aIsUpcoming - bIsUpcoming;
+      if (aIsUpcoming === 0) return aDate - bDate;
+      return bDate - aDate;
+    });
+  };
+
+  const normalizeAttendanceStatus = (value: any): 'present' | 'absent' | 'excused' => {
+    if (value === 'present' || value === true) return 'present';
+    if (value === 'excused') return 'excused';
+    return 'absent';
+  };
+
+  const getAttendanceStatus = (session: ApiEngagement): 'present' | 'absent' | 'excused' | 'pending' => {
+    const records = ((session as any).attendanceRecords || (session as any).attendance_records || []) as any[];
+    if (!Array.isArray(records) || records.length === 0) return 'pending';
+    const record = records.find((r) => r?.attendees && Object.prototype.hasOwnProperty.call(r.attendees, String(user.id)));
+    if (!record) return 'pending';
+    return normalizeAttendanceStatus(record.attendees[String(user.id)]);
+  };
+
+  const getAttendanceBadgeClass = (status: 'present' | 'absent' | 'excused' | 'pending') => {
+    if (status === 'present') return 'bg-green-100 text-green-800 border-green-200';
+    if (status === 'excused') return 'bg-blue-100 text-blue-800 border-blue-200';
+    if (status === 'absent') return 'bg-red-100 text-red-800 border-red-200';
+    return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+  };
+
+  const formatAttendanceLabel = (status: 'present' | 'absent' | 'excused' | 'pending') => {
+    if (status === 'present') return 'Present';
+    if (status === 'excused') return 'Excused';
+    if (status === 'absent') return 'Absent';
+    return 'Pending';
+  };
+
   const handleMarkNotificationRead = (notificationId: string) => {
     onMarkNotificationRead(notificationId);
   };
@@ -72,49 +114,107 @@ export function EngagementDashboard({
     }
   };
 
+  const renderSessionTable = (rows: ApiEngagement[], emptyText: string) => {
+    if (rows.length === 0) {
+      return (
+        <div className="text-center py-8 text-muted-foreground">
+          <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+          <p>{emptyText}</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-[#E2E8F0] text-left text-[#6c757d]">
+              <th className="py-2 pr-3 font-medium">Session</th>
+              <th className="py-2 pr-3 font-medium">Date</th>
+              <th className="py-2 pr-3 font-medium">Time</th>
+              <th className="py-2 pr-3 font-medium">Venue</th>
+              <th className="py-2 pr-3 font-medium">Schedule</th>
+              <th className="py-2 font-medium">Attendance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((session) => {
+              const attendance = getAttendanceStatus(session);
+              const schedule = session.date >= today ? 'Upcoming' : 'Past';
+              return (
+                <tr
+                  key={session.id}
+                  className="border-b border-[#F1F5F9] cursor-pointer hover:bg-[#F8FAFC]"
+                  onClick={() => {
+                    setSelectedSession(session);
+                    setShowSessionDetails(true);
+                  }}
+                >
+                  <td className="py-3 pr-3">
+                    <div className="font-medium text-[#1A1A1A]">{session.event_name}</div>
+                    {session.is_required && <Badge className="mt-1 bg-red-500">Required</Badge>}
+                  </td>
+                  <td className="py-3 pr-3 text-[#6c757d]">{new Date(session.date).toLocaleDateString()}</td>
+                  <td className="py-3 pr-3 text-[#6c757d]">{session.time || '—'}</td>
+                  <td className="py-3 pr-3 text-[#6c757d] max-w-[220px] truncate">{session.venue}</td>
+                  <td className="py-3 pr-3">
+                    <Badge className={schedule === 'Upcoming' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' : 'bg-gray-100 text-gray-700 border border-gray-200'}>
+                      {schedule}
+                    </Badge>
+                  </td>
+                  <td className="py-3">
+                    <Badge className={`${getAttendanceBadgeClass(attendance)} border`}>
+                      {formatAttendanceLabel(attendance)}
+                    </Badge>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#F8F9FA]">
       {/* Skip to main content — WCAG 2.4.1 */}
       <SkipToContent />
 
       {/* Header */}
-      <header className="bg-white border-b shadow-sm sticky top-0 z-50" role="banner">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between py-4">
+      <header className="h-20 bg-white border-b border-[#E2E8F0] sticky top-0 z-50 flex items-center" role="banner">
+        <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px] flex items-center justify-between">
             {/* Left Section - Logo and Title */}
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <img 
-                  src={uncLogo} 
-                  alt="University of Nueva Caceres Logo"
-                  className="w-12 h-12 object-contain"
-                />
-                <div>
-                  <h1 className="unc-burgundy-text">TalentTrackUNC</h1>
-                  <p className="text-xs text-muted-foreground">
-                    {user.role === "admin"
-                      ? "Admin Dashboard"
-                      : user.role === "director"
-                        ? "Director Dashboard"
-                        : user.role === "trainee" || user.trainingStatus === "in_progress"
-                          ? "Trainee Dashboard"
-                          : user.role === "student"
-                            ? "Student Dashboard"
-                            : "Scholar Dashboard"}
-                  </p>
-                </div>
+            <div>
+              <div>
+                <h1 className="text-xl leading-tight">
+                  <span className="font-bold text-[#0F172A]">Talent</span>
+                  <span className="text-[#0F172A]">Track</span>
+                  <span className="font-bold text-[#7A1E1E]">UNC</span>
+                </h1>
+                <p className="text-xs text-muted-foreground">
+                  {user.role === "admin"
+                    ? "Admin Dashboard"
+                    : user.role === "director"
+                      ? "Director Dashboard"
+                      : user.role === "trainee" || user.trainingStatus === "in_progress"
+                        ? "Trainee Dashboard"
+                        : user.role === "student"
+                          ? "Student Dashboard"
+                          : "Scholar Dashboard"}
+                </p>
               </div>
             </div>
             
-            {/* Right Section - User Info and Actions */}
-            <div className="flex items-center space-x-4">
+            {/* Right Section */}
+            <div className="flex items-center gap-3">
               {/* Notification Bell */}
               <div className="relative">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative min-h-[44px] min-w-[44px]"
+                  className="relative w-9 h-9 p-0 flex items-center justify-center rounded-lg border border-[#E2E8F0] bg-white hover:border-[#7A1E1E] hover:text-[#7A1E1E] text-[#475569] transition-colors"
                   aria-label={
                     unreadNotifications.length > 0
                       ? `Notifications — ${unreadNotifications.length} unread`
@@ -123,10 +223,10 @@ export function EngagementDashboard({
                   aria-expanded={showNotifications}
                   aria-haspopup="dialog"
                 >
-                  <Bell className="w-5 h-5" aria-hidden="true" />
+                  <Bell className="w-4 h-4" aria-hidden="true" />
                   {unreadNotifications.length > 0 && (
-                    <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-[#7A1E1E] text-white text-xs" aria-hidden="true">
-                      {unreadNotifications.length}
+                    <Badge className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center p-0 bg-[#7A1E1E] text-white text-[9px] font-bold" aria-hidden="true">
+                      {unreadNotifications.length > 99 ? '99+' : unreadNotifications.length}
                     </Badge>
                   )}
                 </Button>
@@ -143,35 +243,25 @@ export function EngagementDashboard({
               </div>
 
               {/* User Info */}
-              <div className="hidden md:block text-right">
-                <p className="text-sm font-medium">{user.name}</p>
-                <div className="flex items-center justify-end space-x-2">
-                  {user.role === "admin" && (
-                    <Badge className="bg-[#6c757d] text-white">Admin</Badge>
-                  )}
-                  {user.role === "director" && user.talentGroup && (
-                    <Badge className="bg-[#7A1E1E] text-white">
-                      {getTalentGroupName(user.talentGroup)}
-                    </Badge>
-                  )}
-                  {user.role === "scholar" && user.talentGroup && user.trainingStatus !== "in_progress" && (
-                    <>
-                      <Badge className="bg-[#7A1E1E] text-white">
-                        {getTalentGroupName(user.talentGroup)}
-                      </Badge>
-                      {user.studentId && (
-                        <span className="text-xs text-muted-foreground">{user.studentId}</span>
-                      )}
-                    </>
-                  )}
-                  {(user.role === "trainee" || user.trainingStatus === "in_progress") && user.talentGroup && (
-                    <Badge className="bg-[#7A1E1E] text-white">
-                      {getTalentGroupName(user.talentGroup)}
-                    </Badge>
-                  )}
-                  {user.role === "student" && !user.talentGroup && user.email && (
-                    <span className="text-xs text-muted-foreground">{user.email}</span>
-                  )}
+              <div className="hidden md:flex items-center gap-2.5 pl-3 border-l border-[#E2E8F0]">
+                <div className="w-8 h-8 rounded-full bg-[#F9EAEA] border border-[#7A1E1E]/20 flex items-center justify-center flex-shrink-0">
+                  <User className="w-4 h-4 text-[#7A1E1E]" aria-hidden="true" />
+                </div>
+                <div className="text-right">
+                  <p className="text-[13px] font-semibold text-[#0F172A] leading-tight">{user.name}</p>
+                  <p className="text-[11px] text-[#64748B] leading-none mt-0.5">
+                    {user.talentGroup
+                      ? getTalentGroupName(user.talentGroup)
+                      : user.role === 'admin'
+                        ? 'Admin'
+                        : user.role === 'director'
+                          ? 'Director'
+                          : user.role === 'scholar'
+                            ? 'Scholar'
+                            : user.role === 'trainee' || user.trainingStatus === 'in_progress'
+                              ? 'Trainee'
+                              : 'Student'}
+                  </p>
                 </div>
               </div>
               
@@ -180,11 +270,11 @@ export function EngagementDashboard({
                 <DropdownMenuTrigger asChild>
                   <Button 
                     variant="outline" 
-                    size="sm" 
-                    className="border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors min-h-[44px]"
+                    size="default" 
+                    className="flex items-center gap-1.5 border border-[#7A1E1E] rounded-lg px-3 py-1.5 text-sm font-medium text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors duration-200 h-auto min-h-0"
                     aria-label="Open settings menu"
                   >
-                    <SettingsIcon className="w-4 h-4 mr-2" aria-hidden="true" />
+                    <SettingsIcon className="w-3.5 h-3.5" aria-hidden="true" />
                     <span className="hidden sm:inline">Settings</span>
                   </Button>
                 </DropdownMenuTrigger>
@@ -201,48 +291,41 @@ export function EngagementDashboard({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-          </div>
         </div>
       </header>
 
       {/* Dashboard Navigation - Tabs below header */}
       {onNavigate && (
-        <nav className="bg-white border-b" aria-label="Dashboard sections">
-          <div className="container mx-auto px-4 py-3">
-            <div className="flex overflow-x-auto scrollbar-hide pb-1 gap-1" role="tablist" aria-label="Dashboard views">
-              <Button
-                role="tab"
-                variant="ghost"
-                size="sm"
-                onClick={() => onNavigate('member-profile')}
-                className="shrink-0 whitespace-nowrap min-h-[44px]"
-                aria-selected={false}
-              >
-                <User className="w-4 h-4 mr-2" aria-hidden="true" /><span className="hidden sm:inline">Member Profile</span>              </Button>
-              <Button
-                role="tab"
-                variant="default"
-                size="sm"
-                className="shrink-0 whitespace-nowrap bg-[#7A1E1E] text-white hover:bg-[#7A1E1E] min-h-[44px]"
-                aria-selected={true}
-                aria-current="page"
-              >
-                <Calendar className="w-4 h-4 mr-2" aria-hidden="true" /><span className="hidden sm:inline">Engagement</span>              </Button>
-              <Button
-                role="tab"
-                variant="ghost"
-                size="sm"
-                onClick={() => onNavigate('scholarship')}
-                className="shrink-0 whitespace-nowrap min-h-[44px]"
-                aria-selected={false}
-              >
-                <Award className="w-4 h-4 mr-2" aria-hidden="true" /><span className="hidden sm:inline">Scholarship</span>              </Button>
+        <nav className="bg-white border-b border-[#E2E8F0]" aria-label="Dashboard sections">
+          <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px]">
+            <div className="flex gap-0 overflow-x-auto" role="tablist" aria-label="Dashboard views">
+              {([
+                { key: 'member-profile', label: 'Member Profile', active: false, cb: () => onNavigate('member-profile'), Icon: User },
+                { key: 'engagement',     label: 'Engagement',     active: true,  cb: undefined,                          Icon: Calendar },
+                { key: 'scholarship',    label: 'Scholarship',    active: false, cb: () => onNavigate('scholarship'),    Icon: Award },
+              ] as const).map(({ key, label, active, cb, Icon }) => (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={active}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={cb}
+                  className={`relative flex items-center gap-2 px-4 py-3.5 text-[13px] font-medium whitespace-nowrap transition-colors duration-150 border-b-2 ${
+                    active
+                      ? 'border-[#7A1E1E] text-[#7A1E1E]'
+                      : 'border-transparent text-[#64748B] hover:text-[#0F172A] hover:border-[#E2E8F0]'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>{label}</span>
+                </button>
+              ))}
             </div>
           </div>
         </nav>
       )}
 
-      <main id="main-content" className="container mx-auto px-4 py-8">
+      <main id="main-content" className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px] py-6">
         {/* Tabs for Engagements and Rehearsals */}
         <div className="mb-6">
           <div className="flex space-x-1 pb-2" role="tablist" aria-label="Engagement views">
@@ -281,26 +364,18 @@ export function EngagementDashboard({
         {activeTab === 'engagements' && (
           <div id="panel-engagements" role="tabpanel" aria-label="Engagements">
             {/* Quick Stats */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-8">
-              <Card
-                className="bg-white border-[#e0e0e0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:border-[#880808] hover:shadow-lg transition-all"
-                onClick={() => scrollToSection('upcoming-engagements')}
-              >
-                <CardContent className="p-2 sm:p-3">
-                  <p className="text-[#6c757d] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Upcoming Events</p>
-                  <p className="text-[#880808] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">{upcomingEngagements.length}</p>
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              <DashboardQuickStatCard
+                label="Upcoming Events"
+                value={upcomingEngagements.length}
+                onClick={() => scrollToSection('engagement-table')}
+              />
 
-              <Card
-                className="bg-white border-[#e0e0e0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:border-[#880808] hover:shadow-lg transition-all"
-                onClick={() => scrollToSection('past-engagements')}
-              >
-                <CardContent className="p-2 sm:p-3">
-                  <p className="text-[#6c757d] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Completed Events</p>
-                  <p className="text-[#880808] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">{pastEngagements.length}</p>
-                </CardContent>
-              </Card>
+              <DashboardQuickStatCard
+                label="Completed Events"
+                value={pastEngagements.length}
+                onClick={() => scrollToSection('engagement-table')}
+              />
             </div>
 
             {/* Welcome Section */}
@@ -346,97 +421,15 @@ export function EngagementDashboard({
               </CardContent>
             </Card>
 
-            {/* Upcoming Engagements */}
-            <Card className="border-[#e0e0e0] mb-6" id="upcoming-engagements">
+            <Card className="border-[#e0e0e0]" id="engagement-table">
               <CardHeader>
-                <CardTitle className="text-[#880808]">Upcoming Engagements</CardTitle>
-                <CardDescription className="text-[#6c757d]">External events you're scheduled to attend</CardDescription>
+                <CardTitle className="text-[#880808]">Engagements</CardTitle>
+                <CardDescription className="text-[#6c757d]">
+                  Upcoming and past engagements in one table. Tap a row to view details and attendance.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                {upcomingEngagements.length > 0 ? (
-                  <div className="space-y-4">
-                    {upcomingEngagements.map((engagement) => (
-                      <div key={engagement.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-start gap-2 min-w-0">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-[#880808]">{engagement.event_name}</h4>
-                            <p className="text-sm text-[#6c757d] mt-1">{engagement.description}</p>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-sm text-[#6c757d]">
-                              <div className="flex items-center shrink-0">
-                                <Calendar className="w-4 h-4 mr-1" />
-                                {new Date(engagement.date).toLocaleDateString()}
-                              </div>
-                              <div className="flex items-center shrink-0">
-                                <Clock className="w-4 h-4 mr-1" />
-                                {engagement.time}
-                              </div>
-                              <div className="flex items-center min-w-0">
-                                <MapPin className="w-4 h-4 mr-1 shrink-0" />
-                                <span className="truncate">{engagement.venue}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <Badge
-                            className={`shrink-0 ${engagement.status === 'completed' ? "bg-green-500" : "bg-yellow-500"}`}
-                          >
-                            {engagement.status === 'completed' ? "Attendance Recorded" : "Pending"}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p>No upcoming engagements scheduled</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Past Engagements */}
-            <Card className="border-[#e0e0e0]" id="past-engagements">
-              <CardHeader>
-                <CardTitle className="text-[#880808]">Past Engagements</CardTitle>
-                <CardDescription className="text-[#6c757d]">Completed external events</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {pastEngagements.length > 0 ? (
-                  <div className="space-y-4">
-                    {pastEngagements.map((engagement) => (
-                      <div key={engagement.id} className="border rounded-lg p-4 bg-gray-50">
-                        <div className="flex items-start gap-2 min-w-0">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-[#6c757d]">{engagement.event_name}</h4>
-                            <p className="text-sm text-[#6c757d] mt-1">{engagement.description}</p>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-sm text-[#6c757d]">
-                              <div className="flex items-center shrink-0">
-                                <Calendar className="w-4 h-4 mr-1" />
-                                {new Date(engagement.date).toLocaleDateString()}
-                              </div>
-                              <div className="flex items-center shrink-0">
-                                <Clock className="w-4 h-4 mr-1" />
-                                {engagement.time}
-                              </div>
-                              <div className="flex items-center min-w-0">
-                                <MapPin className="w-4 h-4 mr-1 shrink-0" />
-                                <span className="truncate">{engagement.venue}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <Badge className="shrink-0 bg-gray-400">
-                            Completed
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Music className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p>No past engagements</p>
-                  </div>
-                )}
+                {renderSessionTable(sortSessions(engagements), 'No engagements available')}
               </CardContent>
             </Card>
           </div>
@@ -446,26 +439,18 @@ export function EngagementDashboard({
         {activeTab === 'rehearsals' && (
           <div id="panel-rehearsals" role="tabpanel" aria-label="Rehearsals">
             {/* Quick Stats */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-8">
-              <Card
-                className="bg-white border-[#e0e0e0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:border-[#880808] hover:shadow-lg transition-all"
-                onClick={() => scrollToSection('upcoming-rehearsals')}
-              >
-                <CardContent className="p-2 sm:p-3">
-                  <p className="text-[#6c757d] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Upcoming Rehearsals</p>
-                  <p className="text-[#880808] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">{upcomingRehearsals.length}</p>
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              <DashboardQuickStatCard
+                label="Upcoming Rehearsals"
+                value={upcomingRehearsals.length}
+                onClick={() => scrollToSection('rehearsal-table')}
+              />
 
-              <Card
-                className="bg-white border-[#e0e0e0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:border-[#880808] hover:shadow-lg transition-all"
-                onClick={() => scrollToSection('past-rehearsals')}
-              >
-                <CardContent className="p-2 sm:p-3">
-                  <p className="text-[#6c757d] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Completed Rehearsals</p>
-                  <p className="text-[#880808] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">{pastRehearsals.length}</p>
-                </CardContent>
-              </Card>
+              <DashboardQuickStatCard
+                label="Completed Rehearsals"
+                value={pastRehearsals.length}
+                onClick={() => scrollToSection('rehearsal-table')}
+              />
             </div>
 
             {/* Welcome Section */}
@@ -511,112 +496,63 @@ export function EngagementDashboard({
               </CardContent>
             </Card>
 
-            {/* Upcoming Rehearsals */}
-            <Card className="border-[#e0e0e0] mb-6" id="upcoming-rehearsals">
+            <Card className="border-[#e0e0e0]" id="rehearsal-table">
               <CardHeader>
-                <CardTitle className="text-[#880808]">Upcoming Rehearsals</CardTitle>
-                <CardDescription className="text-[#6c757d]">Scheduled practice sessions</CardDescription>
+                <CardTitle className="text-[#880808]">Rehearsals</CardTitle>
+                <CardDescription className="text-[#6c757d]">
+                  Upcoming and past rehearsals in one table. Tap a row to view details and attendance.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                {upcomingRehearsals.length > 0 ? (
-                  <div className="space-y-4">
-                    {upcomingRehearsals.map((rehearsal) => (
-                      <div key={rehearsal.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-start gap-2 min-w-0">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center flex-wrap gap-2">
-                              <h4 className="font-medium text-[#880808]">{rehearsal.event_name}</h4>
-                              {rehearsal.is_required && (
-                                <Badge className="bg-red-500 shrink-0">Required</Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-[#6c757d] mt-1">{rehearsal.description}</p>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-sm text-[#6c757d]">
-                              <div className="flex items-center shrink-0">
-                                <Calendar className="w-4 h-4 mr-1" />
-                                {new Date(rehearsal.date).toLocaleDateString()}
-                              </div>
-                              <div className="flex items-center shrink-0">
-                                <Clock className="w-4 h-4 mr-1" />
-                                {rehearsal.time}
-                              </div>
-                              <div className="flex items-center min-w-0">
-                                <MapPin className="w-4 h-4 mr-1 shrink-0" />
-                                <span className="truncate">{rehearsal.venue}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <Badge
-                            className={`shrink-0 ${rehearsal.status === 'completed' ? "bg-green-500" : "bg-yellow-500"}`}
-                          >
-                            {rehearsal.status === 'completed' ? "Attendance Recorded" : "Pending"}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Music className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p>No upcoming rehearsals scheduled</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Past Rehearsals */}
-            <Card className="border-[#e0e0e0]" id="past-rehearsals">
-              <CardHeader>
-                <CardTitle className="text-[#880808]">Past Rehearsals</CardTitle>
-                <CardDescription className="text-[#6c757d]">Completed practice sessions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {pastRehearsals.length > 0 ? (
-                  <div className="space-y-4">
-                    {pastRehearsals.map((rehearsal) => (
-                      <div key={rehearsal.id} className="border rounded-lg p-4 bg-gray-50">
-                        <div className="flex items-start gap-2 min-w-0">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center flex-wrap gap-2">
-                              <h4 className="font-medium text-[#6c757d]">{rehearsal.event_name}</h4>
-                              {rehearsal.is_required && (
-                                <Badge className="bg-gray-400 shrink-0">Was Required</Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-[#6c757d] mt-1">{rehearsal.description}</p>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-sm text-[#6c757d]">
-                              <div className="flex items-center shrink-0">
-                                <Calendar className="w-4 h-4 mr-1" />
-                                {new Date(rehearsal.date).toLocaleDateString()}
-                              </div>
-                              <div className="flex items-center shrink-0">
-                                <Clock className="w-4 h-4 mr-1" />
-                                {rehearsal.time}
-                              </div>
-                              <div className="flex items-center min-w-0">
-                                <MapPin className="w-4 h-4 mr-1 shrink-0" />
-                                <span className="truncate">{rehearsal.venue}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <Badge className="shrink-0 bg-gray-400">
-                            Completed
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p>No past rehearsals</p>
-                  </div>
-                )}
+                {renderSessionTable(sortSessions(rehearsals), 'No rehearsals available')}
               </CardContent>
             </Card>
           </div>
         )}
       </main>
+
+      <Dialog open={showSessionDetails} onOpenChange={setShowSessionDetails}>
+        <DialogContent className="max-w-[95vw] sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-[#880808]">Session Details</DialogTitle>
+            <DialogDescription>
+              Detailed information and your attendance status.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedSession && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="font-semibold text-[#1A1A1A]">{selectedSession.event_name}</h4>
+                <Badge className={`${getAttendanceBadgeClass(getAttendanceStatus(selectedSession))} border`}>
+                  {formatAttendanceLabel(getAttendanceStatus(selectedSession))}
+                </Badge>
+              </div>
+              {selectedSession.description && (
+                <p className="text-sm text-[#6c757d]">{selectedSession.description}</p>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="flex items-center gap-2 text-[#6c757d]">
+                  <Calendar className="w-4 h-4" />
+                  <span>{new Date(selectedSession.date).toLocaleDateString()}</span>
+                </div>
+                <div className="flex items-center gap-2 text-[#6c757d]">
+                  <Clock className="w-4 h-4" />
+                  <span>{selectedSession.time || '—'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-[#6c757d] sm:col-span-2">
+                  <MapPin className="w-4 h-4" />
+                  <span>{selectedSession.venue}</span>
+                </div>
+              </div>
+              <div className="pt-3 border-t border-[#E2E8F0] text-xs text-[#6c757d]">
+                {selectedSession.date >= today
+                  ? 'This session is upcoming. Attendance will be marked by your director during/after the session.'
+                  : 'This session already happened. Attendance result shown above is based on recorded attendance.'}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Logout Confirmation Dialog */}
       <Dialog open={showLogoutConfirmation} onOpenChange={setShowLogoutConfirmation}>

@@ -1,10 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { ScrollArea } from './ui/scroll-area';
 import { NotificationPanel } from './NotificationPanel';
@@ -13,21 +11,14 @@ import {
   User as UserIcon, 
   LogOut, 
   Package, 
-  Upload,
-  CheckCircle,
   Bell,
-  Edit,
-  Save,
   Calendar,
   Award,
-  AlertCircle,
-  ChevronDown,
   Settings as SettingsIcon,
   Lock,
   Shield
 } from './ui/icons';
 import type { User, InventoryItem, Notification } from '../App';
-import uncLogo from 'figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png';
 import { getTalentGroupName } from './ui/unc-colors';
 import { 
   DropdownMenu,
@@ -39,6 +30,7 @@ import {
 } from './ui/dropdown-menu';
 // ── Accessibility components (WCAG 2.1 AA / ISO 9241 / ISO 25010) ──────────────
 import { SkipToContent, EmptyState } from './accessibility';
+import { DashboardQuickStatCard } from './ui/DashboardQuickStatCard';
 
 interface MemberProfileDashboardProps {
   user: User;
@@ -47,7 +39,7 @@ interface MemberProfileDashboardProps {
   notifications: Notification[];
   onMarkNotificationRead: (notificationId: string) => void;
   onNavigate?: (view: 'scholar' | 'member-profile' | 'engagement' | 'scholarship' | 'settings', tab?: 'account' | 'security' | 'administration' | 'logout') => void;
-  onUpdateProfile?: (updatedUser: Partial<User>) => void;
+  onUpdateProfile?: (updatedUser: Partial<User>) => Promise<void> | void;
 }
 
 export function MemberProfileDashboard({ 
@@ -62,24 +54,26 @@ export function MemberProfileDashboard({
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLogoutConfirmation, setShowLogoutConfirmation] = useState(false);
   const [hiddenNotifIds, setHiddenNotifIds] = useState<string[]>([]);
-  const [isEditing, setIsEditing] = useState(false);
-  const [profileData, setProfileData] = useState({
-    email: user.email,
-    phone: user.phone || '',
-    address: user.address || '',
-    dateOfBirth: user.dateOfBirth || '',
-    gender: user.gender || '',
-    emergencyContact: user.emergencyContact || '',
-    emergencyPhone: user.emergencyPhone || '',
-    emergencyRelationship: user.emergencyRelationship || '',
-    guardianName: user.guardianName || '',
-    guardianContact: user.guardianContact || '',
-    allergies: user.allergies || '',
-    medicalConditions: user.medicalConditions || ''
-  });
-  const [uploadedFile, setUploadedFile] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
-  const [expandedItem, setExpandedItem] = useState<number | null>(null);
+  const [profileDraft, setProfileDraft] = useState<Partial<User>>({});
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  useEffect(() => {
+    setProfileDraft({
+      name: user.name,
+      phone: user.phone || '',
+      address: user.address || '',
+      course: user.course || '',
+      yearLevel: user.yearLevel || '',
+      department: user.department || '',
+    });
+  }, [user]);
+
+  const currentProfile: User = {
+    ...user,
+    ...profileDraft,
+  } as User;
+
 
   // Assigned items data - categorized based on talent group using REAL inventory data
   const isMarchingBand = user.talentGroup === 'marching-band';
@@ -87,58 +81,54 @@ export function MemberProfileDashboard({
   const isMajorettes = user.talentGroup === 'majorettes';
   const isGleeClub = user.talentGroup === 'glee-club';
 
-  // Filter inventory items assigned to this user or belonging to their talent group
+  // Scholars should only see items assigned directly to them.
   const myInventory = inventory.filter(item =>
-    (item.userId === user.id || item.talentGroup === user.talentGroup) &&
+    item.userId === user.id &&
     item.status === 'assigned'
   );
 
   // Assigned items by type
   const assignedInstruments = myInventory.filter(item => item.type === 'instrument');
+  const assignedInstrument = assignedInstruments
+    .slice()
+    .sort((a, b) => {
+      const aTime = a.assignedDate ? new Date(a.assignedDate).getTime() : 0;
+      const bTime = b.assignedDate ? new Date(b.assignedDate).getTime() : 0;
+      return bTime - aTime;
+    })[0] ?? null;
   const assignedUniforms = myInventory.filter(item => item.type === 'uniform');
   const assignedAccessories = myInventory.filter(item => item.type === 'accessory');
 
   const visibleNotifications = notifications.filter(n => !hiddenNotifIds.includes(n.id));
   const unreadNotifications = visibleNotifications.filter(n => !n.read);
 
-  // Calculate profile completion
+  // Calculate profile completion using backend-supported profile fields
   const profileFields = [
-    user.email,
-    user.phone,
-    user.address,
-    user.dateOfBirth,
-    user.gender,
-    user.emergencyContact,
-    user.emergencyPhone
+    currentProfile.email,
+    currentProfile.phone,
+    currentProfile.address,
+    currentProfile.studentId,
+    currentProfile.course,
+    currentProfile.yearLevel,
+    currentProfile.department
   ];
   const filledFields = profileFields.filter(field => field && field.trim() !== '').length;
   const profileCompletion = Math.round((filledFields / profileFields.length) * 100);
 
   // Scroll to section function
   const scrollToSection = (sectionId: string) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      toast.success(`Navigated to ${sectionId.replace('-', ' ')}`);
-    }
-  };
-
-  const handleSaveProfile = () => {
-    if (onUpdateProfile) {
-      onUpdateProfile(profileData);
-      toast.success('Profile updated successfully!');
-      setIsEditing(false);
-    } else {
-      // If no onUpdateProfile is provided, show a warning
-      toast.error('Profile update function not available');
-    }
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setUploadedFile(file.name);
-      toast.success(`File "${file.name}" uploaded successfully!`);
+    try {
+      const element = document.getElementById(sectionId);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        toast.success(`Navigated to ${sectionId.replace(/-/g, ' ')}`);
+      } else {
+        console.warn(`Section with id "${sectionId}" not found`);
+        toast.error(`Could not find section`);
+      }
+    } catch (error) {
+      console.error('Scroll error:', error);
+      toast.error('Navigation failed');
     }
   };
 
@@ -152,62 +142,45 @@ export function MemberProfileDashboard({
     }
   };
 
-  // Calculate age from date of birth
-  const calculateAge = (dateOfBirth: string) => {
-    if (!dateOfBirth) return null;
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    return age;
-  };
-
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#F8F9FA]">
       {/* Skip to main content — WCAG 2.4.1 */}
       <SkipToContent />
 
       {/* Header */}
-      <header className="bg-white border-b shadow-sm sticky top-0 z-50" role="banner">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between py-4">
+      <header className="h-20 bg-white border-b border-[#E2E8F0] sticky top-0 z-50 flex items-center" role="banner">
+        <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px] flex items-center justify-between">
             {/* Left Section - Logo and Title */}
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <img 
-                  src={uncLogo} 
-                  alt="University of Nueva Caceres Logo"
-                  className="w-12 h-12 object-contain"
-                />
-                <div>
-                  <h1 className="unc-burgundy-text">TalentTrackUNC</h1>
-                  <p className="text-xs text-muted-foreground">
-                    {user.role === "admin"
-                      ? "Admin Dashboard"
-                      : user.role === "director"
-                        ? "Director Dashboard"
-                        : user.role === "trainee" || user.trainingStatus === "in_progress"
-                          ? "Trainee Dashboard"
-                          : user.role === "student"
-                            ? "Student Dashboard"
-                            : "Scholar Dashboard"}
-                  </p>
-                </div>
+            <div>
+              <div>
+                <h1 className="text-xl leading-tight">
+                  <span className="font-bold text-[#0F172A]">Talent</span>
+                  <span className="text-[#0F172A]">Track</span>
+                  <span className="font-bold text-[#7A1E1E]">UNC</span>
+                </h1>
+                <p className="text-xs text-muted-foreground">
+                  {user.role === "admin"
+                    ? "Admin Dashboard"
+                    : user.role === "director"
+                      ? "Director Dashboard"
+                      : user.role === "trainee" || user.trainingStatus === "in_progress"
+                        ? "Trainee Dashboard"
+                        : user.role === "student"
+                          ? "Student Dashboard"
+                          : "Scholar Dashboard"}
+                </p>
               </div>
             </div>
             
-            {/* Right Section - User Info and Actions */}
-            <div className="flex items-center space-x-4">
+            {/* Right Section */}
+            <div className="flex items-center gap-3">
               {/* Notification Bell */}
               <div className="relative">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative min-h-[44px] min-w-[44px]"
+                  className="relative w-9 h-9 p-0 flex items-center justify-center rounded-lg border border-[#E2E8F0] bg-white hover:border-[#7A1E1E] hover:text-[#7A1E1E] text-[#475569] transition-colors"
                   aria-label={
                     unreadNotifications.length > 0
                       ? `Notifications — ${unreadNotifications.length} unread`
@@ -217,10 +190,10 @@ export function MemberProfileDashboard({
                   aria-controls="notifications-panel"
                   aria-haspopup="dialog"
                 >
-                  <Bell className="w-5 h-5" aria-hidden="true" />
+                  <Bell className="w-4 h-4" aria-hidden="true" />
                   {unreadNotifications.length > 0 && (
-                    <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-[#7A1E1E] text-white text-xs" aria-hidden="true">
-                      {unreadNotifications.length}
+                    <Badge className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center p-0 bg-[#7A1E1E] text-white text-[9px] font-bold" aria-hidden="true">
+                      {unreadNotifications.length > 99 ? '99+' : unreadNotifications.length}
                     </Badge>
                   )}
                 </Button>
@@ -237,35 +210,25 @@ export function MemberProfileDashboard({
               </div>
 
               {/* User Info */}
-              <div className="hidden md:block text-right">
-                <p className="text-sm font-medium">{user.name}</p>
-                <div className="flex items-center justify-end space-x-2">
-                  {user.role === "admin" && (
-                    <Badge className="bg-[#6c757d] text-white">Admin</Badge>
-                  )}
-                  {user.role === "director" && user.talentGroup && (
-                    <Badge className="bg-[#7A1E1E] text-white">
-                      {getTalentGroupName(user.talentGroup)}
-                    </Badge>
-                  )}
-                  {user.role === "scholar" && user.talentGroup && user.trainingStatus !== "in_progress" && (
-                    <>
-                      <Badge className="bg-[#7A1E1E] text-white">
-                        {getTalentGroupName(user.talentGroup)}
-                      </Badge>
-                      {user.studentId && (
-                        <span className="text-xs text-muted-foreground">{user.studentId}</span>
-                      )}
-                    </>
-                  )}
-                  {(user.role === "trainee" || user.trainingStatus === "in_progress") && user.talentGroup && (
-                    <Badge className="bg-[#7A1E1E] text-white">
-                      {getTalentGroupName(user.talentGroup)}
-                    </Badge>
-                  )}
-                  {user.role === "student" && !user.talentGroup && user.email && (
-                    <span className="text-xs text-muted-foreground">{user.email}</span>
-                  )}
+              <div className="hidden md:flex items-center gap-2.5 pl-3 border-l border-[#E2E8F0]">
+                <div className="w-8 h-8 rounded-full bg-[#F9EAEA] border border-[#7A1E1E]/20 flex items-center justify-center flex-shrink-0">
+                  <UserIcon className="w-4 h-4 text-[#7A1E1E]" aria-hidden="true" />
+                </div>
+                <div className="text-right">
+                  <p className="text-[13px] font-semibold text-[#0F172A] leading-tight">{currentProfile.name}</p>
+                  <p className="text-[11px] text-[#64748B] leading-none mt-0.5">
+                    {user.talentGroup
+                      ? getTalentGroupName(user.talentGroup)
+                      : user.role === 'admin'
+                        ? 'Admin'
+                        : user.role === 'director'
+                          ? 'Director'
+                          : user.role === 'scholar'
+                            ? 'Scholar'
+                            : user.role === 'trainee' || user.trainingStatus === 'in_progress'
+                              ? 'Trainee'
+                              : 'Student'}
+                  </p>
                 </div>
               </div>
               
@@ -274,11 +237,11 @@ export function MemberProfileDashboard({
                 <DropdownMenuTrigger asChild>
                   <Button 
                     variant="outline" 
-                    size="sm" 
-                    className="border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors min-h-[44px]"
+                    size="default" 
+                    className="flex items-center gap-1.5 border border-[#7A1E1E] rounded-lg px-3 py-1.5 text-sm font-medium text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors duration-200 h-auto min-h-0"
                     aria-label="Open settings menu"
                   >
-                    <SettingsIcon className="w-4 h-4 mr-2" aria-hidden="true" />
+                    <SettingsIcon className="w-3.5 h-3.5" aria-hidden="true" />
                     <span className="hidden sm:inline">Settings</span>
                   </Button>
                 </DropdownMenuTrigger>
@@ -295,81 +258,60 @@ export function MemberProfileDashboard({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-          </div>
         </div>
       </header>
 
       {/* Dashboard Navigation */}
       {onNavigate && (
-        <nav className="bg-white border-b" aria-label="Dashboard sections">
-          <div className="container mx-auto px-4 py-3">
-            <div className="flex overflow-x-auto scrollbar-hide pb-1 gap-1" role="tablist" aria-label="Dashboard views">
-              <Button
-                role="tab"
-                variant="default"
-                size="sm"
-                className="bg-[#7A1E1E] text-white hover:bg-[#7A1E1E] min-h-[44px]"
-                aria-selected={true}
-                aria-current="page"
-              >
-                <UserIcon className="w-4 h-4 mr-2" aria-hidden="true" /><span className="hidden sm:inline">Member Profile</span>              </Button>
-              <Button
-                role="tab"
-                variant="ghost"
-                size="sm"
-                onClick={() => onNavigate('engagement')}
-                className="min-h-[44px]"
-                aria-selected={false}
-              >
-                <Calendar className="w-4 h-4 mr-2" aria-hidden="true" /><span className="hidden sm:inline">Engagement</span>              </Button>
-              <Button
-                role="tab"
-                variant="ghost"
-                size="sm"
-                onClick={() => onNavigate('scholarship')}
-                className="min-h-[44px]"
-                aria-selected={false}
-              >
-                <Award className="w-4 h-4 mr-2" aria-hidden="true" /><span className="hidden sm:inline">Scholarship</span>              </Button>
+        <nav className="bg-white border-b border-[#E2E8F0]" aria-label="Dashboard sections">
+          <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px]">
+            <div className="flex gap-0 overflow-x-auto" role="tablist" aria-label="Dashboard views">
+              {([
+                { key: 'member-profile', label: 'Member Profile', active: true,  cb: undefined,                        Icon: UserIcon },
+                { key: 'engagement',     label: 'Engagement',     active: false, cb: () => onNavigate('engagement'),   Icon: Calendar },
+                { key: 'scholarship',    label: 'Scholarship',    active: false, cb: () => onNavigate('scholarship'),  Icon: Award },
+              ] as const).map(({ key, label, active, cb, Icon }) => (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={active}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={cb}
+                  className={`relative flex items-center gap-2 px-4 py-3.5 text-[13px] font-medium whitespace-nowrap transition-colors duration-150 border-b-2 ${
+                    active
+                      ? 'border-[#7A1E1E] text-[#7A1E1E]'
+                      : 'border-transparent text-[#64748B] hover:text-[#0F172A] hover:border-[#E2E8F0]'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>{label}</span>
+                </button>
+              ))}
             </div>
           </div>
         </nav>
       )}
 
-      <main id="main-content" className="container mx-auto px-4 py-8">
+      <main id="main-content" className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px] py-6">
         {/* Quick Stats - Dashboard Overview */}
         <section aria-labelledby="quick-stats-heading" className="mb-8">
           <h2 id="quick-stats-heading" className="sr-only">Quick Statistics</h2>
-          <div className={`grid ${isDanceClub ? 'grid-cols-1' : 'grid-cols-2'} gap-2 sm:gap-4`} role="list" aria-label="Profile quick statistics">
-          <Card
-            role="listitem"
-            className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
-            onClick={() => scrollToSection('personal-information')}
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scrollToSection('personal-information'); } }}
-            aria-label={`Profile completion: ${profileCompletion}%. Activate to view personal information.`}
-          >
-            <CardContent className="p-2 sm:p-3">
-              <p className="text-[#6B7280] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Profile Completion</p>
-              <p className="text-[#1A1A1A] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">{profileCompletion}%</p>
-            </CardContent>
-          </Card>
+          <div className={`grid ${isDanceClub ? 'grid-cols-1' : 'grid-cols-2'} gap-4`} role="list" aria-label="Profile quick statistics">
+            <div role="listitem" aria-label={`Profile completion: ${profileCompletion}%. Activate to view personal information.`}>
+              <DashboardQuickStatCard
+                label="Profile Completion"
+                value={`${profileCompletion}%`}
+                onClick={() => scrollToSection('personal-information')}
+              />
+            </div>
 
-          <Card
-            role="listitem"
-            className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
-            onClick={() => scrollToSection('assigned-items')}
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scrollToSection('assigned-items'); } }}
-            aria-label="Assigned items. Activate to view inventory."
-          >
-            <CardContent className="p-2 sm:p-3">
-              <p className="text-[#6B7280] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Assigned Items</p>
-              <p className="text-[#1A1A1A] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">
-                {myInventory.length}
-              </p>
-            </CardContent>
-          </Card>
+            <div role="listitem" aria-label="Assigned items. Activate to view inventory.">
+              <DashboardQuickStatCard
+                label="Assigned Items"
+                value={myInventory.length}
+                onClick={() => scrollToSection('assigned-items')}
+              />
+            </div>
           </div>
         </section>
 
@@ -391,18 +333,63 @@ export function MemberProfileDashboard({
                     <UserIcon className="w-5 h-5 mr-2 shrink-0" />
                     Personal Information
                   </CardTitle>
-                  <CardDescription>Your profile details and contact information</CardDescription>
+                  <CardDescription>Profile information fetched from the backend</CardDescription>
                 </div>
-                {!isEditing ? (
-                  <Button onClick={() => setIsEditing(true)} variant="outline" className="shrink-0 min-h-[44px]" aria-label="Edit your profile">
-                    <Edit className="w-4 h-4 mr-2" aria-hidden="true" />Edit Profile                  </Button>
+                {!isEditingProfile ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-[44px]"
+                    onClick={() => setIsEditingProfile(true)}
+                  >
+                    Edit Details
+                  </Button>
                 ) : (
-                  <div className="flex shrink-0 space-x-2">
-                    <Button onClick={() => setIsEditing(false)} variant="outline" className="min-h-[44px]">
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="min-h-[44px]"
+                      onClick={() => {
+                        setProfileDraft({
+                          name: user.name,
+                          phone: user.phone || '',
+                          address: user.address || '',
+                          course: user.course || '',
+                          yearLevel: user.yearLevel || '',
+                          department: user.department || '',
+                        });
+                        setIsEditingProfile(false);
+                      }}
+                    >
                       Cancel
                     </Button>
-                    <Button onClick={handleSaveProfile} className="btn-unc min-h-[44px]">
-                      <Save className="w-4 h-4 mr-2" aria-hidden="true" />Save Changes                    </Button>
+                    <Button
+                      type="button"
+                      className="min-h-[44px] bg-[#7A1E1E] hover:bg-[#6A1919] text-white"
+                      disabled={isSavingProfile}
+                      onClick={async () => {
+                        try {
+                          setIsSavingProfile(true);
+                          await onUpdateProfile?.({
+                            name: String(profileDraft.name || '').trim(),
+                            phone: String(profileDraft.phone || '').trim(),
+                            address: String(profileDraft.address || '').trim(),
+                            course: String(profileDraft.course || '').trim(),
+                            yearLevel: String(profileDraft.yearLevel || '').trim(),
+                            department: String(profileDraft.department || '').trim(),
+                          });
+                          setIsEditingProfile(false);
+                          toast.success('Profile details updated');
+                        } catch {
+                          // Error toast is handled by caller to avoid duplicate messages.
+                        } finally {
+                          setIsSavingProfile(false);
+                        }
+                      }}
+                    >
+                      {isSavingProfile ? 'Saving...' : 'Save'}
+                    </Button>
                   </div>
                 )}
               </div>
@@ -411,293 +398,112 @@ export function MemberProfileDashboard({
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="name">Full Name</Label>
-                  <p className="text-sm mt-1 text-gray-600">{user.name}</p>
-                  {isEditing && (
-                    <p className="text-xs text-muted-foreground mt-1 italic">Name cannot be edited</p>
+                  {isEditingProfile ? (
+                    <input
+                      id="name"
+                      className="mt-1 w-full h-10 rounded-md border border-[#D1D5DC] px-3 text-sm"
+                      value={String(profileDraft.name || '')}
+                      onChange={(e) => setProfileDraft((prev) => ({ ...prev, name: e.target.value }))}
+                    />
+                  ) : (
+                    <p className="text-sm mt-1 text-gray-600">{currentProfile.name}</p>
                   )}
                 </div>
                 <div>
                   <Label htmlFor="studentId">Student ID</Label>
-                  <p className="text-sm mt-1 text-gray-600">{user.studentId}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="text-sm text-gray-600">{currentProfile.studentId}</p>
+                    <Badge variant="outline" className="text-[10px]">Locked</Badge>
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="email">Email</Label>
-                  {isEditing ? (
-                    <Input
-                      id="email"
-                      type="email"
-                      value={profileData.email}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, email: e.target.value }))}
-                      className="mt-1"
-                    />
-                  ) : (
-                    <p className="text-sm mt-1">{user.email}</p>
-                  )}
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="text-sm">{currentProfile.email}</p>
+                    <Badge variant="outline" className="text-[10px]">Locked</Badge>
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="phone">Phone Number</Label>
-                  {isEditing ? (
-                    <Input
+                  {isEditingProfile ? (
+                    <input
                       id="phone"
-                      type="tel"
-                      value={profileData.phone}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, phone: e.target.value }))}
-                      className="mt-1"
+                      className="mt-1 w-full h-10 rounded-md border border-[#D1D5DC] px-3 text-sm"
+                      value={String(profileDraft.phone || '')}
+                      onChange={(e) => setProfileDraft((prev) => ({ ...prev, phone: e.target.value }))}
+                      placeholder="Not provided"
                     />
                   ) : (
-                    <p className="text-sm mt-1">{user.phone || 'Not provided'}</p>
+                    <p className="text-sm mt-1">{currentProfile.phone || 'Not provided'}</p>
                   )}
                 </div>
-                <div>
-                  <Label htmlFor="talentGroup">Talent Group</Label>
-                  <p className="text-sm mt-1">{user.talentGroup?.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
-                </div>
-
                 {/* Assigned Instrument - only show for Marching Band */}
                 {isMarchingBand && (
                   <div>
                     <Label>Assigned Instrument</Label>
-                    {isEditing ? (
-                      <p className="text-sm mt-1 text-gray-600">{user.assignedInstrument || 'Not assigned'}</p>
-                    ) : (
-                      <p className="text-sm mt-1">{user.assignedInstrument || 'Not assigned'}</p>
-                    )}
+                    <p className="text-sm mt-1">{assignedInstrument?.itemName || 'Not assigned'}</p>
                   </div>
                 )}
 
                 {/* Address - always show */}
                 <div className="md:col-span-2">
                   <Label htmlFor="address">Address</Label>
-                  {isEditing ? (
-                    <Textarea
+                  {isEditingProfile ? (
+                    <textarea
                       id="address"
-                      value={profileData.address}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, address: e.target.value }))}
-                      placeholder="Enter your complete address"
-                      className="mt-1"
+                      className="mt-1 w-full rounded-md border border-[#D1D5DC] px-3 py-2 text-sm"
                       rows={2}
+                      value={String(profileDraft.address || '')}
+                      onChange={(e) => setProfileDraft((prev) => ({ ...prev, address: e.target.value }))}
+                      placeholder="Not provided"
                     />
                   ) : (
-                    <p className="text-sm mt-1">{user.address || 'Not provided'}</p>
+                    <p className="text-sm mt-1">{currentProfile.address || 'Not provided'}</p>
                   )}
                 </div>
 
-                {/* Date of Birth - always show */}
                 <div>
-                  <Label htmlFor="dateOfBirth">Date of Birth</Label>
-                  {isEditing ? (
-                    <Input
-                      id="dateOfBirth"
-                      type="date"
-                      value={profileData.dateOfBirth}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
-                      className="mt-1 border-[#D1D5DC] bg-white cursor-pointer"
-                      style={{ colorScheme: 'light' }}
+                  <Label htmlFor="course">Course</Label>
+                  {isEditingProfile ? (
+                    <input
+                      id="course"
+                      className="mt-1 w-full h-10 rounded-md border border-[#D1D5DC] px-3 text-sm"
+                      value={String(profileDraft.course || '')}
+                      onChange={(e) => setProfileDraft((prev) => ({ ...prev, course: e.target.value }))}
+                      placeholder="Not provided"
                     />
                   ) : (
-                    <p className="text-sm mt-1">{user.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString() : 'Not provided'}</p>
+                    <p className="text-sm mt-1">{currentProfile.course || 'Not provided'}</p>
                   )}
                 </div>
-
-                {/* Age - always show */}
                 <div>
-                  <Label>Age</Label>
-                  <p className="text-sm mt-1">
-                    {user.dateOfBirth && calculateAge(user.dateOfBirth) !== null 
-                      ? `${calculateAge(user.dateOfBirth)} years old` 
-                      : 'Not provided'}
-                  </p>
-                </div>
-
-                {/* Gender - always show */}
-                <div>
-                  <Label htmlFor="gender">Gender</Label>
-                  {isEditing ? (
-                    <Input
-                      id="gender"
-                      value={profileData.gender}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, gender: e.target.value }))}
-                      className="mt-1"
+                  <Label htmlFor="yearLevel">Year Level</Label>
+                  {isEditingProfile ? (
+                    <input
+                      id="yearLevel"
+                      className="mt-1 w-full h-10 rounded-md border border-[#D1D5DC] px-3 text-sm"
+                      value={String(profileDraft.yearLevel || '')}
+                      onChange={(e) => setProfileDraft((prev) => ({ ...prev, yearLevel: e.target.value }))}
+                      placeholder="Not provided"
                     />
                   ) : (
-                    <p className="text-sm mt-1">{user.gender || 'Not provided'}</p>
+                    <p className="text-sm mt-1">{currentProfile.yearLevel || 'Not provided'}</p>
                   )}
                 </div>
-
-                {/* Allergies - always show */}
                 <div>
-                  <Label htmlFor="allergies">Allergies</Label>
-                  {isEditing ? (
-                    <Input
-                      id="allergies"
-                      value={profileData.allergies}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, allergies: e.target.value }))}
-                      className="mt-1"
+                  <Label htmlFor="department">Department</Label>
+                  {isEditingProfile ? (
+                    <input
+                      id="department"
+                      className="mt-1 w-full h-10 rounded-md border border-[#D1D5DC] px-3 text-sm"
+                      value={String(profileDraft.department || '')}
+                      onChange={(e) => setProfileDraft((prev) => ({ ...prev, department: e.target.value }))}
+                      placeholder="Not provided"
                     />
                   ) : (
-                    <p className="text-sm mt-1">{user.allergies || 'Not provided'}</p>
+                    <p className="text-sm mt-1">{currentProfile.department || 'Not provided'}</p>
                   )}
                 </div>
-
-                {/* Medical Conditions - always show */}
-                <div>
-                  <Label htmlFor="medicalConditions">Medical Conditions</Label>
-                  {isEditing ? (
-                    <Input
-                      id="medicalConditions"
-                      value={profileData.medicalConditions}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, medicalConditions: e.target.value }))}
-                      className="mt-1"
-                    />
-                  ) : (
-                    <p className="text-sm mt-1">{user.medicalConditions || 'Not provided'}</p>
-                  )}
-                </div>
-
-                {/* Emergency Contact Name - always show */}
-                <div>
-                  <Label htmlFor="emergencyContact">Emergency Contact Name</Label>
-                  {isEditing ? (
-                    <Input
-                      id="emergencyContact"
-                      value={profileData.emergencyContact}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, emergencyContact: e.target.value }))}
-                      className="mt-1"
-                    />
-                  ) : (
-                    <p className="text-sm mt-1">{user.emergencyContact || 'Not provided'}</p>
-                  )}
-                </div>
-
-                {/* Emergency Contact Phone - always show */}
-                <div>
-                  <Label htmlFor="emergencyPhone">Emergency Contact Phone</Label>
-                  {isEditing ? (
-                    <Input
-                      id="emergencyPhone"
-                      type="tel"
-                      value={profileData.emergencyPhone}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, emergencyPhone: e.target.value }))}
-                      className="mt-1"
-                    />
-                  ) : (
-                    <p className="text-sm mt-1">{user.emergencyPhone || 'Not provided'}</p>
-                  )}
-                </div>
-
-                {/* Emergency Contact Relationship - always show */}
-                <div>
-                  <Label htmlFor="emergencyRelationship">Emergency Contact Relationship</Label>
-                  {isEditing ? (
-                    <Input
-                      id="emergencyRelationship"
-                      value={profileData.emergencyRelationship}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, emergencyRelationship: e.target.value }))}
-                      className="mt-1"
-                    />
-                  ) : (
-                    <p className="text-sm mt-1">{user.emergencyRelationship || 'Not provided'}</p>
-                  )}
-                </div>
-
-                {/* Guardian Name - always show */}
-                <div>
-                  <Label htmlFor="guardianName">Guardian's Name</Label>
-                  {isEditing ? (
-                    <Input
-                      id="guardianName"
-                      value={profileData.guardianName}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, guardianName: e.target.value }))}
-                      className="mt-1"
-                    />
-                  ) : (
-                    <p className="text-sm mt-1">{user.guardianName || 'Not provided'}</p>
-                  )}
-                </div>
-
-                {/* Guardian Contact - always show */}
-                <div>
-                  <Label htmlFor="guardianContact">Guardian's Contact</Label>
-                  {isEditing ? (
-                    <Input
-                      id="guardianContact"
-                      type="tel"
-                      value={profileData.guardianContact}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, guardianContact: e.target.value }))}
-                      className="mt-1"
-                    />
-                  ) : (
-                    <p className="text-sm mt-1">{user.guardianContact || 'Not provided'}</p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Document Upload */}
-          <Card className="card-unc" id="document-upload">
-            <CardHeader>
-              <CardTitle className="unc-burgundy-text flex items-center">
-                <Upload className="w-5 h-5 mr-2" />
-                Upload Requirements
-              </CardTitle>
-              <CardDescription>Submit required documents (ID, certificates, etc.)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h4 className="text-sm text-blue-900 mb-2 flex items-center">
-                    <AlertCircle className="w-4 h-4 mr-2" />
-                    Important: File Naming Convention
-                  </h4>
-                  <p className="text-sm text-blue-800 mb-2">
-                    Please rename your files before uploading using this format:
-                  </p>
-                  <ul className="space-y-1 text-sm text-blue-800">
-                    <li className="flex items-start space-x-2">
-                      <span className="text-blue-600 mt-1">•</span>
-                      <span><strong>Example:</strong> MATRICULATION 1ST YEAR 1ST SEM</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <span className="text-blue-600 mt-1">•</span>
-                      <span><strong>Example:</strong> STUDENT_ID_FRONT_AND_BACK</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <span className="text-blue-600 mt-1">•</span>
-                      <span><strong>Example:</strong> CERTIFICATE_OF_REGISTRATION_2024</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <span className="text-blue-600 mt-1">•</span>
-                      <span>Use descriptive names without spaces (use underscores instead)</span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div>
-                  <Label htmlFor="fileUpload">Select File</Label>
-                  <Input
-                    id="fileUpload"
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={handleFileUpload}
-                    className="mt-1"
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Supported formats: PDF, JPG, PNG (Max 5MB)
-                  </p>
-                </div>
-
-                {uploadedFile && (
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <CheckCircle className="w-5 h-5 text-green-600" />
-                      <div>
-                        <p className="text-sm font-medium text-green-900">{uploadedFile}</p>
-                        <p className="text-xs text-green-700 mt-1">File uploaded successfully! Your director will review it.</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -721,46 +527,44 @@ export function MemberProfileDashboard({
                       <Package className="w-4 h-4 mr-2" />
                       Instrument
                     </h4>
-                    {assignedInstruments.length > 0 ? (
-                      assignedInstruments.map((instrument, index) => (
-                        <Card key={index} className="border-[#e0e0e0] bg-gradient-to-r from-[#880808]/5 to-transparent">
-                          <CardContent className="pt-4">
-                            <div className="space-y-3">
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <p className="font-medium text-[#1A1A1A]">{instrument.itemName}</p>
-                                  {instrument.instrumentType && <p className="text-[11px] text-[#6c757d] mt-1">{instrument.instrumentType}</p>}
-                                </div>
-                                <Badge className="bg-green-100 text-green-800 text-xs">
-                                  {instrument.condition}
-                                </Badge>
+                    {assignedInstrument ? (
+                      <Card className="border-[#e0e0e0] bg-gradient-to-r from-[#880808]/5 to-transparent">
+                        <CardContent className="pt-4">
+                          <div className="space-y-3">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="font-medium text-[#1A1A1A]">{assignedInstrument.itemName}</p>
+                                {assignedInstrument.instrumentType && <p className="text-[11px] text-[#6c757d] mt-1">{assignedInstrument.instrumentType}</p>}
                               </div>
-                              <div className="space-y-2 text-sm">
-                                <div>
-                                  <p className="text-xs text-[#6c757d]">Item ID</p>
-                                  <p className="text-xs">{instrument.id}</p>
-                                </div>
-                                {instrument.serialNumber && (
-                                  <div>
-                                    <p className="text-xs text-[#6c757d]">Serial Number</p>
-                                    <p className="text-xs">{instrument.serialNumber}</p>
-                                  </div>
-                                )}
-                                <div>
-                                  <p className="text-xs text-[#6c757d]">Date Issued</p>
-                                  <p className="text-xs">{instrument.assignedDate?.toLocaleDateString() || 'Not specified'}</p>
-                                </div>
-                                {instrument.notes && (
-                                  <div>
-                                    <p className="text-xs text-[#6c757d]">Notes</p>
-                                    <p className="text-xs">{instrument.notes}</p>
-                                  </div>
-                                )}
-                              </div>
+                              <Badge className="bg-green-100 text-green-800 text-xs">
+                                {assignedInstrument.condition}
+                              </Badge>
                             </div>
-                          </CardContent>
-                        </Card>
-                      ))
+                            <div className="space-y-2 text-sm">
+                              <div>
+                                <p className="text-xs text-[#6c757d]">Item ID</p>
+                                <p className="text-xs">{assignedInstrument.id}</p>
+                              </div>
+                              {assignedInstrument.serialNumber && (
+                                <div>
+                                  <p className="text-xs text-[#6c757d]">Serial Number</p>
+                                  <p className="text-xs">{assignedInstrument.serialNumber}</p>
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-xs text-[#6c757d]">Date Issued</p>
+                                <p className="text-xs">{assignedInstrument.assignedDate?.toLocaleDateString() || 'Not specified'}</p>
+                              </div>
+                              {assignedInstrument.notes && (
+                                <div>
+                                  <p className="text-xs text-[#6c757d]">Notes</p>
+                                  <p className="text-xs">{assignedInstrument.notes}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
                     ) : (
                       <div className="text-center py-8 text-[#6c757d] border border-dashed border-[#e0e0e0] rounded-lg">
                         <Package className="w-8 h-8 mx-auto mb-2 opacity-30" />

@@ -38,7 +38,6 @@ import {
 } from './ui/icons';
 import type { User as UserType, Benefit, ScholarshipRenewal, Notification } from '../App';
 import type { Evaluation } from './DirectorDashboardEnhanced';
-import uncLogo from 'figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png';
 import { getTalentGroupName } from './ui/unc-colors';
 import { 
   DropdownMenu,
@@ -50,6 +49,7 @@ import {
 } from './ui/dropdown-menu';
 // ── Accessibility components (WCAG 2.1 AA / ISO 9241 / ISO 25010) ──────────────
 import { SkipToContent, EmptyState, ResponsiveTable } from './accessibility';
+import { DashboardQuickStatCard } from './ui/DashboardQuickStatCard';
 
 interface ScholarshipDashboardProps {
   user: UserType;
@@ -82,7 +82,7 @@ export function ScholarshipDashboard({
   const [uploadedRequirement, setUploadedRequirement] = useState<string>('');
   const [renewalData, setRenewalData] = useState({
     semester: '',
-    yearLevel: '',
+    year: new Date().getFullYear(),
     gpa: 0,
     gradeDocument: ''
   });
@@ -119,8 +119,8 @@ export function ScholarshipDashboard({
       toast.error('Please select a semester');
       return;
     }
-    if (!renewalData.yearLevel) {
-      toast.error('Please select a year level');
+    if (!Number.isFinite(Number(renewalData.year)) || Number(renewalData.year) < 2000 || Number(renewalData.year) > 2100) {
+      toast.error('Please enter a valid year');
       return;
     }
     if (renewalData.gpa < 1.0) {
@@ -138,7 +138,7 @@ export function ScholarshipDashboard({
     onSubmitRenewal({
       userId: user.id!,
       semester: renewalData.semester,
-      year: renewalData.yearLevel,
+      year: Number(renewalData.year),
       gpa: renewalData.gpa,
       documents: [renewalData.gradeDocument],
       status: 'pending',
@@ -148,7 +148,7 @@ export function ScholarshipDashboard({
     
     toast.success('Grade submission successful! Your director will review it for scholarship renewal.');
     setShowRenewalForm(false);
-    setRenewalData({ semester: '', yearLevel: '', gpa: 0, gradeDocument: '' });
+    setRenewalData({ semester: '', year: new Date().getFullYear(), gpa: 0, gradeDocument: '' });
     setUploadedRequirement('');
   };
 
@@ -179,38 +179,34 @@ export function ScholarshipDashboard({
       : roleLabelMap[user.role] ?? 'Scholar Dashboard';
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#F8F9FA]">
       {/* Skip to main content — WCAG 2.4.1 */}
       <SkipToContent />
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <header className="bg-white border-b shadow-sm sticky top-0 z-50" role="banner">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between py-4">
+      <header className="h-20 bg-white border-b border-[#E2E8F0] sticky top-0 z-50 flex items-center" role="banner">
+        <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px] flex items-center justify-between">
             {/* Logo + Title */}
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <img 
-                  src={uncLogo} 
-                  alt="University of Nueva Caceres Logo"
-                  className="w-12 h-12 object-contain"
-                />
-                <div>
-                  <h1 className="unc-burgundy-text">TalentTrackUNC</h1>
-                  <p className="text-xs text-muted-foreground">{dashboardLabel}</p>
-                </div>
+            <div>
+              <div>
+                <h1 className="text-xl leading-tight">
+                  <span className="font-bold text-[#0F172A]">Talent</span>
+                  <span className="text-[#0F172A]">Track</span>
+                  <span className="font-bold text-[#7A1E1E]">UNC</span>
+                </h1>
+                <p className="text-xs text-muted-foreground">{dashboardLabel}</p>
               </div>
             </div>
             
             {/* Right: Notifications + User + Settings */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-3">
               {/* Notification Bell */}
               <div className="relative">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative min-h-[44px] min-w-[44px]"
+                  className="relative w-9 h-9 p-0 flex items-center justify-center rounded-lg border border-[#E2E8F0] bg-white hover:border-[#7A1E1E] hover:text-[#7A1E1E] text-[#475569] transition-colors"
                   aria-label={
                     unreadNotifications.length > 0
                       ? `Notifications — ${unreadNotifications.length} unread`
@@ -220,13 +216,13 @@ export function ScholarshipDashboard({
                   aria-controls="notifications-panel"
                   aria-haspopup="dialog"
                 >
-                  <Bell className="w-5 h-5" aria-hidden="true" />
+                  <Bell className="w-4 h-4" aria-hidden="true" />
                   {unreadNotifications.length > 0 && (
                     <Badge
-                      className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-[#7A1E1E] text-white text-xs"
+                      className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center p-0 bg-[#7A1E1E] text-white text-[9px] font-bold"
                       aria-hidden="true"
                     >
-                      {unreadNotifications.length}
+                      {unreadNotifications.length > 99 ? '99+' : unreadNotifications.length}
                     </Badge>
                   )}
                 </Button>
@@ -243,35 +239,25 @@ export function ScholarshipDashboard({
               </div>
 
               {/* User Info */}
-              <div className="hidden md:block text-right">
-                <p className="text-sm font-medium">{user.name}</p>
-                <div className="flex items-center justify-end space-x-2">
-                  {user.role === 'admin' && (
-                    <Badge className="bg-[#6c757d] text-white">Admin</Badge>
-                  )}
-                  {user.role === 'director' && user.talentGroup && (
-                    <Badge className="bg-[#7A1E1E] text-white">
-                      {getTalentGroupName(user.talentGroup)}
-                    </Badge>
-                  )}
-                  {user.role === 'scholar' && user.talentGroup && user.trainingStatus !== 'in_progress' && (
-                    <>
-                      <Badge className="bg-[#7A1E1E] text-white">
-                        {getTalentGroupName(user.talentGroup)}
-                      </Badge>
-                      {user.studentId && (
-                        <span className="text-xs text-muted-foreground">{user.studentId}</span>
-                      )}
-                    </>
-                  )}
-                  {(user.role === 'trainee' || user.trainingStatus === 'in_progress') && user.talentGroup && (
-                    <Badge className="bg-[#7A1E1E] text-white">
-                      {getTalentGroupName(user.talentGroup)}
-                    </Badge>
-                  )}
-                  {user.role === 'student' && !user.talentGroup && user.email && (
-                    <span className="text-xs text-muted-foreground">{user.email}</span>
-                  )}
+              <div className="hidden md:flex items-center gap-2.5 pl-3 border-l border-[#E2E8F0]">
+                <div className="w-8 h-8 rounded-full bg-[#F9EAEA] border border-[#7A1E1E]/20 flex items-center justify-center flex-shrink-0">
+                  <User className="w-4 h-4 text-[#7A1E1E]" aria-hidden="true" />
+                </div>
+                <div className="text-right">
+                  <p className="text-[13px] font-semibold text-[#0F172A] leading-tight">{user.name}</p>
+                  <p className="text-[11px] text-[#64748B] leading-none mt-0.5">
+                    {user.talentGroup
+                      ? getTalentGroupName(user.talentGroup)
+                      : user.role === 'admin'
+                        ? 'Admin'
+                        : user.role === 'director'
+                          ? 'Director'
+                          : user.role === 'scholar'
+                            ? 'Scholar'
+                            : user.role === 'trainee' || user.trainingStatus === 'in_progress'
+                              ? 'Trainee'
+                              : 'Student'}
+                  </p>
                 </div>
               </div>
               
@@ -280,11 +266,11 @@ export function ScholarshipDashboard({
                 <DropdownMenuTrigger asChild>
                   <Button 
                     variant="outline" 
-                    size="sm" 
-                    className="border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors min-h-[44px]"
+                    size="default" 
+                    className="flex items-center gap-1.5 border border-[#7A1E1E] rounded-lg px-3 py-1.5 text-sm font-medium text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors duration-200 h-auto min-h-0"
                     aria-label="Open settings menu"
                   >
-                    <SettingsIcon className="w-4 h-4 mr-2" aria-hidden="true" />
+                    <SettingsIcon className="w-3.5 h-3.5" aria-hidden="true" />
                     <span className="hidden sm:inline">Settings</span>
                   </Button>
                 </DropdownMenuTrigger>
@@ -301,87 +287,66 @@ export function ScholarshipDashboard({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-          </div>
         </div>
       </header>
 
       {/* ── Dashboard Navigation ─────────────────────────────────────────────── */}
       {onNavigate && (
-        <nav className="bg-white border-b" aria-label="Dashboard sections">
-          <div className="container mx-auto px-4 py-3">
-            <div className="flex overflow-x-auto scrollbar-hide pb-1 gap-1" role="tablist" aria-label="Dashboard views">
-              <Button
-                role="tab"
-                variant="ghost"
-                size="sm"
-                onClick={() => onNavigate('member-profile')}
-                className="min-h-[44px]"
-                aria-selected={false}
-              >
-                <User className="w-4 h-4 mr-2" aria-hidden="true" /><span className="hidden sm:inline">Member Profile</span>              </Button>
-              <Button
-                role="tab"
-                variant="ghost"
-                size="sm"
-                onClick={() => onNavigate('engagement')}
-                className="min-h-[44px]"
-                aria-selected={false}
-              >
-                <Calendar className="w-4 h-4 mr-2" aria-hidden="true" /><span className="hidden sm:inline">Engagement</span>              </Button>
-              <Button
-                role="tab"
-                variant="default"
-                size="sm"
-                className="bg-[#7A1E1E] text-white hover:bg-[#7A1E1E] min-h-[44px]"
-                aria-selected={true}
-                aria-current="page"
-              >
-                <Award className="w-4 h-4 mr-2" aria-hidden="true" /><span className="hidden sm:inline">Scholarship</span>              </Button>
+        <nav className="bg-white border-b border-[#E2E8F0]" aria-label="Dashboard sections">
+          <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px]">
+            <div className="flex gap-0 overflow-x-auto" role="tablist" aria-label="Dashboard views">
+              {([
+                { key: 'member-profile', label: 'Member Profile', active: false, cb: () => onNavigate('member-profile'), Icon: User },
+                { key: 'engagement',     label: 'Engagement',     active: false, cb: () => onNavigate('engagement'),    Icon: Calendar },
+                { key: 'scholarship',    label: 'Scholarship',    active: true,  cb: undefined,                          Icon: Award },
+              ] as const).map(({ key, label, active, cb, Icon }) => (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={active}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={cb}
+                  className={`relative flex items-center gap-2 px-4 py-3.5 text-[13px] font-medium whitespace-nowrap transition-colors duration-150 border-b-2 ${
+                    active
+                      ? 'border-[#7A1E1E] text-[#7A1E1E]'
+                      : 'border-transparent text-[#64748B] hover:text-[#0F172A] hover:border-[#E2E8F0]'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>{label}</span>
+                </button>
+              ))}
             </div>
           </div>
         </nav>
       )}
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}
-      <main id="main-content" className="container mx-auto px-4 py-8">
+      <main id="main-content" className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px] py-6">
 
         {/* Quick Stats — Dashboard Overview */}
         <section aria-labelledby="quick-stats-heading" className="mb-8">
           <h2 id="quick-stats-heading" className="sr-only">Quick Statistics</h2>
           <div
-            className="grid grid-cols-2 gap-2 sm:gap-4"
+            className="grid grid-cols-2 gap-4"
             role="list"
             aria-label="Scholarship quick statistics"
           >
-            <Card
-              role="listitem"
-              className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
-              onClick={() => scrollToSection('scholarship-details')}
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scrollToSection('scholarship-details'); } }}
-              aria-label={`Scholarship Status: ${scholarshipPercentage}%. Activate to view details.`}
-            >
-              <CardContent className="p-2 sm:p-3">
-                <p className="text-[#6B7280] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Scholarship Status</p>
-                <p className="text-[#1A1A1A] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">{scholarshipPercentage}%</p>
-              </CardContent>
-            </Card>
+            <div role="listitem" aria-label={`Scholarship Status: ${scholarshipPercentage}%. Activate to view details.`}>
+              <DashboardQuickStatCard
+                label="Scholarship Status"
+                value={`${scholarshipPercentage}%`}
+                onClick={() => scrollToSection('scholarship-details')}
+              />
+            </div>
 
-            <Card
-              role="listitem"
-              className="bg-white border-[#E0E0E0] border-[0.8px] shadow-[0px_2px_8px_0px_rgba(0,0,0,0.08)] rounded-[12px] cursor-pointer hover:shadow-[0px_4px_12px_0px_rgba(0,0,0,0.12)] hover:border-[#7A1E1E] transition-all"
-              onClick={() => scrollToSection('renewal-section')}
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scrollToSection('renewal-section'); } }}
-              aria-label={`Renewal Status: ${currentRenewal ? 'Pending' : 'Ready to apply'}. Activate to view renewal section.`}
-            >
-              <CardContent className="p-2 sm:p-3">
-                <p className="text-[#6B7280] text-[10px] sm:text-[12px] leading-[13px] sm:leading-[16px]">Renewal Status</p>
-                <p className="text-[#1A1A1A] text-[14px] sm:text-[18px] leading-[18px] sm:leading-[24px] font-bold">
-                  {currentRenewal ? 'Pending' : 'Ready'}
-                </p>
-              </CardContent>
-            </Card>
+            <div role="listitem" aria-label={`Renewal Status: ${currentRenewal ? 'Pending' : 'Ready to apply'}. Activate to view renewal section.`}>
+              <DashboardQuickStatCard
+                label="Renewal Status"
+                value={currentRenewal ? 'Pending' : 'Ready'}
+                onClick={() => scrollToSection('renewal-section')}
+              />
+            </div>
           </div>
         </section>
 
@@ -526,27 +491,33 @@ export function ScholarshipDashboard({
                               </Select>
                             </div>
 
-                            {/* Year Level */}
+                            {/* Year */}
                             <div>
-                              <Label htmlFor="renewal-year-level">
-                                Year Level <span className="text-red-600" aria-hidden="true">*</span>
+                              <Label htmlFor="renewal-year">
+                                Year <span className="text-red-600" aria-hidden="true">*</span>
                                 <span className="sr-only">(required)</span>
                               </Label>
-                              <Select
-                                value={renewalData.yearLevel}
-                                onValueChange={(value) => setRenewalData(prev => ({ ...prev, yearLevel: value }))}
-                              >
-                                <SelectTrigger id="renewal-year-level" className="mt-1 h-[44px]" aria-required="true">
-                                  <SelectValue placeholder="Select year level" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="1st Year">1st Year</SelectItem>
-                                  <SelectItem value="2nd Year">2nd Year</SelectItem>
-                                  <SelectItem value="3rd Year">3rd Year</SelectItem>
-                                  <SelectItem value="4th Year">4th Year</SelectItem>
-                                  <SelectItem value="5th Year">5th Year</SelectItem>
-                                </SelectContent>
-                              </Select>
+                              <Input
+                                id="renewal-year"
+                                type="number"
+                                min="2000"
+                                max="2100"
+                                step="1"
+                                inputMode="numeric"
+                                placeholder="e.g., 2026"
+                                value={renewalData.year}
+                                onChange={(e) => {
+                                  const raw = e.target.value.replace(/\D/g, '');
+                                  const parsed = parseInt(raw, 10);
+                                  const safeYear = Number.isNaN(parsed)
+                                    ? new Date().getFullYear()
+                                    : Math.min(2100, Math.max(2000, parsed));
+                                  setRenewalData(prev => ({ ...prev, year: safeYear }));
+                                }}
+                                className="mt-1 h-[44px]"
+                                required
+                                aria-required="true"
+                              />
                             </div>
 
                             {/* GPA */}
@@ -561,10 +532,19 @@ export function ScholarshipDashboard({
                                 step="0.01"
                                 min="1.0"
                                 max="4.0"
+                                inputMode="decimal"
                                 placeholder="e.g., 3.5"
                                 value={renewalData.gpa || ''}
-                                onChange={(e) => setRenewalData(prev => ({ ...prev, gpa: parseFloat(e.target.value) }))}
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  const parsed = parseFloat(raw);
+                                  const safeGpa = Number.isNaN(parsed)
+                                    ? 0
+                                    : Math.min(4, Math.max(1, Number(parsed.toFixed(2))));
+                                  setRenewalData(prev => ({ ...prev, gpa: safeGpa }));
+                                }}
                                 className="mt-1 h-[44px]"
+                                required
                                 aria-required="true"
                                 aria-describedby="gpa-hint"
                               />
@@ -769,7 +749,7 @@ export function ScholarshipDashboard({
                                   <div className="flex items-center justify-between">
                                     <div>
                                       <p className="text-[12px] text-blue-800 font-medium">
-                                        {matchingRenewal.semester} — Year Level: {matchingRenewal.yearLevel}
+                                        {matchingRenewal.semester} — Year: {matchingRenewal.year}
                                       </p>
                                       <p className="text-[10px] text-blue-600 mt-1">
                                         Submitted GPA: <strong>{matchingRenewal.gpa.toFixed(2)}</strong>

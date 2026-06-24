@@ -59,7 +59,6 @@ export const authService = {
       applicationStatus: (data.user as any).application_status ?? data.user.applicationStatus,
     };
     setToken(data.token);
-    localStorage.setItem('auth_user', JSON.stringify(user));
     return { token: data.token, user };
   },
 
@@ -87,16 +86,10 @@ export const authService = {
   },
 
   /**
-   * Rehydrate user from localStorage (sync, no network).
-   * Use this on app start to avoid a flash of unauthenticated state.
+   * Rehydrate user from storage.
+   * Intentionally returns null: authentication state is validated from backend /me.
    */
   getStoredUser(): AuthUser | null {
-    const raw = localStorage.getItem('auth_user');
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as AuthUser;
-    } catch {
-      return null;
-    }
+    return null;
   },
 };

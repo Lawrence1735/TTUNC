@@ -37,6 +37,7 @@ final class RecruitmentController extends Controller
             'applicant_birthdate',
             'applicant_age',
             'applicant_address',
+            'residing_address',
             'applicant_gender',
             'applicant_year_level',
             'applicant_course',
@@ -44,14 +45,10 @@ final class RecruitmentController extends Controller
             'guardian_name',
             'guardian_phone',
             'guardian_relationship',
-            'vocal_range',
-            'primary_dance_genre',
-            'years_of_experience',
+            'photo_path',
             'denial_reason',
             'denial_feedback',
             'approval_notes',
-            'social_media',
-            'photo_path',
             'applied_at',
             'created_at',
             'updated_at',
@@ -113,15 +110,13 @@ final class RecruitmentController extends Controller
             'applicant_course'      => ['nullable', 'string'],
             'applicant_department'  => ['nullable', 'string'],
             'applicant_address'     => ['nullable', 'string'],
+            'residing_address'      => ['nullable', 'string'],
             'applicant_gender'      => ['nullable', 'string'],
             'applicant_birthdate'   => ['nullable', 'date'],
             'applicant_age'         => ['nullable', 'string'],
             'guardian_name'         => ['nullable', 'string'],
             'guardian_phone'        => ['nullable', 'string'],
             'guardian_relationship' => ['nullable', 'string'],
-            'vocal_range'           => ['nullable', 'string'],
-            'primary_dance_genre'   => ['nullable', 'string'],
-            'years_of_experience'   => ['nullable', 'string'],
             'photo'                 => ['nullable', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
         ]);
 
@@ -136,6 +131,33 @@ final class RecruitmentController extends Controller
             'status'     => 'pending',
             'applied_at' => now(),
         ]);
+
+        // Send confirmation email
+        $subject = 'Application Submitted Successfully - ' . config('app.name', 'TalentTrackUNC');
+        $body = implode("\n", [
+            'Hello ' . $application->applicant_name . ',',
+            '',
+            'Thank you for submitting your application to UNC TalentTrack!',
+            '',
+            'Application Details:',
+            'Talent Group: ' . ucfirst(str_replace('-', ' ', $application->talent_group)),
+            'Reference ID: ' . $application->id,
+            'Submitted Date: ' . $application->applied_at->format('F d, Y H:i A'),
+            '',
+            'What happens next?',
+            '- We will review your application within 5-7 business days',
+            '- Shortlisted candidates will be invited for auditions',
+            '- You will receive all updates via email and the TalentTrack portal',
+            '',
+            'For any questions or concerns, please contact us at: talenttrack@unc.edu.ph',
+            '',
+            'Best regards,',
+            config('app.name', 'TalentTrackUNC') . ' Team',
+        ]);
+
+        Mail::raw($body, function ($message) use ($application, $subject): void {
+            $message->to($application->applicant_email)->subject($subject);
+        });
 
         return response()->json(['data' => $application], Response::HTTP_CREATED);
     }
@@ -157,6 +179,7 @@ final class RecruitmentController extends Controller
             'applicant_birthdate',
             'applicant_age',
             'applicant_address',
+            'residing_address',
             'applicant_gender',
             'applicant_year_level',
             'applicant_course',
@@ -164,14 +187,10 @@ final class RecruitmentController extends Controller
             'guardian_name',
             'guardian_phone',
             'guardian_relationship',
-            'vocal_range',
-            'primary_dance_genre',
-            'years_of_experience',
+            'photo_path',
             'denial_reason',
             'denial_feedback',
             'approval_notes',
-            'social_media',
-            'photo_path',
             'applied_at',
             'created_at',
             'updated_at',
@@ -279,35 +298,31 @@ final class RecruitmentController extends Controller
                     : $user->role;
 
                 $user->forceFill([
-                    'name'               => $application->applicant_name,
-                    'email'              => $application->applicant_email,
-                    'password'           => Hash::make($createdCredentials['temporary_password']),
-                    'role'               => $resolvedRole,
-                    'talent_group'       => $application->talent_group,
-                    'student_id'         => $application->applicant_student_id,
-                    'phone'              => $application->applicant_phone,
-                    'year_level'         => $application->applicant_year_level,
-                    'course'             => $application->applicant_course,
-                    'department'         => $application->applicant_department,
-                    'address'            => $application->applicant_address,
-                    'application_status' => 'approved',
-                    'training_status'    => 'in_progress',
+                    'name'         => $application->applicant_name,
+                    'email'        => $application->applicant_email,
+                    'password'     => Hash::make($createdCredentials['temporary_password']),
+                    'role'         => $resolvedRole,
+                    'talent_group' => $application->talent_group,
+                    'student_id'   => $application->applicant_student_id,
+                    'phone'        => $application->applicant_phone,
+                    'year_level'   => $application->applicant_year_level,
+                    'course'       => $application->applicant_course,
+                    'department'   => $application->applicant_department,
+                    'address'      => $application->applicant_address ?? $application->residing_address,
                 ])->save();
             } else {
                 $user = User::query()->create([
-                    'name'               => $application->applicant_name,
-                    'email'              => $application->applicant_email,
-                    'password'           => Hash::make($createdCredentials['temporary_password']),
-                    'role'               => 'trainee',
-                    'talent_group'       => $application->talent_group,
-                    'student_id'         => $application->applicant_student_id,
-                    'phone'              => $application->applicant_phone,
-                    'year_level'         => $application->applicant_year_level,
-                    'course'             => $application->applicant_course,
-                    'department'         => $application->applicant_department,
-                    'address'            => $application->applicant_address,
-                    'application_status' => 'approved',
-                    'training_status'    => 'in_progress',
+                    'name'         => $application->applicant_name,
+                    'email'        => $application->applicant_email,
+                    'password'     => Hash::make($createdCredentials['temporary_password']),
+                    'role'         => 'trainee',
+                    'talent_group' => $application->talent_group,
+                    'student_id'   => $application->applicant_student_id,
+                    'phone'        => $application->applicant_phone,
+                    'year_level'   => $application->applicant_year_level,
+                    'course'       => $application->applicant_course,
+                    'department'   => $application->applicant_department,
+                    'address'      => $application->applicant_address ?? $application->residing_address,
                 ]);
             }
 
@@ -316,12 +331,13 @@ final class RecruitmentController extends Controller
             Trainee::query()->firstOrCreate(
                 ['user_id' => $user->id],
                 [
-                    'completion_rate' => 0,
-                    'current_status' => 'active',
-                    'instrument' => null,
-                    'voice' => $application->vocal_range,
-                    'total_expected_sessions' => 30,
-                    'date_joined' => now()->toDateString(),
+                    'application_id'           => $application->id,
+                    'completion_rate'          => 0,
+                    'current_status'           => 'active',
+                    'instrument'               => null,
+                    'voice'                    => null,
+                    'total_expected_sessions'  => 30,
+                    'date_joined'              => now()->toDateString(),
                 ]
             );
 

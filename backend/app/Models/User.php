@@ -28,8 +28,8 @@ class User extends Authenticatable
         'course',
         'department',
         'address',
-        'application_status',
-        'training_status',
+        // Note: application_status removed — use Application::status instead
+        // Note: training_status removed — use Trainee::current_status instead
     ];
 
     protected $hidden = [

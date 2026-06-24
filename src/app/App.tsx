@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useTransition } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense, useTransition } from "react";
 import { useAuth } from './context/AuthContext';
 import { TalentTrackLanding } from "./components/TalentTrackLanding";
 import { TalentTrackLogin } from "./components/TalentTrackLogin";
@@ -31,6 +31,7 @@ import { recruitmentService } from "./services/recruitmentService";
 import scholarshipService from "./services/scholarshipService";
 import notificationService from "./services/notificationService";
 import productService from "./services/productService";
+import trainingClient from "../api/trainingClient";
 import { api } from "./services/api";
 
 export interface Evaluation {
@@ -131,6 +132,7 @@ export interface User {
   guardianContact?: string;
   allergies?: string;
   medicalConditions?: string;
+  createdAt?: string;
 }
 
 export interface Application {
@@ -337,17 +339,13 @@ function AppContent() {
   // Cast AuthUser to User for component compatibility
   const userAsComponentUser = currentUser ? (currentUser as unknown as User) : null as unknown as User;
 
-  // Helper to get initial page from localStorage or default
+  // Helper to get initial page based on query/auth state
   const getInitialPage = () => {
     const queryPage = new URLSearchParams(window.location.search).get('page');
     if (queryPage === 'reset-password') {
       return 'reset-password' as const;
     }
 
-    const savedPage = localStorage.getItem('current_page');
-    if (user && savedPage && ['dashboard', 'public-application', 'requirements'].includes(savedPage)) {
-      return savedPage as any;
-    }
     return user ? 'dashboard' : 'landing';
   };
 
@@ -386,11 +384,6 @@ function AppContent() {
     initKeyboardNavigation();
   }, []);
 
-  // Persist currentPage to localStorage so it survives refresh
-  useEffect(() => {
-    localStorage.setItem('current_page', currentPage);
-  }, [currentPage]);
-
   // Helper navigation utility to change views smoothly
   const navigateTo = (view: typeof currentView | 'settings', tab?: "account" | "security" | "administration" | "logout") => {
     startTransition(() => {
@@ -411,6 +404,27 @@ function AppContent() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    // On hard refresh, restore authenticated users to dashboard instead of landing/auth pages.
+    if (currentPage !== 'dashboard' && currentPage !== 'reset-password') {
+      setCurrentPage('dashboard');
+    }
+
+    if (user.role === 'admin') {
+      setCurrentView('admin');
+    } else if (user.role === 'director') {
+      setCurrentView('director');
+    } else if (user.role === 'scholar') {
+      setCurrentView('member-profile');
+    } else if (user.trainingStatus === 'in_progress' || user.trainingStatus === 'active') {
+      setCurrentView('training');
+    } else {
+      setCurrentView('student');
+    }
+  }, [user, currentPage]);
+
   const [users, setUsers] = useState<User[]>([]);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [events] = useState<Event[]>([]);
@@ -422,17 +436,11 @@ function AppContent() {
   const [benefits, setBenefits] = useState<Benefit[]>([]);
   const [renewals, setRenewals] = useState<ScholarshipRenewal[]>([]);
 
-  // Fetch user-specific data from the API once logged in
-  // Use `user` directly from AuthContext (not the copy `currentUser`) to avoid stale-state timing gaps
-  useEffect(() => {
+  const fetchNotifications = useCallback(async () => {
     if (!user) return;
 
-    const role = user.role;
-    const group = user.talentGroup;
-    console.group(`%c[TalentTrack] Data fetch — ${user.name} (${role}${group ? `, ${group}` : ''})`, 'color:#7A1E1E;font-weight:bold');
-
-    // Fetch notifications for this user
-    notificationService.getNotifications().then(apiNotifs => {
+    try {
+      const apiNotifs = await notificationService.getNotifications();
       setNotifications(apiNotifs.map(n => ({
         id: String(n.id),
         userId: String(n.user_id),
@@ -445,9 +453,22 @@ function AppContent() {
         actionUrl: n.action_url ?? undefined,
       })));
       console.log(`✓ Notifications fetched: ${apiNotifs.length}`);
-    }).catch((err) => {
+    } catch (err: any) {
       console.error('✗ Notifications fetch failed:', err?.response?.status, err?.message);
-    });
+    }
+  }, [user]);
+
+  // Fetch user-specific data from the API once logged in
+  // Use `user` directly from AuthContext (not the copy `currentUser`) to avoid stale-state timing gaps
+  useEffect(() => {
+    if (!user) return;
+
+    const role = user.role;
+    const group = user.talentGroup;
+    console.group(`%c[TalentTrack] Data fetch — ${user.name} (${role}${group ? `, ${group}` : ''})`, 'color:#7A1E1E;font-weight:bold');
+
+    // Fetch notifications for this user
+    void fetchNotifications();
 
     // Fetch inventory for all authenticated users
     productService.getProducts().then(apiProducts => {
@@ -474,8 +495,9 @@ function AppContent() {
     });
 
     if (role === 'director' || role === 'admin') {
-      // Fetch users list
-      api.get<any[]>('users').then(r => {
+      // Fetch users list (directors scoped to talent group, admins get all)
+      const userParams = role === 'director' ? { talent_group: group } : {};
+      api.get<any[]>('users', { params: userParams }).then(r => {
         const allUsers = r.data.map(u => ({
           id: String(u.id),
           name: u.name,
@@ -486,6 +508,11 @@ function AppContent() {
           talentGroup: u.talent_group ?? undefined,
           yearLevel: u.year_level ?? undefined,
           course: u.course ?? undefined,
+          department: u.department ?? undefined,
+          address: u.address ?? undefined,
+          createdAt: u.created_at ?? undefined,
+          assignedInstrument: u.trainee?.instrument ?? undefined,
+          assignedVoice: u.trainee?.voice ?? undefined,
           trainingStatus: u.training_status ?? undefined,
         }));
         setUsers(allUsers);
@@ -520,6 +547,51 @@ function AppContent() {
         console.log(`✓ Applications fetched: ${resp.data.length}`);
       }).catch((err) => {
         console.error('✗ Applications fetch failed:', err?.response?.status, err?.message);
+      });
+
+      const parseEvaluationSection = (section: any): any => {
+        if (!section) return undefined;
+        if (typeof section === 'string') {
+          try {
+            const parsed = JSON.parse(section);
+            return typeof parsed === 'object' ? parsed : undefined;
+          } catch {
+            return undefined;
+          }
+        }
+        if (typeof section === 'object') return section;
+        return undefined;
+      };
+
+      // Fetch historical evaluations so scholarship percentages are available immediately in Members views.
+      // Evaluations are automatically scoped by backend based on user role and talent group.
+      trainingClient.getEvaluations().then((rows) => {
+        const mappedEvaluations: Evaluation[] = rows.map((e: any) => ({
+          id: String(e.id),
+          traineeId: String(e?.trainee?.user_id ?? e?.trainee?.userId ?? e?.trainee_id ?? ''),
+          traineeName: String(e?.trainee?.user?.name ?? e?.trainee?.name ?? ''),
+          date: new Date(e?.evaluation_date ?? e?.evaluationDate ?? e?.created_at ?? Date.now()),
+          rating: Number(e?.rating ?? 0),
+          notes: String(e?.notes ?? ''),
+          status: (e?.status ?? 'submitted') as Evaluation['status'],
+          scholarshipPercentage: Number(e?.scholarship_percentage ?? e?.scholarshipPercentage ?? 0),
+          recommendation: e?.recommendation,
+          strengths: e?.strengths,
+          improvements: e?.improvements,
+          ratedBy: e?.rated_by,
+          ratedDate: String(e?.ratedDate ?? e?.rated_date ?? e?.evaluation_date ?? e?.created_at ?? ''),
+          adjectivalRating: e?.adjectival_rating ?? e?.adjectivalRating,
+          overallRating: e?.overall_rating ?? e?.overallRating,
+          recommendForRenewal: e?.recommend_for_renewal ?? e?.recommendForRenewal,
+          sectionA: parseEvaluationSection(e?.section_a ?? e?.sectionA),
+          sectionB: parseEvaluationSection(e?.section_b ?? e?.sectionB),
+          sectionC: parseEvaluationSection(e?.section_c ?? e?.sectionC),
+        }));
+
+        setEvaluations(mappedEvaluations);
+        console.log(`✓ Evaluations fetched: ${mappedEvaluations.length}`);
+      }).catch((err) => {
+        console.error('✗ Evaluations fetch failed:', err?.response?.status, err?.message);
       });
     }
 
@@ -560,11 +632,25 @@ function AppContent() {
     }
 
     console.groupEnd();
-  }, [user?.id]);
+  }, [user?.id, fetchNotifications]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    void fetchNotifications();
+    const intervalId = window.setInterval(() => {
+      void fetchNotifications();
+    }, 30000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [user, fetchNotifications]);
 
 
   // Notification Panel State
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
+  const currentUserId = currentUser ? String(currentUser.id) : null;
 
   // Helper function to add a notification
   const addNotification = (
@@ -588,29 +674,48 @@ function AppContent() {
   };
 
   // Helper function to mark notification as read
-  const markNotificationAsRead = (notificationId: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
-    );
+  const markNotificationAsRead = async (notificationId: string) => {
+    try {
+      await notificationService.markRead(Number(notificationId));
+      setNotifications(prev =>
+        prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
+      );
+    } catch {
+      toast.error('Failed to mark notification as read');
+    }
+  };
+
+  const handleNotificationRead = (notificationId: string) => {
+    void markNotificationAsRead(notificationId);
   };
 
   // Helper function to mark all notifications as read
-  const markAllNotificationsAsRead = () => {
-    if (!currentUser) return;
-    setNotifications(prev =>
-      prev.map(n => (n.userId === currentUser.id ? { ...n, read: true } : n))
-    );
+  const markAllNotificationsAsRead = async () => {
+    if (!currentUserId) return;
+    try {
+      await notificationService.markAllRead();
+      setNotifications(prev =>
+        prev.map(n => (String(n.userId) === currentUserId ? { ...n, read: true } : n))
+      );
+    } catch {
+      toast.error('Failed to mark all notifications as read');
+    }
   };
 
   // Helper function to delete notification
-  const deleteNotification = (notificationId: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+  const deleteNotification = async (notificationId: string) => {
+    try {
+      await notificationService.deleteNotification(Number(notificationId));
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    } catch {
+      toast.error('Failed to delete notification');
+    }
   };
 
   // Get notifications for current user
-  const userNotifications = currentUser
+  const userNotifications = currentUserId
     ? notifications
-        .filter(n => n.userId === currentUser.id)
+        .filter(n => String(n.userId) === currentUserId)
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     : [];
 
@@ -628,6 +733,8 @@ function AppContent() {
             setCurrentView('admin');
           } else if (loggedInUser.role === 'director') {
             setCurrentView('director');
+          } else if (loggedInUser.role === 'scholar') {
+            setCurrentView('member-profile');
           } else if (loggedInUser.trainingStatus === 'in_progress' || loggedInUser.trainingStatus === 'active') {
             setCurrentView('training');
           } else {
@@ -651,8 +758,8 @@ function AppContent() {
   };
 
   const handleUpdateUser = (userId: string, updates: Partial<User>) => {
-    setUsers(users.map(u => u.id === userId ? { ...u, ...updates } : u));
-    if (currentUser && currentUser.id === userId) {
+    setUsers(users.map(u => String(u.id) === String(userId) ? { ...u, ...updates } : u));
+    if (currentUser && String(currentUser.id) === String(userId)) {
       setCurrentUser({ ...currentUser, ...updates });
     }
   };
@@ -720,7 +827,7 @@ function AppContent() {
     if (formData.socialMedia)          fd.append('social_media', formData.socialMedia);
     if (formData.photo)                fd.append('photo', formData.photo);
 
-    await recruitmentService.submitApplicationForm(fd);
+    return await recruitmentService.submitApplicationForm(fd);
   };
 
   const renderCurrentPage = () => {
@@ -801,10 +908,15 @@ function AppContent() {
         switch (currentUser.role) {
           case "student":
           case "trainee": {
+            // Some existing trainee accounts are still stored as role=student in backend.
+            // Treat approved students (or students already assigned to a talent group) as trainees for dashboard routing.
             const hasApprovedTrainingAccess =
               currentUser.role === 'trainee'
-              || (currentUser.applicationStatus === 'approved'
-                  && (currentUser.trainingStatus === 'in_progress' || currentUser.trainingStatus === 'active'));
+              || currentUser.applicationStatus === 'approved'
+              || Boolean(currentUser.talentGroup)
+              || (currentUser.trainingStatus === 'not_started'
+                  || currentUser.trainingStatus === 'in_progress'
+                  || currentUser.trainingStatus === 'active');
 
             if (hasApprovedTrainingAccess) {
               if (currentView === "settings") {
@@ -848,10 +960,8 @@ function AppContent() {
                   user={userAsComponentUser}
                   onLogout={handleLogout}
                   applications={applications.filter((app) => app.userId === currentUser.id)}
-                  notifications={notifications.filter((n) => n.userId === currentUser.id)}
-                  onMarkNotificationRead={(notificationId) => {
-                    setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
-                  }}
+                  notifications={notifications.filter((n) => String(n.userId) === String(currentUser.id))}
+                  onMarkNotificationRead={handleNotificationRead}
                   unreadNotifications={unreadNotificationsCount}
                   onNotificationsClick={() => setShowNotificationPanel(!showNotificationPanel)}
                 />
@@ -888,12 +998,44 @@ function AppContent() {
                       navigateTo(view as any, tab ?? undefined);
                     }}
                     inventory={inventoryItems}
-                    notifications={notifications.filter((n) => n.userId === currentUser.id)}
-                    onMarkNotificationRead={(notificationId) => {
-                      setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
-                    }}
-                    onUpdateProfile={(updatedData) => {
-                      setUsers(users.map((u) => u.id === currentUser.id ? { ...u, ...updatedData } : u));
+                    notifications={notifications.filter((n) => String(n.userId) === String(currentUser.id))}
+                    onMarkNotificationRead={handleNotificationRead}
+                    onUpdateProfile={async (updatedData) => {
+                      try {
+                        const payload = {
+                          name: updatedData.name,
+                          phone: updatedData.phone,
+                          address: updatedData.address,
+                          course: updatedData.course,
+                          year_level: updatedData.yearLevel,
+                          department: updatedData.department,
+                        };
+
+                        const { data } = await api.patch('me', payload);
+
+                        const normalized = {
+                          id: String(data.id),
+                          name: data.name,
+                          email: data.email,
+                          role: data.role,
+                          talentGroup: data.talent_group,
+                          studentId: data.student_id,
+                          phone: data.phone,
+                          yearLevel: data.year_level,
+                          course: data.course,
+                          department: data.department,
+                          address: data.address,
+                          applicationStatus: data.application_status,
+                          trainingStatus: data.training_status,
+                          createdAt: data.created_at,
+                        };
+
+                        setCurrentUser((prev) => (prev ? { ...prev, ...normalized } : prev));
+                        setUsers((prev) => prev.map((u) => (String(u.id) === String(data.id) ? { ...u, ...normalized } : u)));
+                      } catch {
+                        toast.error('Failed to update profile. Please try again.');
+                        throw new Error('Profile update failed');
+                      }
                     }}
                   />
                 </Suspense>
@@ -909,10 +1051,8 @@ function AppContent() {
                     onNavigate={(view, tab) => {
                       navigateTo(view as any, tab ?? undefined);
                     }}
-                    notifications={notifications.filter((n) => n.userId === currentUser.id)}
-                    onMarkNotificationRead={(notificationId) => {
-                      setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
-                    }}
+                    notifications={notifications.filter((n) => String(n.userId) === String(currentUser.id))}
+                    onMarkNotificationRead={handleNotificationRead}
                   />
                 </Suspense>
               );
@@ -930,11 +1070,8 @@ function AppContent() {
                     benefits={benefits}
                     renewals={renewals}
                     evaluations={evaluations.filter((e: any) => e.traineeId === currentUser?.id)}
-                    notifications={notifications.filter((n) => n.userId === currentUser?.id)}
-                    onMarkNotificationRead={(notificationId) => {
-                      setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
-                      notificationService.markRead(Number(notificationId)).catch(() => {});
-                    }}
+                    notifications={notifications.filter((n) => String(n.userId) === String(currentUser?.id))}
+                    onMarkNotificationRead={handleNotificationRead}
                     onSubmitRenewal={(renewalData) => {
                       scholarshipService.submitRenewal({
                         semester: renewalData.semester,
@@ -969,12 +1106,44 @@ function AppContent() {
                   onLogout={handleLogout}
                   onNavigate={(view) => navigateTo(view as any)}
                   inventory={inventoryItems}
-                  notifications={notifications.filter((n) => n.userId === currentUser.id)}
-                  onMarkNotificationRead={(notificationId) => {
-                    setNotifications(notifications.map((n) => n.id === notificationId ? { ...n, read: true } : n));
-                  }}
-                  onUpdateProfile={(updatedData) => {
-                    setUsers(users.map((u) => u.id === currentUser.id ? { ...u, ...updatedData } : u));
+                  notifications={notifications.filter((n) => String(n.userId) === String(currentUser.id))}
+                  onMarkNotificationRead={handleNotificationRead}
+                  onUpdateProfile={async (updatedData) => {
+                    try {
+                      const payload = {
+                        name: updatedData.name,
+                        phone: updatedData.phone,
+                        address: updatedData.address,
+                        course: updatedData.course,
+                        year_level: updatedData.yearLevel,
+                        department: updatedData.department,
+                      };
+
+                      const { data } = await api.patch('me', payload);
+
+                      const normalized = {
+                        id: String(data.id),
+                        name: data.name,
+                        email: data.email,
+                        role: data.role,
+                        talentGroup: data.talent_group,
+                        studentId: data.student_id,
+                        phone: data.phone,
+                        yearLevel: data.year_level,
+                        course: data.course,
+                        department: data.department,
+                        address: data.address,
+                        applicationStatus: data.application_status,
+                        trainingStatus: data.training_status,
+                        createdAt: data.created_at,
+                      };
+
+                      setCurrentUser((prev) => (prev ? { ...prev, ...normalized } : prev));
+                      setUsers((prev) => prev.map((u) => (String(u.id) === String(data.id) ? { ...u, ...normalized } : u)));
+                    } catch {
+                      toast.error('Failed to update profile. Please try again.');
+                      throw new Error('Profile update failed');
+                    }
                   }}
                 />
               </Suspense>
@@ -992,7 +1161,7 @@ function AppContent() {
                     onUpdatePassword={handleUpdatePassword}
                     unreadNotifications={unreadNotificationsCount}
                     onNotificationsClick={() => setShowNotificationPanel(!showNotificationPanel)}
-                    onNavigateBack={() => navigateTo('overview' as any)}
+                    onNavigateBack={() => navigateTo('admin')}
                     initialTab={settingsTab}
                   />
                 </Suspense>
@@ -1039,7 +1208,7 @@ function AppContent() {
                   onUpdatePassword={handleUpdatePassword}
                   unreadNotifications={unreadNotificationsCount}
                   onNotificationsClick={() => setShowNotificationPanel(!showNotificationPanel)}
-                  onNavigateBack={() => navigateTo('overview' as any)}
+                  onNavigateBack={() => navigateTo('director')}
                   initialTab={settingsTab}
                 />
                 </Suspense>
@@ -1165,14 +1334,94 @@ function AppContent() {
                 }}
                 inventoryItems={inventoryItems}
                 onAddInventoryItem={(item) => {
-                  setInventoryItems([...inventoryItems, item]);
-                  toast.success('Inventory item added successfully!');
+                  const createItem = async () => {
+                    await productService.createProduct({
+                      name: item.itemName || item.name || 'Inventory Item',
+                      type: item.type,
+                      quantity: item.quantity ?? 1,
+                      condition: item.condition ?? 'good',
+                      status: item.status ?? 'available',
+                      description: item.description ?? null,
+                      serial_number: item.serialNumber ?? null,
+                      property_type: item.propertyType ?? null,
+                      instrument_type: item.instrumentType ?? null,
+                      accessory_type: item.accessoryType ?? null,
+                      uniform_set: item.uniformSet ?? null,
+                      assigned_to: item.userId ? Number(item.userId) : null,
+                    } as any);
+
+                    const apiProducts = await productService.getProducts();
+                    setInventoryItems(apiProducts.map(p => ({
+                      id: String(p.id),
+                      userId: String(p.assigned_to ?? ''),
+                      talentGroup: p.talent_group ?? undefined,
+                      name: p.name,
+                      itemName: p.name,
+                      type: p.type,
+                      condition: p.condition,
+                      status: p.status === 'available' ? 'returned' : p.status as InventoryItem['status'],
+                      description: p.description ?? undefined,
+                      serialNumber: p.serial_number ?? undefined,
+                      propertyType: p.property_type ?? undefined,
+                      instrumentType: p.instrument_type ?? undefined,
+                      accessoryType: p.accessory_type ?? undefined,
+                      uniformSet: p.uniform_set ?? undefined,
+                      quantity: p.quantity,
+                    })));
+
+                    toast.success('Inventory item added successfully!');
+                  };
+
+                  void createItem().catch(() => {
+                    toast.error('Failed to add inventory item');
+                  });
                 }}
                 onUpdateInventoryItem={(itemId, updates) => {
-                  setInventoryItems(inventoryItems.map(item => 
-                    item.id === itemId ? { ...item, ...updates } : item
-                  ));
-                  toast.success('Inventory item updated!');
+                  const updateItem = async () => {
+                    const numericId = Number(itemId);
+                    if (!Number.isFinite(numericId)) {
+                      throw new Error('Invalid inventory item id');
+                    }
+
+                    await productService.updateProduct(numericId, {
+                      name: updates.itemName || updates.name,
+                      quantity: updates.quantity,
+                      condition: updates.condition,
+                      status: updates.status,
+                      description: updates.description,
+                      serial_number: updates.serialNumber,
+                      property_type: updates.propertyType,
+                      instrument_type: updates.instrumentType,
+                      accessory_type: updates.accessoryType,
+                      uniform_set: updates.uniformSet,
+                      assigned_to: updates.userId ? Number(updates.userId) : undefined,
+                    } as any);
+
+                    const apiProducts = await productService.getProducts();
+                    setInventoryItems(apiProducts.map(p => ({
+                      id: String(p.id),
+                      userId: String(p.assigned_to ?? ''),
+                      talentGroup: p.talent_group ?? undefined,
+                      name: p.name,
+                      itemName: p.name,
+                      type: p.type,
+                      condition: p.condition,
+                      status: p.status === 'available' ? 'returned' : p.status as InventoryItem['status'],
+                      description: p.description ?? undefined,
+                      serialNumber: p.serial_number ?? undefined,
+                      propertyType: p.property_type ?? undefined,
+                      instrumentType: p.instrument_type ?? undefined,
+                      accessoryType: p.accessory_type ?? undefined,
+                      uniformSet: p.uniform_set ?? undefined,
+                      quantity: p.quantity,
+                    })));
+
+                    toast.success('Inventory item updated!');
+                  };
+
+                  void updateItem().catch((err: any) => {
+                    toast.error(err?.message || 'Failed to update inventory item');
+                  });
                 }}
               />
               </Suspense>

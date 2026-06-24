@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api as apiClient } from "../services/api";
+import { DashboardQuickStatCard } from "./ui/DashboardQuickStatCard";
 
 interface DirectorRecruitmentTabProps {
   pendingApps?: number;
@@ -224,6 +225,7 @@ function CancelBtn({ onClick }: { onClick: () => void }) {
 
 function ScheduleModal({ app, onClose, onConfirm, isLoading = false, isReschedule = false }: { app: any; onClose: () => void; onConfirm: (data: any) => void; isLoading?: boolean; isReschedule?: boolean }) {
   const existingInterview = app?.interview;
+  const todayDateValue = new Date().toLocaleDateString('en-CA');
   const defaultDate = isReschedule && existingInterview?.scheduled_at
     ? new Date(existingInterview.scheduled_at).toISOString().slice(0, 10)
     : "";
@@ -287,12 +289,12 @@ function ScheduleModal({ app, onClose, onConfirm, isLoading = false, isReschedul
       )}
       <div style={fieldWrap}>
         <label style={labelStyle}>Interview Date <span style={{ color: "#DC2626" }}>*</span></label>
-        <input type="date" value={form.date} onChange={set("date")} style={inputStyle} required />
+        <input type="date" min={todayDateValue} value={form.date} onChange={set("date")} style={inputStyle} required aria-required="true" />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, ...fieldWrap }}>
         <div>
           <label style={labelStyle}>Time <span style={{ color: "#DC2626" }}>*</span></label>
-          <input type="time" value={form.time} onChange={set("time")} style={inputStyle} required />
+          <input type="time" value={form.time} onChange={set("time")} style={inputStyle} required aria-required="true" />
         </div>
         <div>
           <label style={labelStyle}>Venue</label>
@@ -600,6 +602,23 @@ function ProfileModal({ app, onClose }: { app: any; onClose: () => void }) {
   const photoPath       = app.photo_path ?? null;
   const photoUrl        = photoPath ? `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/storage/${photoPath}` : null;
 
+  const safeBirthdate = (() => {
+    if (!birthdate || birthdate === '—') return null;
+    const raw = String(birthdate).trim();
+    if (!raw) return null;
+    const parsed = new Date(raw.includes('T') ? raw : `${raw}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  })();
+
+  const formattedBirthdate = safeBirthdate
+    ? safeBirthdate.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+    : null;
+
+  const ageBirthdateDisplay =
+    age && formattedBirthdate
+      ? `${age} yrs · ${formattedBirthdate}`
+      : (age || formattedBirthdate || '—');
+
   const Row = ({ label, value }: { label: string; value: string }) => (
     <div style={{ marginBottom: 6 }}>
       <span style={{ fontSize: 10, color: "#94A3B8", display: "block", marginBottom: 1, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
@@ -644,7 +663,7 @@ function ProfileModal({ app, onClose }: { app: any; onClose: () => void }) {
         <Row label="Email"            value={email} />
         <Row label="Phone"            value={phone} />
         <Row label="Gender"           value={gender} />
-        <Row label="Age / Birthdate"  value={age && birthdate ? `${age} yrs · ${new Date(birthdate).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })}` : age || (birthdate ? new Date(birthdate).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—")} />
+        <Row label="Age / Birthdate"  value={ageBirthdateDisplay} />
         <Row label="Year Level"       value={yearLevel} />
         <Row label="Course"           value={course} />
         <Row label="Department"       value={departmentDisplay} />
@@ -761,6 +780,12 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [approveApp, setApproveApp] = useState<any | null>(null);
   const [denyApp, setDenyApp] = useState<any | null>(null);
+
+  // Returns true if the interview is scheduled but its datetime is still in the future
+  const isInterviewPending = (app: any): boolean => {
+    if (!app?.interview?.scheduled_at) return false;
+    return new Date(app.interview.scheduled_at) > new Date();
+  };
   const [detailApp, setDetailApp] = useState<any | null>(null);
   const [interviewDetailsModal, setInterviewDetailsModal] = useState<any | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -796,6 +821,13 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
   }, []);
 
   const handleApprove = async (applicationId: number, data: { notes: string; emailSubject: string; emailBody: string }) => {
+    // Block if interview hasn't happened yet
+    const targetApp = applications.find(a => a.id === applicationId);
+    if (targetApp && isInterviewPending(targetApp)) {
+      toast.error('Cannot approve \u2014 the scheduled interview has not happened yet.');
+      setApproveApp(null);
+      return;
+    }
     try {
       setActionLoading(true);
       const response = await apiClient.post(`/recruitment/applications/${applicationId}/approve`, {
@@ -824,6 +856,8 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
       if (onApprovalSuccess) {
         await onApprovalSuccess();
       }
+
+      await fetchData();
     } catch (err: any) {
       // Handle validation errors (422)
       // Note: apiClient error interceptor returns { status, message, data, errors }
@@ -859,6 +893,13 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
   };
 
   const handleReject = async (applicationId: number, data: { reason: string; feedback: string; emailSubject: string; emailBody: string }) => {
+    // Block if interview hasn't happened yet
+    const targetApp = applications.find(a => a.id === applicationId);
+    if (targetApp && isInterviewPending(targetApp)) {
+      toast.error('Cannot reject \u2014 the scheduled interview has not happened yet.');
+      setDenyApp(null);
+      return;
+    }
     try {
       setActionLoading(true);
       const response = await apiClient.post(`/recruitment/applications/${applicationId}/reject`, {
@@ -884,6 +925,8 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
         }
         return app;
       }));
+
+      await fetchData();
     } catch (err: any) {
       // Handle validation errors (422)
       // Note: apiClient error interceptor returns { status, message, data, errors }
@@ -965,6 +1008,8 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
         }
         return app;
       }));
+
+      await fetchData();
     } catch (err: any) {
       // Extract error message from server response
       // apiClient returns { status, message, data, errors }
@@ -1104,14 +1149,12 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
                 { label: "Scheduled Interviews", val: scheduledApplications, filterValue: "scheduled" },
                 { label: "Applications This Week", val: applicationsThisWeek, filterValue: "all" },
               ].map(({ label, val, filterValue }) => (
-                <div
+                <DashboardQuickStatCard
                   key={label}
+                  label={label}
+                  value={val}
                   onClick={() => setStatusFilter(filterValue)}
-                  style={{ background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", padding: "16px 20px", display: "flex", flexDirection: "column", justifyContent: "center", boxSizing: "border-box", cursor: "pointer" }}
-                >
-                  <p style={{ fontSize: 11, color: "#64748B", lineHeight: 1, margin: "0 0 4px" }}>{label}</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: val === 0 ? "#CBD5E1" : "#0F172A", lineHeight: 1, margin: 0 }}>{val}</p>
-                </div>
+                />
               ))}
             </div>
           )}
@@ -1153,11 +1196,11 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
               </div>
 
               <div style={{ position: "relative", marginLeft: "auto", width: "420px" }}>
-                <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#94A3B8", pointerEvents: "none" }} />
+                <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#94A3B8", pointerEvents: "none", zIndex: 10 }} />
                 <input
                   type="text" value={search} onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search applicants..."
-                  style={{ ...inputStyle, width: "100%", paddingLeft: 32 }}
+                  style={{ ...inputStyle, width: "100%", paddingLeft: 36, height: 42, borderRadius: 10, border: "1px solid #CBD5E1", background: "#F8FAFC" }}
                 />
               </div>
             </div>
@@ -1165,9 +1208,9 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
             {loading ? <LoadingSkeleton /> : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "2px solid #F1F5F9" }}>
+                <tr style={{ borderBottom: "1px solid #D5DCE5", background: "#EEF2F7" }}>
                   {["Applicant", "Applied", "Status", "Actions"].map((col) => (
-                    <th key={col} style={{ paddingBottom: 10, textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: "#9CA3AF", paddingRight: col === "Actions" ? 0 : 16 }}>
+                    <th key={col} style={{ padding: "14px 10px", textAlign: "left", fontSize: 14, fontWeight: 500, color: "#0F172A", paddingRight: col === "Actions" ? 10 : 10 }}>
                       {col}
                     </th>
                   ))}
@@ -1182,52 +1225,58 @@ export function DirectorRecruitmentTab({ onApprovalSuccess, interviewSchedules =
                     : "—";
 
                   return (
-                    <tr key={app.id} style={{ borderBottom: "1px solid #F8FAFC" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "#FAFAFA")}
+                    <tr key={app.id} style={{ borderBottom: "1px solid #E2E8F0" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
-                      <td style={{ padding: "16px 16px 16px 0" }}>
-                        <button onClick={() => setDetailApp(app)}
-                          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left", fontFamily: "inherit" }}>
-                          <p style={{ fontSize: 14, fontWeight: 500, color: "#8B1E1E", margin: 0, lineHeight: 1.35, textDecoration: "none" }}>
-                            {getApplicantName(app)}
-                          </p>
-                        </button>
+                      <td
+                        onClick={() => setDetailApp(app)}
+                        style={{ padding: "16px 10px", cursor: "pointer" }}
+                      >
+                        <p style={{ fontSize: 14, fontWeight: 500, color: "#0F172A", margin: 0, lineHeight: 1.35, textDecoration: "none" }}>
+                          {getApplicantName(app)}
+                        </p>
                       </td>
-                      <td style={{ padding: "16px 16px 16px 0", fontSize: 13, color: "#6B7280", whiteSpace: "nowrap" }}>
+                      <td
+                        onClick={() => setDetailApp(app)}
+                        style={{ padding: "16px 10px", fontSize: 13, color: "#475569", whiteSpace: "nowrap", cursor: "pointer" }}
+                      >
                         {appliedDate}
                       </td>
-                      <td style={{ padding: "16px 16px 16px 0" }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, background: badge.bg, color: badge.text, border: `1px solid ${badge.border}`, borderRadius: 999, padding: "4px 10px", whiteSpace: "nowrap" }}>
+                      <td
+                        onClick={() => setDetailApp(app)}
+                        style={{ padding: "16px 10px", cursor: "pointer" }}
+                      >
+                        <span style={{ fontSize: 12, fontWeight: 600, background: badge.bg, color: badge.text, border: `1px solid ${badge.border}`, borderRadius: 999, padding: "4px 10px", whiteSpace: "nowrap" }}>
                           {badge.label}
                         </span>
                       </td>
-                      <td style={{ padding: "16px 0" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <td style={{ padding: "10px", minWidth: 170 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           {app.status !== 'approved' && app.status !== 'rejected' && (
                           <button
                             title={app.status === 'interview_scheduled' || app.status === 'scheduled' ? 'Reschedule Interview' : 'Schedule Interview'}
                             onClick={() => { setIsRescheduling(app.status === 'interview_scheduled' || app.status === 'scheduled'); setScheduleApp(app); }}
-                            style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+                            style={{ width: 44, height: 44, borderRadius: 10, border: "1px solid #CBD5E1", background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
                           >
-                            <Calendar style={{ width: 14, height: 14, color: "#1D4ED8" }} />
+                            <Calendar style={{ width: 16, height: 16, color: "#2563EB" }} />
                           </button>
                           )}
                           <button
-                            title="Accept applicant"
+                            title={isInterviewPending(app) ? 'Interview has not happened yet \u2014 cannot accept' : 'Accept applicant'}
                             onClick={() => setApproveApp(app)}
-                            disabled={!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)}
-                            style={{ width: 32, height: 32, borderRadius: 8, border: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "1px solid #D0D0D0" : "1px solid #BBF7D0", background: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "#F0F0F0" : "#F0FDF4", display: "flex", alignItems: "center", justifyContent: "center", cursor: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "not-allowed" : "pointer", opacity: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? 0.5 : 1 }}
+                            disabled={!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status) || isInterviewPending(app)}
+                            style={{ width: 44, height: 44, borderRadius: 10, border: "1px solid #CBD5E1", background: "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", cursor: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status) || isInterviewPending(app)) ? "not-allowed" : "pointer", opacity: 1 }}
                           >
-                            <Check style={{ width: 14, height: 14, color: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "#999" : "#15803D" }} />
+                            <Check style={{ width: 16, height: 16, color: "#9CA3AF" }} />
                           </button>
                           <button
-                            title="Reject applicant"
+                            title={isInterviewPending(app) ? 'Interview has not happened yet \u2014 cannot reject' : 'Reject applicant'}
                             onClick={() => setDenyApp(app)}
-                            disabled={!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)}
-                            style={{ width: 32, height: 32, borderRadius: 8, border: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "1px solid #D0D0D0" : "1px solid #FECACA", background: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "#F0F0F0" : "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", cursor: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "not-allowed" : "pointer", opacity: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? 0.5 : 1 }}
+                            disabled={!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status) || isInterviewPending(app)}
+                            style={{ width: 44, height: 44, borderRadius: 10, border: "1px solid #CBD5E1", background: "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", cursor: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status) || isInterviewPending(app)) ? "not-allowed" : "pointer", opacity: 1 }}
                           >
-                            <X style={{ width: 14, height: 14, color: (!app.interview?.id || !['pending', 'interview_scheduled', 'scheduled'].includes(app.status)) ? "#999" : "#B91C1C" }} />
+                            <X style={{ width: 16, height: 16, color: "#9CA3AF" }} />
                           </button>
                         </div>
                       </td>

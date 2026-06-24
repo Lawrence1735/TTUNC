@@ -15,12 +15,11 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,              // 1. users (admin, directors, scholars, trainees)
             ApplicationSeeder::class,       // 2. recruitment applications
             TraineeSeeder::class,           // 3. trainee records (linked to users)
-            AttendanceRecordSeeder::class,  // 4. attendance records for training
-            EngagementSeeder::class,        // 5. engagements & rehearsals
-            EvaluationSeeder::class,        // 6. evaluations (needs trainees + directors)
-            ScholarshipSeeder::class,       // 7. scholarship renewals (needs users)
-            DocumentSeeder::class,          // 8. documents (contracts, reports, records)
-            ProductSeeder::class,           // 9. inventory / products
+            EngagementSeeder::class,        // 4. engagements & rehearsals
+            EvaluationSeeder::class,        // 5. evaluations (needs trainees + directors)
+            ScholarshipSeeder::class,       // 6. scholarship renewals (needs users)
+            DocumentSeeder::class,          // 7. documents (contracts, reports, records)
+            ProductSeeder::class,           // 8. inventory / products
         ]);
     }
 }

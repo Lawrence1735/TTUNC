@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { api as apiClient } from '../app/services/api';
+import { clearToken as clearApiToken, getToken as getApiToken, setToken as setApiToken } from '../app/services/api';
 import { toast } from 'sonner';
 
 export interface AuthUser {
@@ -14,6 +15,7 @@ export interface AuthUser {
   trainingStatus?: string;
   yearLevel?: string;
   course?: string;
+  department?: string;
   address?: string;
   emergencyContact?: string;
   emergencyPhone?: string;
@@ -28,7 +30,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; user?: AuthUser; error?: string }>;
+  login: (email: string, password: string, selectedRole?: string) => Promise<{ success: boolean; user?: AuthUser; error?: string }>;
   logout: () => Promise<void>;
   me: () => Promise<void>;
   setUser: (user: AuthUser | null) => void;
@@ -83,7 +85,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { token: newToken } = response.data;
 
       if (newToken) {
-        localStorage.setItem('auth_token', newToken);
+        setApiToken(newToken);
         setToken(newToken);
         scheduleTokenRefresh(newToken);
         return true;
@@ -98,9 +100,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const clearAuth = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
-    localStorage.removeItem('token_expiration');
+    clearApiToken();
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
@@ -109,76 +109,43 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Initialize from localStorage on mount
+  // Initialize auth on mount
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const storedToken = localStorage.getItem('auth_token');
-        const storedUser = localStorage.getItem('auth_user');
+        const storedToken = getApiToken();
 
-        // STRICT LOADING LATCH: Check for localStorage immediately
-        if (storedToken && storedUser) {
+        if (storedToken) {
+          setToken(storedToken);
+          setIsAuthenticated(true);
+          scheduleTokenRefresh(storedToken);
+
           try {
-            const parsedUser = JSON.parse(storedUser);
-
-            // Normalize any legacy snake_case keys that might be stored from old sessions
-            const normalizedStored: AuthUser = {
-              id: parsedUser.id,
-              name: parsedUser.name,
-              email: parsedUser.email,
-              role: parsedUser.role,
-              talentGroup: parsedUser.talentGroup ?? parsedUser.talent_group,
-              studentId: parsedUser.studentId ?? parsedUser.student_id,
-              phone: parsedUser.phone,
-              applicationStatus: parsedUser.applicationStatus ?? parsedUser.application_status,
-              trainingStatus: parsedUser.trainingStatus ?? parsedUser.training_status,
-              yearLevel: parsedUser.yearLevel ?? parsedUser.year_level,
-              course: parsedUser.course,
-              createdAt: parsedUser.createdAt ?? parsedUser.created_at,
-            };
-
-            console.log(`%c[Auth] Session restored: ${normalizedStored.name} (${normalizedStored.role}${normalizedStored.talentGroup ? `, ${normalizedStored.talentGroup}` : ''})`, 'color:#7A1E1E;font-weight:bold');
-
-            // IMMEDIATELY restore from localStorage
-            setToken(storedToken);
-            setUser(normalizedStored);
-            setIsAuthenticated(true);
-            scheduleTokenRefresh(storedToken);
-
-            // Non-blocking: Try to refresh user data, but don't break session if it fails
-            try {
-              const response = await apiClient.get('me');
-              if (response.data) {
-                const raw = response.data;
-                const normalizedUser: AuthUser = {
-                  id: raw.id,
-                  name: raw.name,
-                  email: raw.email,
-                  role: raw.role,
-                  talentGroup: raw.talent_group ?? raw.talentGroup,
-                  studentId: raw.student_id ?? raw.studentId,
-                  phone: raw.phone,
-                  applicationStatus: raw.application_status ?? raw.applicationStatus,
-                  trainingStatus: raw.training_status ?? raw.trainingStatus,
-                  yearLevel: raw.year_level ?? raw.yearLevel,
-                  course: raw.course,
-                  createdAt: raw.created_at ?? raw.createdAt,
-                };
-                localStorage.setItem('auth_user', JSON.stringify(normalizedUser));
-                setUser(normalizedUser);
-              }
-            } catch (meErr) {
-              // If /auth/me fails, DON'T clear auth - we already have valid data
-              console.warn('Failed to refresh user data from /auth/me:', meErr);
-              // Token is still valid until exp claim says otherwise
-              // Keep using stored session
+            const response = await apiClient.get('me');
+            if (response.data) {
+              const raw = response.data;
+              const normalizedUser: AuthUser = {
+                id: raw.id,
+                name: raw.name,
+                email: raw.email,
+                role: raw.role,
+                talentGroup: raw.talent_group ?? raw.talentGroup,
+                studentId: raw.student_id ?? raw.studentId,
+                phone: raw.phone,
+                applicationStatus: raw.application_status ?? raw.applicationStatus,
+                trainingStatus: raw.training_status ?? raw.trainingStatus,
+                yearLevel: raw.year_level ?? raw.yearLevel,
+                course: raw.course,
+                department: raw.department,
+                address: raw.address,
+                createdAt: raw.created_at ?? raw.createdAt,
+              };
+              setUser(normalizedUser);
             }
-          } catch (parseErr) {
-            console.error('Failed to parse stored user data:', parseErr);
-            clearAuth();
+          } catch (meErr) {
+            console.warn('Failed to refresh user data from /auth/me:', meErr);
           }
         } else {
-          // No stored credentials
           setIsAuthenticated(false);
         }
       } finally {
@@ -200,7 +167,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (
     email: string,
-    password: string
+    password: string,
+    selectedRole?: string
   ): Promise<{ success: boolean; user?: AuthUser; error?: string }> => {
     try {
       setIsLoading(true);
@@ -208,6 +176,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const response = await apiClient.post('auth/login', {
         email,
         password,
+        ...(selectedRole ? { role: selectedRole } : {}),
       });
 
       const { token: responseToken, user: responseUser } = response.data;
@@ -225,11 +194,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         trainingStatus: responseUser.training_status ?? responseUser.trainingStatus,
         yearLevel: responseUser.year_level ?? responseUser.yearLevel,
         course: responseUser.course,
+        department: responseUser.department,
+        address: responseUser.address,
       };
 
-      // Save to localStorage
-      localStorage.setItem('auth_token', responseToken);
-      localStorage.setItem('auth_user', JSON.stringify(normalizedUser));
+      setApiToken(responseToken);
 
       // Update state
       setToken(responseToken);
@@ -275,9 +244,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         trainingStatus: raw.training_status ?? raw.trainingStatus,
         yearLevel: raw.year_level ?? raw.yearLevel,
         course: raw.course,
+        department: raw.department,
+        address: raw.address,
         createdAt: raw.created_at ?? raw.createdAt,
       };
-      localStorage.setItem('auth_user', JSON.stringify(normalizedUser));
       setUser(normalizedUser);
     } catch (err: any) {
       // If /me fails, user is not authenticated

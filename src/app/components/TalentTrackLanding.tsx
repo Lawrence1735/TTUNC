@@ -35,13 +35,13 @@ export const TalentTrackLanding: React.FC<
     {
       question: "Who is eligible to apply through TalentTrack?",
       answer:
-        "All enrolled students at the University of Nueva Caceres who demonstrate exceptional talent in cultural performances, athletics, arts, music, or leadership activities are eligible to apply. Both incoming freshmen and current students can submit applications through the portal.",
+        "All enrolled students at the University of Nueva Caceres who demonstrate talent in Majorette, Band, Glee, or Dance are eligible to apply. Both incoming freshmen and current students can submit applications through the portal.",
     },
     {
       question:
         "What types of talent scholarships are supported?",
       answer:
-        "TalentTrackUNC supports 15+ specializations including Marching Band, Glee Club, Dance Troupe, Theater Arts, Visual Arts, Athletics (various sports), Student Leadership, and more. Each program has specific requirements and evaluation criteria.",
+        "TalentTrackUNC caters to Majorette, Band, Glee, and Dance. Each program has specific requirements and evaluation criteria.",
     },
     {
       question:
@@ -52,7 +52,7 @@ export const TalentTrackLanding: React.FC<
     {
       question: "How often are performance reviews updated?",
       answer:
-        "Performance evaluations are conducted every semester. Scholars receive comprehensive assessments covering skill demonstration, attendance, event participation, teamwork, and leadership. Real-time progress tracking is available through the student portal.",
+        "Performance evaluations are conducted every semester. Scholars receive comprehensive assessments covering skill demonstration, attendance, event participation, and teamwork. Real-time progress tracking is available through the student portal.",
     },
   ];
 
@@ -291,8 +291,8 @@ export const TalentTrackLanding: React.FC<
                 TalentTrackUNC is the central engine for
                 discovering and nurturing extraordinary talent
                 at the University of Nueva Caceres. Built
-                specifically for cultural performers, student
-                athletes, artists, and leaders, our digital
+                specifically for Majorette, Band, Glee, and
+                Dance scholars, our digital
                 platform connects skilled scholars with elite
                 mentorship, optimized training schedules, and
                 complete performance evaluations to ensure
@@ -312,10 +312,10 @@ export const TalentTrackLanding: React.FC<
                 </div>
                 <div>
                   <div className="text-2xl md:text-3xl font-bold text-[#7A1E1E] mb-1">
-                    15+
+                    4
                   </div>
                   <div className="text-xs md:text-sm text-[#475569]">
-                    Specializations
+                    Core Talent Groups
                   </div>
                 </div>
                 <div>

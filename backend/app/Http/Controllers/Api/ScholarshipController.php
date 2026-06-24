@@ -6,12 +6,18 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Scholarship;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Symfony\Component\HttpFoundation\Response;
 
 final class ScholarshipController extends Controller
 {
+    public function __construct(private NotificationService $notifications)
+    {
+    }
+
     /**
      * GET /api/v1/scholarship/benefits
      * Static benefit list — same for all scholars.
@@ -66,9 +72,23 @@ final class ScholarshipController extends Controller
      */
     public function indexRenewals(Request $request): JsonResponse
     {
-        $renewals = Scholarship::where('user_id', $request->user()->id)
-            ->orderByDesc('created_at')
-            ->get();
+        $query = Scholarship::query()->with('user');
+
+        if (in_array($request->user()->role, ['director', 'admin'], true)) {
+            if ($request->user()->role === 'director') {
+                $query->whereHas('user', function ($userQuery) use ($request): void {
+                    $userQuery->where('talent_group', $request->user()->talent_group);
+                });
+            }
+
+            if ($request->filled('user_id')) {
+                $query->where('user_id', (int) $request->user_id);
+            }
+        } else {
+            $query->where('user_id', $request->user()->id);
+        }
+
+        $renewals = $query->orderByDesc('created_at')->get();
 
         return response()->json(['data' => $renewals]);
     }
@@ -91,6 +111,69 @@ final class ScholarshipController extends Controller
             'status'  => 'pending',
         ]);
 
+        $this->notifications->notifyRoles(
+            ['admin'],
+            'Scholarship renewal submitted',
+            $request->user()->name . ' submitted a scholarship renewal request.',
+            'request',
+            (string) $renewal->id,
+            '/dashboard?view=admin',
+            null,
+            (int) $request->user()->id,
+        );
+
+        $this->notifications->notifyRoles(
+            ['director'],
+            'Scholarship renewal submitted',
+            $request->user()->name . ' submitted a scholarship renewal request.',
+            'request',
+            (string) $renewal->id,
+            '/dashboard?view=director',
+            (string) $request->user()->talent_group,
+            (int) $request->user()->id,
+        );
+
         return response()->json(['data' => $renewal], Response::HTTP_CREATED);
+    }
+
+    /**
+     * PATCH /api/v1/scholarship/renewals/{scholarship}/review
+     */
+    public function reviewRenewal(Request $request, Scholarship $scholarship): JsonResponse
+    {
+        $actor = $request->user();
+
+        if ($actor->role === 'director') {
+            $targetTalentGroup = (string) ($scholarship->user?->talent_group ?? '');
+            if ($targetTalentGroup === '' || $targetTalentGroup !== (string) ($actor->talent_group ?? '')) {
+                return response()->json([
+                    'message' => 'You can only review scholarship renewals in your talent group.',
+                ], Response::HTTP_FORBIDDEN);
+            }
+        }
+
+        $data = $request->validate([
+            'status' => ['required', 'in:approved,rejected'],
+            'review_notes' => ['nullable', 'string'],
+        ]);
+
+        $scholarship->status = $data['status'];
+        $scholarship->review_notes = $data['review_notes'] ?? null;
+        $scholarship->reviewed_at = Carbon::now();
+        $scholarship->save();
+
+        $statusLabel = $scholarship->status === 'approved' ? 'approved' : 'rejected';
+        $this->notifications->notifyUser(
+            (int) $scholarship->user_id,
+            'Scholarship renewal reviewed',
+            'Your scholarship renewal request has been ' . $statusLabel . '.',
+            'request',
+            (string) $scholarship->id,
+            '/dashboard?view=scholarship',
+        );
+
+        return response()->json([
+            'data' => $scholarship->fresh(['user']),
+        ]);
     }
 }

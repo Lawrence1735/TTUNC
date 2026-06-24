@@ -15,6 +15,7 @@ import React, {
   useState,
 } from 'react';
 import { authService, type AuthUser } from '../services/authService';
+import { clearToken, getToken } from '../services/api';
 import { type AxiosError } from 'axios';
 
 // ── Context shape ─────────────────────────────────────────────────────────────
@@ -42,23 +43,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
 
   /**
-   * On mount, if we have a stored token, verify it against the server.
-   * This catches expired tokens that were left in localStorage.
+   * On mount, if we have a token, verify it against the server.
    */
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = getToken();
     if (!token) return;
 
     authService
       .me()
       .then((freshUser) => {
         setUser(freshUser);
-        localStorage.setItem('auth_user', JSON.stringify(freshUser));
       })
       .catch(() => {
-        // Token invalid — clear everything
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
+        // Token invalid — clear auth state
+        clearToken();
         setUser(null);
       });
   }, []);

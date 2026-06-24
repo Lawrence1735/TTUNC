@@ -33,15 +33,35 @@ class ProductController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required',
-            'description' => 'nullable|string',
-            'quantity' => 'required|integer|min:0',
-            'price' => 'required|numeric|min:0',
-            'assigned_to' => 'nullable|exists:users,id',
+        $data = $request->validate([
+            'name'            => ['required', 'string', 'max:255'],
+            'description'     => ['nullable', 'string'],
+            'quantity'        => ['nullable', 'integer', 'min:0'],
+            'price'           => ['nullable', 'numeric', 'min:0'],
+            'assigned_to'     => ['nullable', 'exists:users,id'],
+            'type'            => ['nullable', 'in:uniform,instrument,accessory'],
+            'condition'       => ['nullable', 'in:excellent,good,fair,needs_repair'],
+            'status'          => ['nullable', 'in:available,assigned,borrowed,returned,lost,damaged'],
+            'talent_group'    => ['nullable', 'string', 'max:100'],
+            'serial_number'   => ['nullable', 'string', 'max:255'],
+            'property_type'   => ['nullable', 'string', 'max:100'],
+            'instrument_type' => ['nullable', 'string', 'max:100'],
+            'accessory_type'  => ['nullable', 'string', 'max:100'],
+            'uniform_set'     => ['nullable', 'string', 'max:100'],
         ]);
 
-        return Product::create($request->only(['name', 'description', 'quantity', 'price', 'assigned_to']));
+        $user = $request->user();
+        if ($user && $user->role === 'director') {
+            $data['talent_group'] = $user->talent_group;
+        }
+
+        $data['quantity'] = $data['quantity'] ?? 1;
+        $data['price'] = $data['price'] ?? 0;
+        $data['type'] = $data['type'] ?? 'instrument';
+        $data['condition'] = $data['condition'] ?? 'good';
+        $data['status'] = $data['status'] ?? 'available';
+
+        return Product::create($data)->load('assignedTo');
     }
 
     /**
@@ -59,15 +79,24 @@ class ProductController extends Controller
     {
         $product = Product::findOrFail($id);
 
-        $request->validate([
-            'name' => 'sometimes|required',
-            'description' => 'nullable|string',
-            'quantity' => 'sometimes|required|integer|min:0',
-            'price' => 'sometimes|required|numeric|min:0',
-            'assigned_to' => 'nullable|exists:users,id',
+        $data = $request->validate([
+            'name'            => ['sometimes', 'required', 'string', 'max:255'],
+            'description'     => ['sometimes', 'nullable', 'string'],
+            'quantity'        => ['sometimes', 'integer', 'min:0'],
+            'price'           => ['sometimes', 'numeric', 'min:0'],
+            'assigned_to'     => ['sometimes', 'nullable', 'exists:users,id'],
+            'type'            => ['sometimes', 'in:uniform,instrument,accessory'],
+            'condition'       => ['sometimes', 'in:excellent,good,fair,needs_repair'],
+            'status'          => ['sometimes', 'in:available,assigned,borrowed,returned,lost,damaged'],
+            'talent_group'    => ['sometimes', 'nullable', 'string', 'max:100'],
+            'serial_number'   => ['sometimes', 'nullable', 'string', 'max:255'],
+            'property_type'   => ['sometimes', 'nullable', 'string', 'max:100'],
+            'instrument_type' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'accessory_type'  => ['sometimes', 'nullable', 'string', 'max:100'],
+            'uniform_set'     => ['sometimes', 'nullable', 'string', 'max:100'],
         ]);
 
-        $product->update($request->only(['name', 'description', 'quantity', 'price', 'assigned_to']));
+        $product->update($data);
 
         return $product->load('assignedTo');
     }

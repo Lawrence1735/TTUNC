@@ -12,16 +12,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int         $id
  * @property int|null    $user_id
  * @property string      $talent_group
- * @property string      $status          pending|scheduled|approved|rejected
+ * @property string      $status            pending|interview_scheduled|approved|rejected
  * @property int         $applications_this_week_tracker
- * @property string      $applicant_name
- * @property string      $applicant_email
+ * @property string      $applicant_name    Denorm — always stored (mirrors user.name once account exists)
+ * @property string      $applicant_email   Denorm — always stored
  * @property string|null $applicant_student_id
- * @property array|null  $documents
- * @property string|null $portfolio_url
- * @property string|null $denial_reason
- * @property string|null $denial_feedback
- * @property string|null $approval_notes
+ * @property string|null $applicant_age
  * @property \Carbon\Carbon $applied_at
  */
 class Application extends Model
@@ -33,14 +29,15 @@ class Application extends Model
         'talent_group',
         'status',
         'applications_this_week_tracker',
+        // Applicant info (denorm; required even when user_id is set so application is self-contained)
         'applicant_name',
         'applicant_email',
-        'social_media',
         'applicant_student_id',
         'applicant_phone',
         'applicant_birthdate',
         'applicant_age',
         'applicant_address',
+        'residing_address',
         'applicant_gender',
         'applicant_year_level',
         'applicant_course',
@@ -49,28 +46,17 @@ class Application extends Model
         'guardian_phone',
         'guardian_relationship',
         'photo_path',
-        'vocal_range',
-        'primary_dance_genre',
-        'years_of_experience',
-        'performed_on_stage',
-        'willing_to_attend_rehearsals',
-        'has_band_experience',
-        'previous_singing_experience',
-        'musical_background',
-        'previous_majorette_team',
-        'previous_organization',
-        'can_perform_basic_routines',
-        'documents',
-        'portfolio_url',
+        // Outcome
         'denial_reason',
         'denial_feedback',
         'approval_notes',
         'applied_at',
+        // Removed (not part of the application form):
+        //   social_media, vocal_range, primary_dance_genre, years_of_experience, documents, portfolio_url
     ];
 
     protected $casts = [
-        'documents'   => 'array',
-        'applied_at'  => 'datetime',
+        'applied_at'          => 'datetime',
         'applicant_birthdate' => 'date',
     ];
 

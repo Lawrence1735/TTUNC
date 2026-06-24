@@ -42,9 +42,7 @@ function getCurrentRatingPeriod(): string {
 
 function calcAutoScholarship(overallRating: number): number {
   if (overallRating >= 4.5) return 100;
-  if (overallRating >= 3.5) return 75;
-  if (overallRating >= 2.5) return 50;
-  return 25;
+  return 50;
 }
 
 export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
@@ -132,9 +130,9 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-[95vw] sm:max-w-[90vw] max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="px-4 sm:px-8 pt-4 sm:pt-6 pb-4 shrink-0 border-b">
-            <DialogTitle className="text-2xl">Final Evaluation � Performance Appraisal</DialogTitle>
+            <DialogTitle className="text-2xl">Final Evaluation - Performance Appraisal</DialogTitle>
             <DialogDescription className="text-sm">
-              University of Nueva Caceres � Office of the Dean of Student and Alumni Affairs
+              University of Nueva Caceres - Office of the Dean of Student and Alumni Affairs
             </DialogDescription>
           </DialogHeader>
 
@@ -144,21 +142,15 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg">Basic Information</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <CardContent className="pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label className="text-sm text-[#6c757d]">Talent Scholar Name</Label>
-                      <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.scholarName || ""}</p>
-                    </div>
-                    <div>
-                      <Label className="text-sm text-[#6c757d]">Talent Unit</Label>
-                      <p className="mt-1 text-sm text-[#1a1a1a] py-2 capitalize">
-                        {evaluationForm.talentUnit?.replace(/-/g, " ") || "�"}
-                      </p>
+                      <p className="mt-1 text-sm text-[#1a1a1a]">{evaluationForm.scholarName || ""}</p>
                     </div>
                     <div>
                       <Label className="text-sm text-[#6c757d]">Rating Period</Label>
-                      <p className="mt-1 text-sm text-[#1a1a1a] py-2">{evaluationForm.ratingPeriod || ""}</p>
+                      <p className="mt-1 text-sm text-[#1a1a1a]">{evaluationForm.ratingPeriod || ""}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -166,7 +158,7 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
 
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle>Section A � Attendance and Punctuality</CardTitle>
+                  <CardTitle>Section A - Attendance and Punctuality</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4">
                   <div className="overflow-x-auto">
@@ -222,7 +214,7 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
 
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle>Section B � Commitment & Dedication</CardTitle>
+                  <CardTitle>Section B - Commitment & Dedication</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4">
                   <div className="overflow-x-auto">
@@ -270,7 +262,7 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
 
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle>Section C � Interpersonal Skills</CardTitle>
+                  <CardTitle>Section C - Interpersonal Skills</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4">
                   <div className="overflow-x-auto">
@@ -341,7 +333,7 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
                     <p className="text-sm text-[#6B7280] mb-1">Based on Overall Rating of {calculateOverallRating()}</p>
                     <p className="text-3xl font-bold text-[#7A1E1E]">{autoScholarship}% Scholarship</p>
                     <p className="text-xs text-[#6c757d] mt-2">
-                      4.5�5.0 ? 100% � 3.5�4.4 ? 75% � 2.5�3.4 ? 50% � &lt;2.5 ? 25%
+                      4.5-5.0 = 100% | Below 4.5 = 50%
                     </p>
                   </div>
                 </CardContent>
@@ -414,7 +406,7 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
                               day: "numeric",
                               year: "numeric"
                             })
-                          : "�"}
+                          : "-"}
                       </p>
                     </div>
                   </div>
@@ -448,7 +440,7 @@ export function EvaluationFormDialog(props: EvaluationFormDialogProps) {
             </p>
             <p>
               <span className="text-[#6c757d]">Overall Rating:</span>{" "}
-              <strong>{calculateOverallRating()} � {getAdjectivalRating()}</strong>
+              <strong>{calculateOverallRating()} - {getAdjectivalRating()}</strong>
             </p>
             <p>
               <span className="text-[#6c757d]">Scholarship:</span> <strong>{autoScholarship}%</strong>

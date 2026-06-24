@@ -47,10 +47,10 @@ export function ResponsiveTable({
   return (
     <>
       {/* Desktop Table View (≥ 768px) */}
-      <div className="hidden md:block overflow-x-auto">
-        <Table className={className} aria-label={ariaLabel}>
+      <div className="hidden md:block border border-[#E0E0E0] rounded-lg overflow-auto max-h-[420px]">
+        <Table className={cn("min-w-max", className)} aria-label={ariaLabel}>
           {caption && <caption className="sr-only">{caption}</caption>}
-          <TableHeader>
+          <TableHeader className="sticky top-0 bg-white z-10">
             <TableRow>
               {columns.map((col) => (
                 <TableHead key={col.key} className={col.className}>
@@ -80,9 +80,9 @@ export function ResponsiveTable({
       </div>
 
       {/* Mobile Card View (< 768px) */}
-      <div className="md:hidden space-y-4 overflow-y-auto max-h-[640px]" role="list" aria-label={ariaLabel}>
+      <div className="md:hidden space-y-2 overflow-y-auto max-h-[640px]" role="list" aria-label={ariaLabel}>
         {data.map((item, idx) => (
-          <Card key={item.id || idx} role="listitem">
+          <Card key={item.id || idx} role="listitem" className="border border-[#E0E0E0] shadow-sm">
             <CardContent className="pt-6 space-y-3">
               {columns.map((col) => (
                 <div key={col.key} className="flex justify-between items-start gap-2">

@@ -23,6 +23,7 @@ return new class extends Migration
             $table->date('applicant_birthdate')->nullable();
             $table->string('applicant_age', 10)->nullable();
             $table->text('applicant_address')->nullable();
+            $table->text('residing_address')->nullable();
             $table->string('applicant_gender', 20)->nullable();
             $table->string('applicant_year_level', 30)->nullable();
             $table->string('applicant_course', 120)->nullable();
@@ -30,16 +31,7 @@ return new class extends Migration
             $table->string('guardian_name', 120)->nullable();
             $table->string('guardian_phone', 20)->nullable();
             $table->string('guardian_relationship', 60)->nullable();
-            $table->string('chapters', 80)->nullable();
-            $table->string('instruments', 80)->nullable();
-            $table->string('voices', 80)->nullable();
-            $table->string('vocal_range', 60)->nullable();
-            $table->string('primary_dance_genre', 80)->nullable();
-            $table->string('years_of_experience', 20)->nullable();
-            $table->text('experience')->nullable();
-            $table->text('motivation')->nullable();
-            $table->json('documents')->nullable();
-            $table->string('portfolio_url')->nullable();
+            $table->string('photo_path')->nullable();
             $table->string('denial_reason', 120)->nullable();
             $table->text('denial_feedback')->nullable();
             $table->text('approval_notes')->nullable();

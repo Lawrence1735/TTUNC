@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError, AxiosResponse } from 'axios';
+import { clearToken, getToken, setToken } from '../app/services/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
@@ -34,7 +35,7 @@ const apiClient: AxiosInstance = axios.create({
 // Request interceptor: attach Bearer token
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -68,15 +69,15 @@ apiClient.interceptors.response.use(
           {},
           {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+              'Authorization': `Bearer ${getToken()}`,
             },
           }
         );
 
         const { token: newToken } = refreshResponse.data;
         if (newToken) {
-          // Update stored token
-          localStorage.setItem('auth_token', newToken);
+          // Update auth token
+          setToken(newToken);
 
           // Retry original request with new token
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -84,8 +85,7 @@ apiClient.interceptors.response.use(
         }
       } catch (refreshError) {
         // Refresh failed, clear auth and redirect to login
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
+        clearToken();
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }
@@ -93,8 +93,7 @@ apiClient.interceptors.response.use(
 
     // For other errors or failed refresh, reject
     if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
+      clearToken();
       window.location.href = '/login';
     }
 

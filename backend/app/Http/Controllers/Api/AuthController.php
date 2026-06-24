@@ -5,7 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Document;
+use App\Models\Engagement;
+use App\Models\Evaluation;
+use App\Models\Scholarship;
+use App\Models\Trainee;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -119,12 +125,19 @@ final class AuthController extends Controller
         $request->validate([
             'email'    => ['required', 'email'],
             'password' => ['required', 'string'],
+            'role'     => ['nullable', 'in:admin,director,scholar,student,trainee'],
         ]);
 
         $user = User::where('email', $request->email)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
             return response()->json(['message' => 'Invalid credentials.'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        if (! $this->roleMatchesRecoverySelection($user->role, $request->input('role'))) {
+            return response()->json([
+                'message' => 'The selected Login As role does not match this account.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $user->tokens()->delete();
@@ -140,12 +153,15 @@ final class AuthController extends Controller
                 'role'            => $user->role,
                 'talent_group'    => $user->talent_group,
                 'student_id'      => $user->student_id,
-                'phone'           => $user->phone,
+                'phone'      => $user->phone,
+                'year_level' => $user->year_level,
+                'course'     => $user->course,
+                'department' => $user->department,
+                'address'    => $user->address,
+                'application_status' => $user->application_status,
                 'training_status' => $user->training_status,
-                'year_level'      => $user->year_level,
-                'course'          => $user->course,
-                'is_active'       => true,
-                'created_at'      => $user->created_at,
+                'is_active'  => true,
+                'created_at' => $user->created_at,
             ],
         ], Response::HTTP_OK);
     }
@@ -166,13 +182,54 @@ final class AuthController extends Controller
             'role'            => $user->role,
             'talent_group'    => $user->talent_group,
             'student_id'      => $user->student_id,
-            'phone'           => $user->phone,
+            'phone'      => $user->phone,
+            'year_level' => $user->year_level,
+            'course'     => $user->course,
+            'department' => $user->department,
+            'address'    => $user->address,
+            'application_status' => $user->application_status,
             'training_status' => $user->training_status,
+            'is_active'  => true,
+            'created_at' => $user->created_at,
+        ]);
+    }
+
+    /**
+     * PATCH /api/v1/me
+     * Allows authenticated users to update their own editable profile fields.
+     */
+    public function updateMe(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'name'       => ['sometimes', 'string', 'max:255'],
+            'phone'      => ['nullable', 'string', 'max:50'],
+            'year_level' => ['nullable', 'string', 'max:50'],
+            'course'     => ['nullable', 'string', 'max:255'],
+            'department' => ['nullable', 'string', 'max:255'],
+            'address'    => ['nullable', 'string'],
+        ]);
+
+        $user->update($data);
+
+        return response()->json([
+            'id'              => $user->id,
+            'name'            => $user->name,
+            'email'           => $user->email,
+            'role'            => $user->role,
+            'talent_group'    => $user->talent_group,
+            'student_id'      => $user->student_id,
+            'phone'           => $user->phone,
             'year_level'      => $user->year_level,
             'course'          => $user->course,
+            'department'      => $user->department,
+            'address'         => $user->address,
+            'application_status' => $user->application_status,
+            'training_status' => $user->training_status,
             'is_active'       => true,
             'created_at'      => $user->created_at,
-        ]);
+        ], Response::HTTP_OK);
     }
 
     /**
@@ -212,6 +269,12 @@ final class AuthController extends Controller
                 'talent_group' => $user->talent_group,
                 'student_id'   => $user->student_id,
                 'phone'        => $user->phone,
+                'year_level'   => $user->year_level,
+                'course'       => $user->course,
+                'department'   => $user->department,
+                'address'      => $user->address,
+                'application_status' => $user->application_status,
+                'training_status' => $user->training_status,
                 'is_active'    => true,
                 'created_at'   => $user->created_at,
             ],
@@ -222,9 +285,9 @@ final class AuthController extends Controller
     {
         $currentUser = $request->user();
 
-        $query = User::select([
+        $query = User::with(['trainee:id,user_id,instrument,voice'])->select([
             'id', 'name', 'email', 'role', 'talent_group',
-            'student_id', 'phone', 'training_status', 'year_level', 'course', 'created_at',
+            'student_id', 'phone', 'year_level', 'course', 'department', 'address', 'created_at',
         ]);
 
         if ($currentUser->role === 'director') {
@@ -236,6 +299,131 @@ final class AuthController extends Controller
         $users = $query->get()->map(fn ($u) => array_merge($u->toArray(), ['is_active' => true]));
 
         return response()->json($users, Response::HTTP_OK);
+    }
+
+    public function show(Request $request, User $user): JsonResponse
+    {
+        $currentUser = $request->user();
+
+        if ($currentUser->role === 'director' && $user->talent_group !== $currentUser->talent_group) {
+            throw new AuthorizationException('You are not authorized to view this user.');
+        }
+
+        $trainee = Trainee::query()
+            ->where('user_id', $user->id)
+            ->select([
+                'id',
+                'user_id',
+                'current_status',
+                'chapter',
+                'completion_rate',
+                'instrument',
+                'voice',
+                'date_joined',
+            ])
+            ->first();
+
+        $evaluations = Evaluation::query()
+            ->whereHas('trainee', fn ($q) => $q->where('user_id', $user->id))
+            ->with(['evaluator:id,name'])
+            ->orderByDesc('evaluation_date')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get([
+                'id',
+                'trainee_id',
+                'rating',
+                'adjectival_rating',
+                'recommend_for_renewal',
+                'scholarship_percentage',
+                'evaluation_date',
+                'status',
+                'evaluator_id',
+                'created_at',
+            ]);
+
+        $renewals = Scholarship::query()
+            ->where('user_id', $user->id)
+            ->with([
+                'evaluation:id,rating,adjectival_rating,recommend_for_renewal,scholarship_percentage,evaluation_date,evaluator_id',
+                'evaluation.evaluator:id,name',
+            ])
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get([
+                'id',
+                'user_id',
+                'semester',
+                'year',
+                'gpa',
+                'status',
+                'reviewed_at',
+                'review_notes',
+                'created_at',
+            ]);
+
+        $documents = Document::query()
+            ->where('user_id', $user->id)
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get([
+                'id',
+                'title',
+                'file_name',
+                'file_type',
+                'category',
+                'status',
+                'created_at',
+            ]);
+
+        $engagementQuery = Engagement::query()
+            ->orderByDesc('date')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->select([
+                'id',
+                'event_name',
+                'date',
+                'time',
+                'venue',
+                'status',
+                'talent_groups',
+                'created_by',
+            ]);
+
+        $engagementQuery->where(function ($q) use ($user): void {
+            $q->where('created_by', $user->id);
+            if (! empty($user->talent_group)) {
+                $q->orWhereJsonContains('talent_groups', $user->talent_group);
+            }
+        });
+
+        $engagements = $engagementQuery->get();
+
+        return response()->json([
+            'data' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'talent_group' => $user->talent_group,
+                'student_id' => $user->student_id,
+                'phone' => $user->phone,
+                'year_level' => $user->year_level,
+                'course' => $user->course,
+                'department' => $user->department,
+                'address' => $user->address,
+                'created_at' => $user->created_at,
+                'is_active' => true,
+                'connections' => [
+                    'trainee_profile' => $trainee,
+                    'evaluations' => $evaluations,
+                    'scholarship_renewals' => $renewals,
+                    'documents' => $documents,
+                    'engagements' => $engagements,
+                ],
+            ],
+        ], Response::HTTP_OK);
     }
 
     /**
@@ -271,5 +459,46 @@ final class AuthController extends Controller
             ],
             default => ['dashboard:read'],
         };
+    }
+
+    /**
+     * PATCH /api/v1/users/{user}  (admin only)
+     * Allows admin to update a user's profile fields.
+     */
+    public function update(Request $request, User $user): JsonResponse
+    {
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        $data = $request->validate([
+            'name'         => ['sometimes', 'string', 'max:255'],
+            'email'        => ['sometimes', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'phone'        => ['nullable', 'string', 'max:50'],
+            'year_level'   => ['nullable', 'string', 'max:50'],
+            'course'       => ['nullable', 'string', 'max:255'],
+            'department'   => ['nullable', 'string', 'max:255'],
+            'address'      => ['nullable', 'string'],
+            'talent_group' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $user->update($data);
+
+        return response()->json([
+            'data' => [
+                'id'           => $user->id,
+                'name'         => $user->name,
+                'email'        => $user->email,
+                'role'         => $user->role,
+                'talent_group' => $user->talent_group,
+                'student_id'   => $user->student_id,
+                'phone'        => $user->phone,
+                'year_level'   => $user->year_level,
+                'course'       => $user->course,
+                'department'   => $user->department,
+                'address'      => $user->address,
+                'created_at'   => $user->created_at,
+            ],
+        ]);
     }
 }

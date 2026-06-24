@@ -4,7 +4,6 @@ import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { LogOut, Bell, ChevronRight, Settings, User, Lock, Menu } from './ui/icons';
-import uncLogo from 'figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png';
 import { getTalentGroupName } from './ui/unc-colors';
 import {
   DropdownMenu,
@@ -76,14 +75,25 @@ function DashboardHeaderComponent({
   const secondaryDirectorLabel = normalizedTalentGroup
     ? (directorGroupRoleLabelMap[normalizedTalentGroup] || getTalentGroupName(normalizedTalentGroup))
     : 'Director';
+  const secondaryDefaultLabel = normalizedTalentGroup
+    ? getTalentGroupName(normalizedTalentGroup)
+    : (normalizedRole === 'admin'
+      ? 'Admin'
+      : normalizedRole === 'director'
+        ? 'Director'
+        : showTraineeLikeBadge
+          ? 'Trainee'
+          : normalizedRole === 'scholar'
+            ? 'Scholar'
+            : 'Student');
 
   return (
     <>
-    <header className={variant === 'director' ? 'h-20 bg-white border-b border-[#E2E8F0] sticky top-0 z-50 flex items-center' : 'bg-white border-b shadow-sm sticky top-0 z-50'} role="banner">
-      <div className={variant === 'director' ? 'w-full max-w-[1440px] mx-auto px-4 md:px-[70px]' : 'container mx-auto px-4 sm:px-6 lg:px-8'}>
-        <div className={variant === 'director' ? 'flex items-center justify-between w-full' : 'flex items-center justify-between py-3 sm:py-4 gap-2 sm:gap-4'}>
+    <header className="h-20 bg-white border-b border-[#E2E8F0] sticky top-0 z-50 flex items-center" role="banner">
+      <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px] flex items-center justify-between">
+        <div className="flex items-center justify-between w-full">
           {/* Left Section - Menu Button (Mobile), Logo and Title */}
-          <div className={variant === 'director' ? 'flex items-center gap-3' : 'flex items-center gap-2 sm:gap-4 flex-1 min-w-0'}>
+          <div className="flex items-center gap-3">
             {/* Mobile Menu Button */}
             {showMenuButton && onMenuClick && (
               <Button
@@ -98,16 +108,7 @@ function DashboardHeaderComponent({
               </Button>
             )}
 
-            <div className={variant === 'director' ? 'flex items-center gap-3 min-w-0' : 'flex items-center gap-2 sm:gap-3 min-w-0'}>
-              <img
-                src={uncLogo}
-                alt="University of Nueva Caceres logo"
-                className={variant === 'director' ? 'w-10 h-10 object-contain flex-shrink-0' : 'w-10 h-10 sm:w-12 sm:h-12 object-contain flex-shrink-0'}
-                width="48"
-                height="48"
-                loading="eager"
-              />
-              <div className="min-w-0">
+            <div className="min-w-0">
                 {variant === 'director' ? (
                   <>
                     <h1 className="text-xl leading-tight truncate">
@@ -119,33 +120,30 @@ function DashboardHeaderComponent({
                   </>
                 ) : (
                   <>
-                    <h1 className="unc-burgundy-text text-base sm:text-lg truncate">TalentTrackUNC</h1>
+                    <h1 className="text-lg sm:text-xl leading-tight truncate">
+                      <span className="font-bold text-[#0F172A]">Talent</span>
+                      <span className="text-[#0F172A]">Track</span>
+                      <span className="font-bold text-[#7A1E1E]">UNC</span>
+                    </h1>
                     <p className="text-xs text-muted-foreground truncate">{dashboardTitle}</p>
                   </>
                 )}
-              </div>
             </div>
           </div>
 
           {/* Right Section - User Info and Actions */}
-          <div className={variant === 'director' ? 'flex items-center gap-3 flex-shrink-0' : 'flex items-center gap-2 sm:gap-4 flex-shrink-0'}>
+          <div className="flex items-center gap-3 flex-shrink-0">
             {/* Notifications */}
             {onNotificationsClick && (
               <button
                 onClick={onNotificationsClick}
-                className={variant === 'director'
-                  ? 'relative w-9 h-9 flex items-center justify-center rounded-lg bg-transparent hover:text-[#7A1E1E] text-[#475569] transition-colors'
-                  : 'relative min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md hover:bg-accent'
-                }
+                className="relative w-9 h-9 flex items-center justify-center rounded-lg border border-[#E2E8F0] bg-white hover:border-[#7A1E1E] hover:text-[#7A1E1E] text-[#475569] transition-colors"
                 aria-label={`Notifications${unreadNotifications && unreadNotifications > 0 ? `, ${unreadNotifications} unread` : ''}`}
               >
-                <Bell className={variant === 'director' ? 'w-4 h-4' : 'w-5 h-5'} aria-hidden="true" />
-                {variant !== 'director' && unreadNotifications && unreadNotifications > 0 && (
+                <Bell className="w-4 h-4" aria-hidden="true" />
+                {unreadNotifications && unreadNotifications > 0 && (
                   <span
-                    className={variant === 'director'
-                      ? 'absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center rounded-full bg-[#7A1E1E] text-white text-[9px] font-bold'
-                      : 'absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center rounded-full bg-[#7A1E1E] text-white text-xs'
-                    }
+                    className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center rounded-full bg-[#7A1E1E] text-white text-[9px] font-bold"
                     aria-live="polite"
                   >
                     {unreadNotifications > 99 ? '99+' : unreadNotifications}
@@ -155,44 +153,16 @@ function DashboardHeaderComponent({
             )}
 
             {/* User Info */}
-            <div className={variant === 'director' ? 'hidden md:flex items-center gap-2.5 pl-3 border-l border-[#E2E8F0]' : 'hidden md:block text-right'}>
-              {variant === 'director' && (
-                <Avatar className="w-8 h-8 border border-[#7A1E1E]/20 flex-shrink-0">
-                  {photoSrc && <AvatarImage src={photoSrc} alt={`${user.name} profile photo`} />}
-                  <AvatarFallback className="bg-[#F9EAEA] text-[#7A1E1E] text-[11px] font-semibold">
-                    {photoSrc ? fallbackInitials : <User className="w-4 h-4" aria-hidden="true" />}
-                  </AvatarFallback>
-                </Avatar>
-              )}
-              <div className={variant === 'director' ? 'text-right' : 'contents'}>
-                <p className={variant === 'director' ? 'text-[13px] font-semibold text-[#0F172A] leading-tight' : 'text-sm font-medium'}>{user.name}</p>
-                {variant === 'director' ? (
-                  <p className="text-[11px] text-[#64748B] leading-none mt-0.5">{secondaryDirectorLabel}</p>
-                ) : (
-                  <div className="flex items-center justify-end space-x-2">
-                    {normalizedRole === 'admin' && (
-                      <Badge className="bg-[#6c757d] text-white">Admin</Badge>
-                    )}
-                    {normalizedRole === 'director' && user.talentGroup && (
-                      <Badge className="bg-[#7A1E1E] text-white">
-                        {getTalentGroupName(user.talentGroup)}
-                      </Badge>
-                    )}
-                    {normalizedRole === 'scholar' && user.talentGroup && (
-                      <>
-                        <Badge className="bg-[#7A1E1E] text-white">
-                          {getTalentGroupName(user.talentGroup)}
-                        </Badge>
-                        {user.studentId && !hideStudentId && (
-                          <span className="text-xs text-muted-foreground">{user.studentId}</span>
-                        )}
-                      </>
-                    )}
-                    {normalizedRole === 'student' && !user.talentGroup && user.email && (
-                      <span className="text-xs text-muted-foreground">{user.email}</span>
-                    )}
-                  </div>
-                )}
+            <div className="hidden md:flex items-center gap-2.5 pl-3 border-l border-[#E2E8F0]">
+              <Avatar className="w-8 h-8 border border-[#7A1E1E]/20 flex-shrink-0">
+                {photoSrc && <AvatarImage src={photoSrc} alt={`${user.name} profile photo`} />}
+                <AvatarFallback className="bg-[#F9EAEA] text-[#7A1E1E] text-[11px] font-semibold">
+                  {photoSrc ? fallbackInitials : <User className="w-4 h-4" aria-hidden="true" />}
+                </AvatarFallback>
+              </Avatar>
+              <div className="text-right">
+                <p className="text-[13px] font-semibold text-[#0F172A] leading-tight">{user.name}</p>
+                <p className="text-[11px] text-[#64748B] leading-none mt-0.5">{variant === 'director' ? secondaryDirectorLabel : secondaryDefaultLabel}</p>
               </div>
             </div>
 
@@ -202,12 +172,10 @@ function DashboardHeaderComponent({
                 <Button
                   variant="outline"
                   size="default"
-                  className={variant === 'director'
-                    ? 'flex items-center gap-1.5 border border-[#7A1E1E] rounded-lg px-3 py-1.5 text-sm font-medium text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors duration-200 h-auto min-h-0'
-                    : 'border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors min-h-[44px] min-w-[44px] px-3 sm:px-4'}
+                  className="flex items-center gap-1.5 border border-[#7A1E1E] rounded-lg px-3 py-1.5 text-sm font-medium text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors duration-200 h-auto min-h-0"
                   aria-label="User settings menu"
                 >
-                  <Settings className={variant === 'director' ? 'w-3.5 h-3.5' : 'w-4 h-4 sm:mr-2'} aria-hidden="true" />
+                  <Settings className="w-3.5 h-3.5" aria-hidden="true" />
                   <span className="hidden sm:inline">Settings</span>
                 </Button>
               </DropdownMenuTrigger>

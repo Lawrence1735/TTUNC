@@ -180,7 +180,7 @@ export const TalentTrackLogin: React.FC<
                   onChange={handleInputChange}
                   onFocus={() => setFocusedField("role")}
                   onBlur={() => setFocusedField(null)}
-                  className={`w-full h-11 px-4 bg-[#F8FAFC] border rounded-lg appearance-none transition-all duration-200 text-sm ${
+                  className={`w-full h-11 px-4 py-2 leading-5 bg-[#F8FAFC] border rounded-lg appearance-none transition-all duration-200 text-sm ${
                     fieldErrors.role
                       ? "border-[#DC2626] ring-2 ring-[#DC2626]/20"
                       :
@@ -224,7 +224,7 @@ export const TalentTrackLogin: React.FC<
                 onFocus={() => setFocusedField("email")}
                 onBlur={() => setFocusedField(null)}
                 placeholder="your.email@unc.edu.ph"
-                className={`w-full h-11 px-4 bg-[#F8FAFC] border rounded-lg transition-all duration-200 text-sm placeholder:italic placeholder:text-[#CBD5E1] ${
+                className={`w-full h-11 px-4 py-2 leading-5 bg-[#F8FAFC] border rounded-lg transition-all duration-200 text-sm placeholder:italic placeholder:text-[#CBD5E1] ${
                   fieldErrors.email
                     ? "border-[#DC2626] ring-2 ring-[#DC2626]/20"
                     :
@@ -259,7 +259,7 @@ export const TalentTrackLogin: React.FC<
                   onBlur={() => setFocusedField(null)}
                   placeholder="Enter your password"
                   autoComplete="current-password"
-                  className={`w-full h-11 px-4 pr-12 bg-[#F8FAFC] border rounded-lg transition-all duration-200 text-sm placeholder:text-[#CBD5E1] ${
+                  className={`w-full h-11 px-4 py-2 pr-12 leading-5 bg-[#F8FAFC] border rounded-lg transition-all duration-200 text-sm placeholder:text-[#CBD5E1] ${
                     fieldErrors.password
                       ? "border-[#DC2626] ring-2 ring-[#DC2626]/20"
                       :

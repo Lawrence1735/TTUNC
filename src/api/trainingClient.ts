@@ -7,6 +7,7 @@ export interface Trainee {
     id: number;
     name: string;
     email: string;
+    role?: string;
   };
   completion_rate: number;
   current_status: 'active' | 'inactive' | 'completed' | 'dropped';
@@ -32,7 +33,8 @@ export interface TraineeResponse {
 
 export interface AttendanceRecordApi {
   id: number;
-  trainee_id: number;
+  trainee_id?: number | null;
+  user_id?: number | null;
   session_date: string;
   status: 'present' | 'absent' | 'excused';
   no_practice: boolean;
@@ -46,15 +48,23 @@ export interface AttendanceRecordApi {
       email: string;
     };
   };
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+  };
 }
 
 export class TrainingClient {
   /**
    * Fetch all trainees
    */
-  async getTrainees(): Promise<Trainee[]> {
+  async getTrainees(options?: { includeScholars?: boolean }): Promise<Trainee[]> {
     try {
-      const response = await apiClient.get('training/trainees');
+      const params = new URLSearchParams();
+      if (options?.includeScholars) params.append('include_scholars', '1');
+
+      const response = await apiClient.get('training/trainees', { params });
       const data = response.data?.data || response.data || [];
       return Array.isArray(data) ? data : [];
     } catch (err: any) {
@@ -134,7 +144,7 @@ export class TrainingClient {
   async upsertAttendanceSession(data: {
     session_date: string;
     no_practice?: boolean;
-    records: Array<{ trainee_id: number; attended: boolean }>;
+    records: Array<{ trainee_id?: number; user_id?: number; status: 'present' | 'absent' | 'excused' }>;
   }): Promise<any> {
     try {
       const response = await apiClient.post('/training/attendance/batch', data);
@@ -144,6 +154,42 @@ export class TrainingClient {
       throw {
         status: err.status,
         message: err.message || 'Failed to save attendance session',
+        data: err.data,
+        errors: err.errors,
+      };
+    }
+  }
+
+  /**
+   * Delete all attendance records for one session date
+   */
+  async deleteAttendanceSession(sessionDate: string): Promise<any> {
+    try {
+      const response = await apiClient.delete(`/training/attendance/session/${sessionDate}`);
+      return response.data?.data || response.data;
+    } catch (err: any) {
+      console.error('Failed to delete attendance session:', err);
+      throw {
+        status: err.status,
+        message: err.message || 'Failed to delete attendance session',
+        data: err.data,
+        errors: err.errors,
+      };
+    }
+  }
+
+  /**
+   * Clear all attendance records visible to current user scope
+   */
+  async clearAttendance(): Promise<any> {
+    try {
+      const response = await apiClient.delete('/training/attendance');
+      return response.data?.data || response.data;
+    } catch (err: any) {
+      console.error('Failed to clear attendance:', err);
+      throw {
+        status: err.status,
+        message: err.message || 'Failed to clear attendance',
         data: err.data,
         errors: err.errors,
       };
@@ -182,6 +228,22 @@ export class TrainingClient {
         message: err.message || `Failed to update evaluation ${evaluationId}`,
         data: err.data,
         errors: err.errors,
+      };
+    }
+  }
+
+  /**
+   * Promote a trainee to scholar after passing their final evaluation
+   */
+  async promoteTrainee(traineeId: number): Promise<{ message: string; user: any }> {
+    try {
+      const response = await apiClient.post(`/training/trainees/${traineeId}/promote`);
+      return response.data;
+    } catch (err: any) {
+      console.error(`Failed to promote trainee ${traineeId}:`, err);
+      throw {
+        status: err.response?.status,
+        message: err.message || `Failed to promote trainee ${traineeId}`,
       };
     }
   }

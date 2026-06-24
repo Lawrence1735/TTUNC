@@ -21,7 +21,7 @@ import {
 } from './PhilippineAddressData';
 
 interface PublicApplicationFormProps {
-  onSubmit: (applicationData: ApplicationFormData) => void;
+  onSubmit: (applicationData: ApplicationFormData) => Promise<any> | any;
   onBack: () => void;
   talentGroup: string;
   onSelectGroup?: (group: string) => void;
@@ -732,6 +732,7 @@ function AddressBlock({
               placeholder={city ? 'Type barangay' : 'Select city first'}
               value={barangay}
               onChange={(e) => onChange(field('Barangay'), capitalizeWords(e.target.value))}
+              required
               aria-required="true"
               disabled={!city}
             />
@@ -756,6 +757,7 @@ function AddressBlock({
           placeholder="House no., street name, etc." 
           value={street}
           onChange={(e) => onChange(field('Street'), capitalizeWords(e.target.value))}
+          required
           aria-required="true"
         />
         {shouldShowError('Street') && (
@@ -1008,9 +1010,9 @@ export function PublicApplicationForm({
 
     setIsSubmitting(true);
     try {
-      await onSubmit(formData);
-      const assignedId = 'APP-' + Math.floor(100000 + Math.random() * 900000);
-      setApplicationId(assignedId);
+      const response = await onSubmit(formData) as any;
+      const backendId = response?.id || response?.data?.id;
+      setApplicationId(backendId ? String(backendId) : 'Submitted');
       setSubmissionSuccess(true);
     } catch (error: any) {
       console.error('Submission failed:', error);
@@ -1166,6 +1168,7 @@ export function PublicApplicationForm({
                       value={formData.firstName}
                       onChange={(e) => setFormData({...formData, firstName: capitalizeWords(e.target.value)})}
                       onBlur={() => handleBlur('firstName')}
+                      required
                       aria-required="true"
                     />
                     {touched.firstName && errors.firstName && (
@@ -1200,6 +1203,7 @@ export function PublicApplicationForm({
                       value={formData.lastName}
                       onChange={(e) => setFormData({...formData, lastName: capitalizeWords(e.target.value)})}
                       onBlur={() => handleBlur('lastName')}
+                      required
                       aria-required="true"
                     />
                     {touched.lastName && errors.lastName && (
@@ -1228,6 +1232,7 @@ export function PublicApplicationForm({
                         setFormData(prev => ({...prev, birthdate: bd, age}));
                       }}
                       onBlur={() => handleBlur('birthdate')}
+                      required
                       aria-required="true"
                       style={{ colorScheme: 'light' }}
                     />
@@ -1359,6 +1364,8 @@ export function PublicApplicationForm({
                   onCountryCodeChange={(v) => setMobileCC(v)}
                   error={errors.mobileNo}
                   touched={touched.mobileNo}
+                  required
+                  aria-required="true"
                 />
               </div>
 
@@ -1377,6 +1384,7 @@ export function PublicApplicationForm({
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
                   onBlur={() => handleBlur('email')}
+                  required
                   aria-required="true"
                 />
                 {touched.email && errors.email && (
@@ -1569,6 +1577,7 @@ export function PublicApplicationForm({
                   value={formData.guardianLastName}
                   onChange={(e) => setFormData({...formData, guardianLastName: capitalizeWords(e.target.value)})}
                   onBlur={() => handleBlur('guardianLastName')}
+                  required
                   aria-required="true"
                 />
                 {touched.guardianLastName && errors.guardianLastName && (
@@ -1591,6 +1600,7 @@ export function PublicApplicationForm({
                   value={formData.guardianFirstName}
                   onChange={(e) => setFormData({...formData, guardianFirstName: capitalizeWords(e.target.value)})}
                   onBlur={() => handleBlur('guardianFirstName')}
+                  required
                   aria-required="true"
                 />
                 {touched.guardianFirstName && errors.guardianFirstName && (
@@ -1664,6 +1674,8 @@ export function PublicApplicationForm({
                   onCountryCodeChange={(v) => setGuardianCC(v)}
                   error={errors.guardianContactNo}
                   touched={touched.guardianContactNo}
+                  required
+                  aria-required="true"
                 />
               </div>
             </div>

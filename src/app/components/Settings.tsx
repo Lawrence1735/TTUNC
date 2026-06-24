@@ -63,7 +63,6 @@ import {
 } from "./ui/dropdown-menu";
 import { toast } from "sonner";
 import type { User as UserType } from "../App";
-import uncLogo from "figma:asset/eef587e99e62123e5e21920dbfa354179bbf6b55.png";
 import { getTalentGroupName } from "./ui/unc-colors";
 
 interface SettingsProps {
@@ -130,6 +129,8 @@ export function Settings({
     useState(false);
 
   const isDirector = user.role === "director";
+  const isAdmin = user.role === "admin";
+  const showAdministration = isDirector;
 
   // Get deactivated users - directors only see their own talent group
   const deactivatedUsers = allUsers.filter((u) => {
@@ -276,143 +277,120 @@ export function Settings({
 
   return (
     <div className="min-h-screen bg-[#F7F8FA]">
-      {/* Custom Header matching other dashboards */}
-      <header className="bg-white border-b shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between py-4">
-            {/* Left Section - Logo and Title */}
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <img
-                  src={uncLogo}
-                  alt="UNC Logo"
-                  className="w-12 h-12 object-contain"
-                />
-                <div>
-                  <h1 className="unc-burgundy-text">
-                    TalentTrackUNC
-                  </h1>
-                  <p className="text-xs text-muted-foreground">
-                    {user.role === "admin"
-                      ? "Admin Dashboard"
-                      : user.role === "director"
-                        ? "Director Dashboard"
+      {/* Header */}
+      <header className="h-20 bg-white border-b border-[#E2E8F0] sticky top-0 z-50 flex items-center" role="banner">
+        <div className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px] flex items-center justify-between">
+          {/* Left: branding */}
+          <div className="flex items-center gap-3">
+            <div>
+              <div className="text-xl leading-tight">
+                <span className="font-bold text-[#0F172A]">Talent</span>
+                <span className="text-[#0F172A]">Track</span>
+                <span className="font-bold text-[#7A1E1E]">UNC</span>
+              </div>
+              <p className="text-xs text-[#64748B] leading-none mt-0.5">
+                {user.role === "admin"
+                  ? "Admin Dashboard"
+                  : user.role === "director"
+                    ? "Director Dashboard"
+                    : user.role === "trainee" || user.trainingStatus === "in_progress"
+                      ? "Trainee Dashboard"
+                      : user.role === "student"
+                        ? "Student Dashboard"
+                        : "Scholar Dashboard"}
+              </p>
+            </div>
+          </div>
+
+          {/* Right Section */}
+          <div className="flex items-center gap-3">
+            {/* Notifications */}
+            {onNotificationsClick && (
+              <button
+                className="relative h-9 w-9 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] hover:text-[#7A1E1E] hover:border-[#7A1E1E] transition-colors duration-150 flex items-center justify-center"
+                onClick={onNotificationsClick}
+                aria-label={
+                  unreadNotifications > 0
+                    ? `Notifications — ${unreadNotifications} unread`
+                    : 'Notifications — no unread'
+                }
+              >
+                <Bell className="w-4 h-4" aria-hidden="true" />
+                {unreadNotifications > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center rounded-full bg-[#7A1E1E] text-white text-[9px] font-bold" aria-hidden="true">
+                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* User Info */}
+            <div className="hidden md:flex items-center gap-2.5 pl-3 border-l border-[#E2E8F0]">
+              <div className="w-8 h-8 rounded-full bg-[#F9EAEA] border border-[#7A1E1E]/20 flex items-center justify-center flex-shrink-0">
+                <User className="w-4 h-4 text-[#7A1E1E]" aria-hidden="true" />
+              </div>
+              <div className="text-right">
+                <p className="text-[13px] font-semibold text-[#0F172A] leading-tight">{user.name}</p>
+                <p className="text-[11px] text-[#64748B] leading-none mt-0.5">
+                  {user.role === "director"
+                    ? (user.talentGroup ? getTalentGroupName(user.talentGroup) : "Director")
+                    : user.role === "admin"
+                      ? "Admin"
+                      : user.role === "scholar"
+                        ? "Scholar"
                         : user.role === "trainee" || user.trainingStatus === "in_progress"
-                          ? "Trainee Dashboard"
-                          : user.role === "student"
-                            ? "Student Dashboard"
-                            : "Scholar Dashboard"}
-                  </p>
-                </div>
+                          ? "Trainee"
+                          : "Student"}
+                </p>
               </div>
             </div>
 
-            {/* Right Section - User Info and Actions */}
-            <div className="flex items-center space-x-4">
-              {/* Notifications */}
-              {onNotificationsClick && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="relative min-h-[44px] min-w-[44px]"
-                  onClick={onNotificationsClick}
-                  aria-label={
-                    unreadNotifications > 0
-                      ? `Notifications — ${unreadNotifications} unread`
-                      : 'Notifications — no unread'
-                  }
+            {/* Settings Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex items-center gap-1.5 border border-[#7A1E1E] rounded-lg px-3 py-1.5 text-sm font-medium text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors duration-200"
+                  aria-label="Open settings menu"
                 >
-                  <Bell className="w-5 h-5" aria-hidden="true" />
-                  {unreadNotifications > 0 && (
-                    <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-[#7A1E1E] text-white text-xs" aria-hidden="true">
-                      {unreadNotifications}
-                    </Badge>
-                  )}
-                </Button>
-              )}
-
-              {/* User Info */}
-              <div className="hidden md:block text-right">
-                <p className="text-sm font-medium text-[16px] text-[rgb(122,30,30)]">{user.name}</p>
-                <div className="flex items-center justify-end space-x-2">
-                  {user.role === "admin" && (
-                    <Badge className="bg-[#6c757d] text-white">Admin</Badge>
-                  )}
-                  {user.role === "director" && user.talentGroup && (
-                    <Badge className="bg-[#7A1E1E] text-white">
-                      {getTalentGroupName(user.talentGroup)}
-                    </Badge>
-                  )}
-                  {user.role === "scholar" && user.talentGroup && user.trainingStatus !== "in_progress" && (
-                    <>
-                      <Badge className="bg-[#7A1E1E] text-white">
-                        {getTalentGroupName(user.talentGroup)}
-                      </Badge>
-                      {user.studentId && (
-                        <span className="text-xs text-muted-foreground">{user.studentId}</span>
-                      )}
-                    </>
-                  )}
-                  {(user.role === "trainee" || user.trainingStatus === "in_progress") && user.talentGroup && (
-                    <Badge className="bg-[#7A1E1E] text-white">
-                      {getTalentGroupName(user.talentGroup)}
-                    </Badge>
-                  )}
-                  {user.role === "student" && !user.talentGroup && user.email && (
-                    <span className="text-xs text-muted-foreground">{user.email}</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Settings Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-[#7A1E1E] text-[#7A1E1E] hover:bg-[#7A1E1E] hover:text-white transition-colors min-h-[44px]"
-                    aria-label="Open settings menu"
-                  >
-                    <SettingsIcon className="w-4 h-4 mr-2" aria-hidden="true" />
-                    <span className="hidden sm:inline">Settings</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-56"
-                >
-                  <DropdownMenuLabel>
-                    My Account
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {onNavigateBack && (
-                    <>
-                      <DropdownMenuItem
-                        onClick={onNavigateBack}
-                      >
-                        <User className="w-4 h-4 mr-2" />
-                        Back to Dashboard
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                    </>
-                  )}
-                  <DropdownMenuItem
-                    onClick={() => setShowLogoutConfirmation(true)}
-                    variant="destructive"
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Logout
+                  <SettingsIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span className="hidden sm:inline">Settings</span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Settings</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setActiveTab('account')}>
+                  <User className="w-4 h-4 mr-2" aria-hidden="true" />Account Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setActiveTab('security')}>
+                  <Lock className="w-4 h-4 mr-2" aria-hidden="true" />Security
+                </DropdownMenuItem>
+                {showAdministration && (
+                  <DropdownMenuItem onClick={() => setActiveTab('administration')}>
+                    <Shield className="w-4 h-4 mr-2" aria-hidden="true" />Administration
                   </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                )}
+                <DropdownMenuSeparator />
+                {onNavigateBack && (
+                  <DropdownMenuItem onClick={onNavigateBack}>
+                    <User className="w-4 h-4 mr-2" aria-hidden="true" />Back to Dashboard
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onClick={() => setShowLogoutConfirmation(true)}
+                  variant="destructive"
+                >
+                  <LogOut className="w-4 h-4 mr-2" aria-hidden="true" />Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="w-full max-w-[1440px] mx-auto px-4 md:px-[70px] py-8">
         <div className="mb-6">
-          <h1 className="text-[#1A1A1A] text-[28px] leading-[36px] font-bold text-[#7A1E1E]">
+          <h1 className="text-[28px] leading-[36px] font-bold text-[#7A1E1E]">
             Settings
           </h1>
           <p className="text-[#6C757D] text-[14px] leading-[20px] mt-1">
@@ -441,7 +419,7 @@ export function Settings({
               <Lock className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Security</span>
             </TabsTrigger>
-            {isDirector && (
+            {showAdministration && (
               <TabsTrigger
                 value="administration"
                 className="data-[state=active]:bg-[#7A1E1E] data-[state=active]:text-white px-3 sm:px-4 py-2 shrink-0 whitespace-nowrap"
@@ -696,8 +674,8 @@ export function Settings({
             </Card>
           </TabsContent>
 
-          {/* Administration Section - Director Only */}
-          {isDirector && (
+          {/* Administration Section - Director & Admin */}
+          {showAdministration && (
             <TabsContent value="administration">
               {/* Deactivated Members Management */}
               <Card className="border-[#E0E0E0]">
